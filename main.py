@@ -2,7 +2,7 @@ import sys
 import pandas as pd
 from tree_construction.construct_tree import load_species_data, approximate_distance_matrix, construct_tree
 from tree_construction.display_tree import display_tree
-from analysis.analyze_genomes import load_blast_data, create_correlation_matrix, create_similarity_matrix, run_heatmap_app
+from analysis.analyze_genomes import load_blast_data, create_correlation_matrix, create_similarity_matrix, run_heatmap_app, find_true_positives, utilize_mcl_onNxN
 from visualization.display_correlation import display_species_domain_heatmap
 from visualization.display_species_correlation import display_heatmap_speciesxspecies
 from machine_learning.clustering import clustering,clustering_get_groups
@@ -34,7 +34,8 @@ def main():
     elif command == "--analyze":
         protein_domain_path = "data/Sequences-218-annot.Query.blastp"
         create_correlation_matrix(protein_domain_path)
-        create_similarity_matrix(load_blast_data(protein_domain_path))
+        # create_similarity_matrix(load_blast_data(protein_domain_path))
+        utilize_mcl_onNxN(find_true_positives("output/correlation_matrix.csv"))
     elif command == "--display_cor":
         display_species_domain_heatmap("output/correlation_matrix.csv")    
     elif command == "--display_heatmap_spxsp":
