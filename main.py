@@ -1,9 +1,8 @@
-# main.py
 import sys
 import pandas as pd
 from tree_construction.construct_tree import load_species_data, approximate_distance_matrix, construct_tree
 from tree_construction.display_tree import display_tree
-from analysis.analyze_genomes import load_blast_data, create_correlation_matrix, create_similarity_matrix
+from analysis.analyze_genomes import load_blast_data, create_correlation_matrix, create_similarity_matrix, run_heatmap_app
 from visualization.display_correlation import display_species_domain_heatmap
 from visualization.display_species_correlation import display_heatmap_speciesxspecies
 from machine_learning.clustering import clustering,clustering_get_groups
@@ -12,7 +11,6 @@ from machine_learning.dimensionality_reduction import dimensionality_reduction
 from machine_learning.feature_engineering import feature_engineering
 from machine_learning.data_loading import load_data
 from orthology.ortho import generate_orthoxml, visualize_orthologs_multiple_layouts
-from analysis.run_heatmap_page import run_heatmap_app
 
 
 def main():
@@ -28,7 +26,7 @@ def main():
         representative_species, lower_triangle_matrix = approximate_distance_matrix(species_df)
         construct_tree(representative_species, lower_triangle_matrix)
     elif command == "--display_tree":
-        depth = int(sys.argv[2]) if len(sys.argv) > 2 else 128  # Default to 4 if no depth specified
+        depth = int(sys.argv[2]) if len(sys.argv) > 2 else 64  # Default to 4 if no depth specified
         display_tree("output/species_tree_approx.nw",max_depth=depth)
     elif command == "--display_heatmap_spxdm":
         blast_file_path = "data/Sequences-218-annot.Query.blastp"
