@@ -1,7 +1,45 @@
 import plotly.graph_objects as go
 from dash import Dash, dcc, html
 import pdb
-from analyze_genomes import create_correlation_matrix
+import pandas as pd
+
+def create_correlation_matrix(blast_file_path, output_path="output/correlation_matrix.csv"):
+    """
+    Parse the BLAST file and create a matrix where rows are species and columns are domains.
+
+    Parameters:
+    - blast_file_path (str): Path to the BLAST file.
+
+    Returns:
+    - pd.DataFrame: A DataFrame with species as rows and domains as columns.
+    """
+    # Read the BLAST file
+    blast_df = pd.read_csv(
+        blast_file_path,
+        sep='\t',
+        header=None,
+        names=['QueryID', 'SubjectID', 'PercentIdentity', 'AlignmentLength', 'Mismatches', 'GapOpens',
+               'QueryStart', 'QueryEnd', 'SubjectStart', 'SubjectEnd', 'EValue', 'BitScore']
+    )
+
+    # Extract species and domains
+    blast_df['Domain'] = blast_df['QueryID']
+    blast_df['Species'] = blast_df['SubjectID'].str.split('-').str[2]
+    
+
+    # Pivot to create a matrix with species as rows and domains as columns
+    heatmap_data = pd.pivot_table(
+        blast_df,
+        index='Species',
+        columns='Domain',
+        aggfunc='size',  # Count occurrences
+        fill_value=0      # Fill absence with 0
+    )
+    # Calculate the correlation matrix
+    heatmap_data.to_csv(output_path)
+    print(f"Correlation matrix saved to {output_path}")
+    
+    return heatmap_data
 
 
 def create_species_domain_heatmap(matrix):
