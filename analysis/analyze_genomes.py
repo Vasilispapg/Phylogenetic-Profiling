@@ -1,6 +1,7 @@
 import pandas as pd
 from dash import Dash, dcc, html
 import plotly.graph_objects as go
+import pdb
 
 def load_blast_data(protein_domain_path):
     blast_df = pd.read_csv(protein_domain_path, sep='\t', header=None,
@@ -8,6 +9,15 @@ def load_blast_data(protein_domain_path):
                            names=['QueryID', 'SubjectID', 'PercentIdentity', 'EValue'])
     blast_df['SpeciesCode'] = blast_df['SubjectID'].str.split('-').str[2]
     return blast_df[['QueryID', 'SpeciesCode', 'PercentIdentity', 'EValue']]
+
+def extract_species(subject_id):
+    # Split the string by a common delimiter (e.g., '-')
+    parts = subject_id.split('-')
+    # Recombine parts up to the segment containing the numeric sequence
+    for i, part in enumerate(parts):
+        if any(char.isdigit() for char in part):  # Stop at the first part containing digits
+            return '-'.join(parts[:4])
+    return subject_id  # Fallback: return the original string if no digits found
 
 def create_correlation_matrix(blast_file_path, output_path="output/correlation_matrix.csv"):
     """
@@ -19,6 +29,7 @@ def create_correlation_matrix(blast_file_path, output_path="output/correlation_m
     Returns:
     - pd.DataFrame: A DataFrame with species as rows and domains as columns.
     """
+
     # Read the BLAST file
     blast_df = pd.read_csv(
         blast_file_path,
@@ -27,12 +38,10 @@ def create_correlation_matrix(blast_file_path, output_path="output/correlation_m
         names=['QueryID', 'SubjectID', 'PercentIdentity', 'AlignmentLength', 'Mismatches', 'GapOpens',
                'QueryStart', 'QueryEnd', 'SubjectStart', 'SubjectEnd', 'EValue', 'BitScore']
     )
-
     # Extract species and domains
     blast_df['Domain'] = blast_df['QueryID']
-    blast_df['Species'] = blast_df['SubjectID'].str.split('-').str[2]
-    
-
+    # Apply the extraction logic to the 'SubjectID' column
+    blast_df['Species'] = blast_df['SubjectID'].apply(extract_species)
     # Pivot to create a matrix with species as rows and domains as columns
     heatmap_data = pd.pivot_table(
         blast_df,
@@ -99,6 +108,14 @@ def run_heatmap_app(blast_file_path):
 
     # Run the Dash app
     app.run_server(debug=True)
+    
+def find_true_positives(corr_matrix_path):
+    
+    # Load the correlation matrix
+    corr_matrix = pd.read_csv(corr_matrix_path, index_col=0)
+    
+    
+    return
     
 def create_similarity_matrix(blast_df, output_path="output/domain_similarity_matrix.csv"):
     # Pivot to create a matrix where rows are species, columns are queries, and values are percent identity
