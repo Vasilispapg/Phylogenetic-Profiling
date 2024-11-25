@@ -144,7 +144,6 @@ def find_true_positives(corr_matrix_path):
     return true_positives
 
 def utilize_mcl_onNxN(true_positives):
-    
     # Step 2: Create a graph
     graph = nx.Graph()
     graph.add_edges_from(true_positives)
@@ -155,52 +154,22 @@ def utilize_mcl_onNxN(true_positives):
     # Ensure the matrix is in CSR format
     adj_matrix = csr_matrix(adj_matrix)
 
-    # Debugging: Print matrix details
-    # print("Adjacency Matrix Shape:", adj_matrix.shape)
-    # print("Non-zero Elements:", adj_matrix.nnz)
-
-    # Check dense matrix for small examples
-    # if adj_matrix.shape[0] <= 10:
-        # print("Adjacency Matrix (Dense):", adj_matrix.todense())
-
-    # Try running MCL
-    try:
-        result = mc.run_mcl(adj_matrix, inflation=1.5)  # Adjust inflation as needed
-    except Exception as e:
-        print(f"Error during MCL: {e}")
-        print("Converting to dense matrix for debugging...")
-        # Convert to dense and re-run for debugging
-        dense_adj_matrix = adj_matrix.todense()
-        result = mc.run_mcl(dense_adj_matrix, inflation=1.5)  # Try with dense matrix
-
-    # Extract clusters
+    # Run MCL
+    result = mc.run_mcl(adj_matrix, inflation=1.5)
     clusters = mc.get_clusters(result)
-    # print("Clusters:", clusters)
+    print("Clusters:", clusters)
 
-    # Step 6: Convert result into an all-vs-all matrix
-    # Rebuild the adjacency matrix based on clustering
+    # Rebuild the all-vs-all matrix based on clustering
     nodes = list(graph.nodes())
-
-    # Initialize an all-vs-all matrix with zeros
     all_vs_all_matrix = np.zeros((len(nodes), len(nodes)))
-
-    # Fill in the matrix based on clusters
     for cluster in clusters:
         for i in cluster:
             for j in cluster:
-                all_vs_all_matrix[i, j] = 1 
-                
-    # Convert to a pandas DataFrame for better readability
-    all_vs_all_df = pd.DataFrame(
-        all_vs_all_matrix,
-        index=nodes,
-        columns=nodes
-    )
+                all_vs_all_matrix[i, j] = 1
 
-    # Save the matrix to a CSV file (optional)
-    all_vs_all_df.to_csv("all_vs_all_matrix.csv")
-    # print("All-vs-All Matrix:\n", all_vs_all_df)
-    
+    # Create a pandas DataFrame for the all-vs-all matrix
+    all_vs_all_df = pd.DataFrame(all_vs_all_matrix, index=nodes, columns=nodes)
+
     # Graph positions for visualization
     pos = nx.spring_layout(graph)
 
@@ -216,7 +185,14 @@ def utilize_mcl_onNxN(true_positives):
         labels={"x": "Nodes", "y": "Nodes", "color": "Similarity"},
         title="All-vs-All Clustering Matrix"
     )
-    heatmap_fig.update_xaxes(tickangle=45)
+    heatmap_fig.update_layout(
+        autosize=True,
+        height=1200,
+        margin=dict(l=50, r=50, t=100, b=50),
+        xaxis=dict(tickangle=45, automargin=True),
+        yaxis=dict(automargin=True),
+        coloraxis_colorbar=dict(title="Cluster Similarity", len=0.75)
+    )
 
     # Graph visualization with clusters
     cluster_colors = {node: i for i, cluster in enumerate(clusters) for node in cluster}
@@ -239,7 +215,7 @@ def utilize_mcl_onNxN(true_positives):
         y=[pos[node][1] for node in graph.nodes()],
         mode="markers+text",
         marker=dict(
-            size=10,
+            size=12,
             color=node_colors,
             colorscale="Viridis",
             showscale=True
@@ -251,23 +227,27 @@ def utilize_mcl_onNxN(true_positives):
     graph_fig = go.Figure(data=[edge_trace, node_trace])
     graph_fig.update_layout(
         title="Graph Visualization with Clusters",
+        height=800,
         showlegend=False,
         xaxis=dict(showgrid=False, zeroline=False),
-        yaxis=dict(showgrid=False, zeroline=False)
+        yaxis=dict(showgrid=False, zeroline=False),
+        margin=dict(l=50, r=50, t=100, b=50)
     )
 
     # Dash layout
     app.layout = html.Div([
-        html.H1("Markov Clustering Visualization", style={"textAlign": "center"}),
-        html.Div([
-            dcc.Graph(figure=heatmap_fig, style={"width": "48%", "display": "inline-block"}),
-            dcc.Graph(figure=graph_fig, style={"width": "48%", "display": "inline-block"}),
-        ])
+        html.H1("Markov Clustering Visualization", style={"textAlign": "center", "marginBottom": "30px"}),
+        html.Div(
+            dcc.Graph(figure=heatmap_fig, style={"width": "100%", "display": "block"}),
+            style={"marginBottom": "50px"}
+        ),
+        html.Div(
+            dcc.Graph(figure=graph_fig, style={"width": "100%", "display": "block"})
+        )
     ])
 
     # Run the Dash app
-    app.run_server(debug=True, port=8050)
-    
+    app.run_server(debug=True, port=8050)  
     
 def create_similarity_matrix(blast_df, output_path="output/domain_similarity_matrix.csv"):
     # Pivot to create a matrix where rows are species, columns are queries, and values are percent identity
