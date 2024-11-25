@@ -26,7 +26,7 @@ def extract_species(subject_id):
             return '-'.join(parts[:4])
     return subject_id  # Fallback: return the original string if no digits found
 
-def create_correlation_matrix(blast_file_path, output_path="output/correlation_matrix.csv"):
+def create_correlation_matrix(blast_file_path, output_path="output/correlation_matrix.csv",using_pi=True):
     """
     Parse the BLAST file and create a matrix where rows are species and columns are domains.
 
@@ -50,14 +50,27 @@ def create_correlation_matrix(blast_file_path, output_path="output/correlation_m
     # Apply the extraction logic to the 'SubjectID' column
     blast_df['Species'] = blast_df['SubjectID'].apply(extract_species)
     # Pivot to create a matrix with species as rows and domains as columns
-    heatmap_data = pd.pivot_table(
-        blast_df,
-        index='Species',
-        columns='Domain',
-        aggfunc='size',  # Count occurrences
-        fill_value=0      # Fill absence with 0
-    )
+    
+    if(using_pi):
+        heatmap_data = pd.pivot_table(
+            blast_df,
+            index='Species',
+            columns='Domain',
+            values='PercentIdentity',
+            aggfunc='mean',  # Calculate the mean percent identity
+            fill_value=0      # Fill absence with 0
+        )
+    else:
+        heatmap_data = pd.pivot_table(
+            blast_df,
+            index='Species',
+            columns='Domain',
+            aggfunc='size',  # Count occurrences
+            fill_value=0      # Fill absence with 0
+        )
     # Calculate the correlation matrix
+    if(using_pi):
+        output_path = output_path.replace(".csv","_pi.csv")
     heatmap_data.to_csv(output_path)
     print(f"Correlation matrix saved to {output_path}")
     return heatmap_data

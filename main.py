@@ -35,7 +35,7 @@ def main():
         protein_domain_path = "data/Sequences-218-annot.Query.blastp"
         create_correlation_matrix(protein_domain_path)
         # create_similarity_matrix(load_blast_data(protein_domain_path))
-        utilize_mcl_onNxN(find_true_positives("output/correlation_matrix.csv"))
+        utilize_mcl_onNxN(find_true_positives("output/correlation_matrix_pi.csv"))
     elif command == "--display_cor":
         display_species_domain_heatmap("output/correlation_matrix.csv")    
     elif command == "--display_heatmap_spxsp":
