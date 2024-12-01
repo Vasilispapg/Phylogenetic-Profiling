@@ -1,0 +1,36 @@
+# Ignore temporary files
+temp
+*.tmp
+*.temp
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore virtual environments
+venv/
+env/
+
+# Ignore log files and databases
+*.log
+*.sqlite3
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore specific output directories
+output/
+build/
+dist/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+*.bak
+*.swp
+*.swo
+
+# Specific exclusion
+!important_file.txt
