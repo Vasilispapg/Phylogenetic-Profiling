@@ -2,8 +2,8 @@ import sys
 import pandas as pd
 from tree_construction.construct_tree import load_species_data, approximate_distance_matrix, construct_tree
 from tree_construction.display_tree import display_tree
-from analysis.analyze_genomes import load_blast_data, create_correlation_matrix, create_similarity_matrix, run_heatmap_app, find_true_positives, utilize_mcl_onNxN
-from visualization.display_correlation import display_species_domain_heatmap
+from analysis.analyze_genomes import load_blast_data, create_correlation_matrix, create_feature_matrix, run_heatmap_app, find_true_positives, utilize_mcl_onNxN
+from visualization.display_correlation import display_species_domain_heatmap,display_species_domain_heatmap_with_features
 from visualization.display_species_correlation import display_heatmap_speciesxspecies
 from machine_learning.clustering import clustering,clustering_get_groups
 from machine_learning.anomaly_detection import anomaly_detection
@@ -34,17 +34,20 @@ def main():
     elif command == "--analyze":
         protein_domain_path = "data/Sequences-218-annot.Query.blastp"
         create_correlation_matrix(protein_domain_path)
+        create_feature_matrix(protein_domain_path)
         # create_similarity_matrix(load_blast_data(protein_domain_path))
-        utilize_mcl_onNxN(find_true_positives("output/correlation_matrix_pi.csv"))
+        # utilize_mcl_onNxN(find_true_positives("output/correlation_matrix.csv"))
     elif command == "--display_cor":
-        display_species_domain_heatmap("output/correlation_matrix.csv")    
+        display_species_domain_heatmap("output/correlation_matrix.csv") 
+    elif command == '--display_cor_features':
+        display_species_domain_heatmap_with_features("output/feature_matrix.csv")   
     elif command == "--display_heatmap_spxsp":
         display_heatmap_speciesxspecies("output/correlation_matrix.csv")
         display_heatmap_speciesxspecies("output/domain_correlation_matrix.csv")
     elif command == "--ml":
-        correlation_matrix = load_data("output/domain_correlation_matrix.csv")
+        correlation_matrix = load_data("output/correlation_matrix.csv")
         # Perform Clustering
-        cluster_labels = clustering(correlation_matrix=correlation_matrix,n_clusters=9)
+        cluster_labels = clustering(correlation_matrix=correlation_matrix,n_clusters=3)
         # Perform Dimensionality Reduction
         reduced_data = dimensionality_reduction(correlation_matrix)
 

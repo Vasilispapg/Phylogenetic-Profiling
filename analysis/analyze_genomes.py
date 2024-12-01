@@ -9,6 +9,8 @@ from scipy.sparse import csr_matrix
 from dash import Dash, dcc, html
 import plotly.graph_objects as go
 import plotly.express as px
+import json
+
 
 def load_blast_data(protein_domain_path):
     blast_df = pd.read_csv(protein_domain_path, sep='\t', header=None,
@@ -74,6 +76,87 @@ def create_correlation_matrix(blast_file_path, output_path="output/correlation_m
     heatmap_data.to_csv(output_path)
     print(f"Correlation matrix saved to {output_path}")
     return heatmap_data
+
+def create_feature_matrix(blast_file_path, output_path="output/feature_matrix.csv"):
+    """
+    Parse the BLAST file and create a feature matrix where rows are species and columns are domains.
+    Each cell contains a JSON-like structure of features:
+    - Mean Percent Identity
+    - Number of Hits
+    - Mean E-Value
+    - Mean Alignment Length
+    - Mean BitScore
+    - Max BitScore
+
+    Parameters:
+    - blast_file_path (str): Path to the BLAST file.
+    - output_path (str): Path to save the feature matrix.
+
+    Returns:
+    - pd.DataFrame: A DataFrame with species as rows, domains as columns, and JSON feature vectors as cell values.
+    """
+    try:
+        # Read the BLAST file
+        blast_df = pd.read_csv(
+            blast_file_path,
+            sep='\t',
+            header=None,
+            names=['QueryID', 'SubjectID', 'PercentIdentity', 'AlignmentLength', 'Mismatches', 'GapOpens',
+                   'QueryStart', 'QueryEnd', 'SubjectStart', 'SubjectEnd', 'EValue', 'BitScore']
+        )
+        
+        # Extract species and domains
+        blast_df['Domain'] = blast_df['QueryID']
+        blast_df['Species'] = blast_df['SubjectID'].apply(extract_species)  # Assuming extract_species is defined
+        
+        # Group data by species and domain
+        grouped = blast_df.groupby(['Species', 'Domain'])
+        
+        # Calculate required features
+        feature_data = grouped.agg(
+            mean_percent_identity=('PercentIdentity', 'mean'),
+            num_hits=('PercentIdentity', 'count'),
+            mean_evalue=('EValue', 'mean'),
+            mean_alignment_length=('AlignmentLength', 'mean'),
+            mean_bitscore=('BitScore', 'mean'),
+            max_bitscore=('BitScore', 'max')
+        ).reset_index()
+        
+        # Create the JSON-like vector column
+        feature_data['FeatureVector'] = feature_data.apply(
+            lambda row: json.dumps({
+                "mean_percent_identity": row['mean_percent_identity'],
+                "num_hits": row['num_hits'],
+                "mean_evalue": row['mean_evalue'],
+                "mean_alignment_length": row['mean_alignment_length'],
+                "mean_bitscore": row['mean_bitscore'],
+                "max_bitscore": row['max_bitscore']
+            }), axis=1
+        )
+        
+        # Pivot to create a feature matrix
+        feature_matrix = feature_data.pivot(
+            index='Species', columns='Domain', values='FeatureVector'
+        ).fillna(json.dumps({
+            "mean_percent_identity": 0,
+            "num_hits": 0,
+            "mean_evalue": 0,
+            "mean_alignment_length": 0,
+            "mean_bitscore": 0,
+            "max_bitscore": 0
+        }))  # Fill missing values with a default JSON object
+        
+        # Save the feature matrix as a CSV
+        feature_matrix.reset_index(inplace=True)
+        feature_matrix.to_csv(output_path, index=False)
+        print(f"Feature matrix with JSON vectors saved to {output_path}")
+        
+        return feature_matrix
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
 
 def create_species_domain_heatmap(matrix):
     """
