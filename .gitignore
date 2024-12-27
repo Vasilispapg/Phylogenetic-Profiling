@@ -34,3 +34,5 @@ Thumbs.db
 
 # Specific exclusion
 !important_file.txt
+
+cache

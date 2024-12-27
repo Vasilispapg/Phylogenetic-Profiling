@@ -60,8 +60,6 @@ def display_species_domain_heatmap(correlation_matrix_path="species_domain_count
     # Display the figure
     fig.show()
 
-
-
 def display_species_domain_heatmap_with_features(correlation_matrix_path="species_domain_count_matrix.csv"):
     """
     Display a species × domains heatmap with an interactive dropdown for feature selection and a loading animation.

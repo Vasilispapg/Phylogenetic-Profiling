@@ -1,6 +1,6 @@
 import pandas as pd
 import json
-from .utils import extract_species
+from .utils import extract_species,extract_partial_species
 
 def create_correlation_matrix(blast_file_path, output_path="output/correlation_matrix.csv", using_pi=True):
     """
@@ -33,7 +33,6 @@ def create_correlation_matrix(blast_file_path, output_path="output/correlation_m
     print(f"Correlation matrix saved to {output_path}")
     return heatmap_data
 
-
 def create_feature_matrix(blast_file_path, output_path="output/feature_matrix.csv"):
     """
     Create a feature matrix where rows are species and columns are domains.
@@ -47,7 +46,7 @@ def create_feature_matrix(blast_file_path, output_path="output/feature_matrix.cs
                'QueryStart', 'QueryEnd', 'SubjectStart', 'SubjectEnd', 'EValue', 'BitScore']
     )
     blast_df['Domain'] = blast_df['QueryID']
-    blast_df['Species'] = blast_df['SubjectID'].apply(extract_species)
+    blast_df['Species'] = blast_df['SubjectID'].apply(extract_partial_species)
 
     grouped = blast_df.groupby(['Species', 'Domain'])
     feature_data = grouped.agg(
@@ -99,3 +98,39 @@ def find_true_positives(corr_matrix_path):
             if corr_matrix.loc[species, domain] > 0:
                 true_positives.append((species, domain))
     return true_positives
+
+    """
+    Aggregate BLAST data by grouping Species (truncated SubjectID) and Domain.
+    Calculates median/sum values, counts hits, and keeps unique species grouping.
+
+    Parameters:
+    - blast_file_path (str): Path to the BLAST file.
+    - output_path (str): Path to save the output aggregated feature matrix.
+    """
+    # Load the data
+    blast_df = pd.read_csv(
+        blast_file_path,
+        sep='\t',
+        header=None,
+        names=['QueryID', 'SubjectID', 'PercentIdentity', 'AlignmentLength', 'Mismatches', 'GapOpens',
+               'QueryStart', 'QueryEnd', 'SubjectStart', 'SubjectEnd', 'EValue', 'BitScore']
+    )
+
+    # Extract Domain and Truncated Species
+    blast_df['Domain'] = blast_df['QueryID']
+    blast_df['Species'] = blast_df['SubjectID'].apply(extract_partial_species)
+
+    # Group the data by TruncatedSpecies and Domain
+    grouped = blast_df.groupby(['Species', 'Domain']).agg(
+        median_percent_identity=('PercentIdentity', 'median'),
+        total_alignment_length=('AlignmentLength', 'sum'),
+        mean_bitscore=('BitScore', 'mean'),
+        median_evalue=('EValue', 'median'),
+        total_hits=('SubjectID', 'count')
+    ).reset_index()
+
+    # Save the aggregated data to a CSV file
+    grouped.to_csv(output_path, index=False)
+    print(f"Aggregated feature matrix saved to {output_path}")
+
+    return grouped

@@ -1,117 +1,242 @@
+import time
 import markov_clustering as mc
 import networkx as nx
 import numpy as np
 from scipy.sparse import csr_matrix
 import pandas as pd
-from dash import Dash
-from dash import dcc, html
-import plotly.express as px
+from dash import Dash, dcc, html, Input, Output
 import plotly.graph_objects as go
+import plotly.express as px
+import joblib
+import os
 
 
-def utilize_mcl_onNxN(true_positives):
-    # Step 2: Create a graph
+def prepare_clustering(true_positives):
+    """
+    Prepares clustering and visualization data.
+    """
+    # Step 1: Create a graph
     graph = nx.Graph()
     graph.add_edges_from(true_positives)
 
-    # Convert to sparse adjacency matrix
+    # Convert graph to sparse adjacency matrix
     adj_matrix = nx.to_scipy_sparse_array(graph, weight=None)
-
-    # Ensure the matrix is in CSR format
     adj_matrix = csr_matrix(adj_matrix)
 
     # Run MCL
+    mcl_start = time.time()
     result = mc.run_mcl(adj_matrix, inflation=1.5)
     clusters = mc.get_clusters(result)
-    # print("Clusters:", clusters)
+    print(f"MCL Execution Time: {time.time() - mcl_start:.2f} seconds")
 
-    # Rebuild the all-vs-all matrix based on clustering
+    # Rebuild all-vs-all matrix
     nodes = list(graph.nodes())
     all_vs_all_matrix = np.zeros((len(nodes), len(nodes)))
     for cluster in clusters:
         for i in cluster:
             for j in cluster:
                 all_vs_all_matrix[i, j] = 1
-
-    # Create a pandas DataFrame for the all-vs-all matrix
     all_vs_all_df = pd.DataFrame(all_vs_all_matrix, index=nodes, columns=nodes)
 
-    # Graph positions for visualization
+    # Compute positions
     pos = nx.spring_layout(graph)
 
-    # Build Dash App
+    return graph, nodes, all_vs_all_df, pos
+
+def create_dash_app(graph, nodes, all_vs_all_df, pos):
+    """
+    Creates and runs the Dash app.
+    """
     app = Dash(__name__)
 
-    # Heatmap for all-vs-all matrix
-    heatmap_fig = px.imshow(
-        all_vs_all_df,
-        x=nodes,
-        y=nodes,
-        color_continuous_scale="Viridis",
-        labels={"x": "Nodes", "y": "Nodes", "color": "Similarity"},
-        title="All-vs-All Clustering Matrix"
-    )
-    heatmap_fig.update_layout(
-        autosize=True,
-        height=1200,
-        margin=dict(l=50, r=50, t=100, b=50),
-        xaxis=dict(tickangle=45, automargin=True),
-        yaxis=dict(automargin=True),
-        coloraxis_colorbar=dict(title="Cluster Similarity", len=0.75)
-    )
-
-    # Graph visualization with clusters
-    cluster_colors = {node: i for i, cluster in enumerate(clusters) for node in cluster}
-    node_colors = [cluster_colors.get(node, -1) for node in graph.nodes()]
-    edge_x, edge_y = [], []
-    for edge in graph.edges():
-        x0, y0 = pos[edge[0]]
-        x1, y1 = pos[edge[1]]
-        edge_x.extend([x0, x1, None])
-        edge_y.extend([y0, y1, None])
-
-    edge_trace = go.Scatter(
-        x=edge_x, y=edge_y,
-        line=dict(width=0.5, color="#888"),
-        hoverinfo="none",
-        mode="lines"
-    )
-    node_trace = go.Scatter(
-        x=[pos[node][0] for node in graph.nodes()],
-        y=[pos[node][1] for node in graph.nodes()],
-        mode="markers+text",
-        marker=dict(
-            size=12,
-            color=node_colors,
-            colorscale="Viridis",
-            showscale=True
-        ),
-        text=list(graph.nodes()),
-        textposition="top center",
-        hoverinfo="text"
-    )
-    graph_fig = go.Figure(data=[edge_trace, node_trace])
-    graph_fig.update_layout(
-        title="Graph Visualization with Clusters",
-        height=800,
-        showlegend=False,
-        xaxis=dict(showgrid=False, zeroline=False),
-        yaxis=dict(showgrid=False, zeroline=False),
-        margin=dict(l=50, r=50, t=100, b=50)
-    )
-
-    # Dash layout
     app.layout = html.Div([
         html.H1("Markov Clustering Visualization", style={"textAlign": "center", "marginBottom": "30px"}),
-        html.Div(
-            dcc.Graph(figure=heatmap_fig, style={"width": "100%", "display": "block"}),
-            style={"marginBottom": "50px"}
+        html.Div([
+            dcc.Dropdown(
+                id="domain-selector",
+                options=[{"label": node, "value": node} for node in nodes],
+                placeholder="Select one or more domains...",
+                multi=True,
+                style={"width": "50%", "margin": "auto"}
+            ),
+            html.Div(
+                id="time-estimate",
+                style={"textAlign": "center", "marginTop": "10px", "color": "blue"}
+            ),
+        ], style={"marginBottom": "20px", "textAlign": "center"}),
+        dcc.Loading(
+            id="loading",
+            type="circle",
+            children=[
+                html.Div(
+                    dcc.Graph(id="heatmap", style={"width": "100%", "display": "block"}),
+                    style={"marginBottom": "50px"}
+                ),
+                html.Div(
+                    dcc.Graph(id="graph", style={"width": "100%", "display": "block"})
+                )
+            ],
+            style={"marginBottom": "20px"}
         ),
-        html.Div(
-            dcc.Graph(figure=graph_fig, style={"width": "100%", "display": "block"})
-        )
     ])
 
-    # Run the Dash app
-    app.run_server(debug=True, port=8050)  
-    
+    @app.callback(
+        [Output("heatmap", "figure"), Output("graph", "figure"), Output("time-estimate", "children")],
+        [Input("domain-selector", "value")]
+    )
+    def update_graphs(selected_domains):
+        # Handle the case where no domains are selected
+        if not selected_domains:
+            selected_domains = []
+
+        start_time = time.time()
+
+        # Filter data for selected domains
+        if selected_domains:
+            filtered_edges = [
+                (u, v) for u, v in graph.edges()
+                if u in selected_domains or v in selected_domains
+            ]
+            filtered_nodes = list(set(node for edge in filtered_edges for node in edge))  # Convert set to list
+            filtered_matrix = all_vs_all_df.loc[filtered_nodes, filtered_nodes]
+        else:
+            # Show all domains when no filter is selected
+            filtered_nodes = nodes
+            filtered_edges = list(graph.edges())
+            filtered_matrix = all_vs_all_df
+
+        # Create heatmap
+        heatmap_fig = px.imshow(
+            filtered_matrix,
+            x=filtered_nodes,
+            y=filtered_nodes,
+            color_continuous_scale="Viridis",
+            labels={"x": "Nodes", "y": "Nodes", "color": "Similarity"},
+            title="All-vs-All Clustering Matrix"
+        )
+        heatmap_fig.update_layout(
+            autosize=True,
+            height=1200,
+            margin=dict(l=50, r=50, t=100, b=50),
+            xaxis=dict(tickangle=45, automargin=True),
+            yaxis=dict(automargin=True),
+            coloraxis_colorbar=dict(title="Cluster Similarity", len=0.75)
+        )
+
+        # Create graph visualization
+        edge_x, edge_y = [], []
+        for edge in filtered_edges:
+            x0, y0 = pos[edge[0]]
+            x1, y1 = pos[edge[1]]
+            edge_x.extend([x0, x1, None])
+            edge_y.extend([y0, y1, None])
+
+        edge_trace = go.Scatter(
+            x=edge_x, y=edge_y,
+            line=dict(width=1.5, color="red"),
+            hoverinfo="none",
+            mode="lines"
+        )
+
+        node_colors = [
+            "rgba(255, 100, 100, 0.8)" if node in selected_domains else "rgba(100, 100, 255, 0.5)"
+            for node in filtered_nodes
+        ]
+
+        node_trace = go.Scatter(
+            x=[pos[node][0] for node in filtered_nodes],
+            y=[pos[node][1] for node in filtered_nodes],
+            mode="markers+text",
+            marker=dict(
+                size=12,
+                color=node_colors,
+                showscale=False
+            ),
+            text=list(filtered_nodes),
+            textposition="top center",
+            hoverinfo="text"
+        )
+
+        graph_fig = go.Figure(data=[edge_trace, node_trace])
+        graph_fig.update_layout(
+            title="Graph Visualization with Selected Nodes and Neighbors",
+            height=1200,
+            showlegend=False,
+            xaxis=dict(showgrid=False, zeroline=False),
+            yaxis=dict(showgrid=False, zeroline=False),
+            margin=dict(l=50, r=50, t=100, b=50)
+        )
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        time_estimate = f"Approximate processing time: {elapsed_time:.2f} seconds"
+
+        return heatmap_fig, graph_fig, time_estimate
+
+
+    return app
+
+def load_from_cache(file_path):
+    try:
+        data = joblib.load(file_path)
+        print(f"Data loaded from cache: {file_path}")
+        return data
+    except FileNotFoundError:
+        print(f"No cache found at {file_path}")
+        return None
+
+
+def save_to_cache(file_path, data):
+    joblib.dump(data, file_path)
+    print(f"Data cached at {file_path}")
+
+def utilize_mcl_onNxN(true_positives, cache_dir="cache/"):
+    os.makedirs(cache_dir, exist_ok=True)
+
+    # Cache file paths
+    graph_cache = os.path.join(cache_dir, "graph.pkl")
+    clusters_cache = os.path.join(cache_dir, "clusters.pkl")
+    positions_cache = os.path.join(cache_dir, "positions.pkl")
+    matrix_cache = os.path.join(cache_dir, "all_vs_all_matrix.pkl")
+
+    # Load cached data if available
+    graph = load_from_cache(graph_cache)
+    clusters = load_from_cache(clusters_cache)
+    pos = load_from_cache(positions_cache)
+    all_vs_all_df = load_from_cache(matrix_cache)
+
+    # Check if any required data is missing
+    if graph is None or clusters is None or pos is None or all_vs_all_df is None:
+        # Recompute data if cache is missing
+        graph = nx.Graph()
+        graph.add_edges_from(true_positives)
+        save_to_cache(graph_cache, graph)
+
+        # Markov Clustering
+        adj_matrix = nx.to_scipy_sparse_array(graph, weight=None)
+        adj_matrix = csr_matrix(adj_matrix)
+        result = mc.run_mcl(adj_matrix, inflation=1.5)
+        clusters = mc.get_clusters(result)
+        save_to_cache(clusters_cache, clusters)
+
+        # All-vs-All Matrix
+        nodes = list(graph.nodes())
+        all_vs_all_matrix = np.zeros((len(nodes), len(nodes)))
+        for cluster in clusters:
+            for i in cluster:
+                for j in cluster:
+                    all_vs_all_matrix[i, j] = 1
+        all_vs_all_df = pd.DataFrame(all_vs_all_matrix, index=nodes, columns=nodes)
+        save_to_cache(matrix_cache, all_vs_all_df)
+
+        # Node Positions
+        pos = nx.spring_layout(graph)
+        save_to_cache(positions_cache, pos)
+
+    # Ensure all required data is available before proceeding
+    if graph is None or clusters is None or pos is None or all_vs_all_df is None:
+        raise ValueError("Required data for visualization is missing or could not be computed.")
+
+    # Create and run Dash app
+    app = create_dash_app(graph, list(graph.nodes()), all_vs_all_df, pos)
+    app.run_server(debug=True, port=8051)
