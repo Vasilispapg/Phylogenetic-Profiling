@@ -4,6 +4,7 @@ import pandas as pd
 from dash import Dash, dcc, html, Input, Output
 import pandas as pd
 import plotly.graph_objects as go
+import numpy as np
 
 def display_species_domain_heatmap(correlation_matrix_path="species_domain_count_matrix.csv"):
     """
@@ -62,7 +63,7 @@ def display_species_domain_heatmap(correlation_matrix_path="species_domain_count
 
 def display_species_domain_heatmap_with_features(correlation_matrix_path="species_domain_count_matrix.csv"):
     """
-    Display a species × domains heatmap with an interactive dropdown for feature selection and a loading animation.
+    Display a species × domains heatmap with live filters, sorting, and animations.
 
     Parameters:
     - correlation_matrix_path (str): Path to the CSV file containing the species × domains JSON feature matrix.
@@ -80,170 +81,101 @@ def display_species_domain_heatmap_with_features(correlation_matrix_path="specie
 
         # Define the app layout
         app.layout = html.Div([
-            html.H1("Interactive Species × Domains Heatmap"),
+            html.H1("Interactive Species × Domains Heatmap", style={"textAlign": "center"}),
+
             html.Label("Select Feature:"),
             dcc.Dropdown(
                 id="feature-dropdown",
                 options=[{"label": feature, "value": feature} for feature in available_features],
-                value=available_features[0],  # Default selection
+                value=available_features[0],
                 clearable=False
             ),
-            dcc.Loading(
-                id="loading-animation",
-                type="circle",  # Options: "circle", "dot", "default"
-                children=[
-                    dcc.Graph(id="heatmap")
-                ],
-                fullscreen=False  # Set to True for a full-screen loading animation
+
+            html.Label("Minimum Hits (Filter):"),
+            dcc.Slider(
+                id="num-hits-slider",
+                min=0,
+                max=10,
+                step=1,
+                marks={i: str(i) for i in range(11)},
+                value=0,
             ),
+
+            html.Label("Sort Data:"),
+            dcc.RadioItems(
+                id="sort-radio",
+                options=[
+                    {"label": "Ascending", "value": "asc"},
+                    {"label": "Descending", "value": "desc"}
+                ],
+                value="desc",
+                inline=True
+            ),
+
+            dcc.Graph(id="interactive-heatmap"),
         ])
 
-        # Define callback to update heatmap based on selected feature
+        # Callback to update heatmap based on filters, sorting, and feature selection
         @app.callback(
-            Output("heatmap", "figure"),
-            Input("feature-dropdown", "value")
+            Output("interactive-heatmap", "figure"),
+            Input("feature-dropdown", "value"),
+            Input("num-hits-slider", "value"),
+            Input("sort-radio", "value")
         )
-        def update_heatmap(selected_feature):
+        def update_heatmap(selected_feature, min_hits, sort_order):
             # Extract data for the selected feature
             feature_data = feature_matrix.applymap(
                 lambda cell: eval(cell).get(selected_feature) if cell != '{}' else 0
             )
 
-            # Generate hover information with neatly formatted JSON details
+            # Filter data based on minimum hits
+            num_hits_data = feature_matrix.applymap(
+                lambda cell: eval(cell).get("num_hits") if cell != '{}' else 0
+            )
+            mask = num_hits_data >= min_hits
+            feature_data_filtered = feature_data.where(mask, other=0)
+
+            # Apply logarithmic scaling
+            feature_data_log = feature_data_filtered.map(lambda x: np.log1p(x) / np.log(20) if x > 0 else 0)
+
+            # Sort the data
+            if sort_order == "asc":
+                feature_data_sorted = feature_data_log.sort_index(axis=0).sort_index(axis=1)
+            else:
+                feature_data_sorted = feature_data_log.sort_index(axis=0, ascending=False).sort_index(axis=1, ascending=False)
+
+            # Generate hover information
             hover_text = []
             for i, species in enumerate(feature_matrix.index):
                 hover_row = []
                 for j, domain in enumerate(feature_matrix.columns):
                     json_data = eval(feature_matrix.iat[i, j])
-                    if json_data:  # If the cell contains valid data
-                        pretty_features = "<br>".join(
-                            f"<b>{key}:</b> {value}" for key, value in json_data.items()
-                        )
-                    else:
-                        pretty_features = "No Data"
-                    hover_info = (
-                        f"<b>Species:</b> {species}<br>"
-                        f"<b>Domain:</b> {domain}<br>"
-                        f"{pretty_features}"
-                    )
+                    hover_info = f"<b>Species:</b> {species}<br><b>Domain:</b> {domain}"
+                    hover_info += "".join(f"<br><b>{k}:</b> {v}" for k, v in json_data.items())
                     hover_row.append(hover_info)
                 hover_text.append(hover_row)
 
-            # Define the heatmap
+            # Create the heatmap
             heatmap_trace = go.Heatmap(
-                z=feature_data.values,
-                x=feature_matrix.columns,
-                y=feature_matrix.index,
-                colorscale='hot',
+                z=feature_data_sorted.values,
+                x=feature_data_sorted.columns,
+                y=feature_data_sorted.index,
+                colorscale="Inferno",
                 colorbar=dict(title=selected_feature),
                 hoverinfo="text",
                 text=hover_text
             )
 
-            # Create the Plotly figure
+            # Create the figure with smooth transitions
             fig = go.Figure(data=[heatmap_trace])
-
-            # Configure layout
             fig.update_layout(
-                title=f"Species × Domains Heatmap ({selected_feature})",
+                title=f"Species × Domains Heatmap ({selected_feature}) - Filter: Hits ≥ {min_hits}",
                 xaxis=dict(title="Domains"),
                 yaxis=dict(title="Species"),
                 height=1080,
                 width=1600,
+                transition={"duration": 500}  # Smooth transition
             )
-
-            return fig
-
-        # Run the app
-        app.run_server(debug=True)
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-    """
-    Display a species × domains heatmap with an interactive dropdown for feature selection.
-
-    Parameters:
-    - correlation_matrix_path (str): Path to the CSV file containing the species × domains JSON feature matrix.
-    """
-    try:
-        # Load the JSON feature matrix
-        feature_matrix = pd.read_csv(correlation_matrix_path, index_col=0)
-
-        # Extract all available feature keys from the JSON-like data
-        first_cell = next(iter(feature_matrix.iloc[0].dropna()), "{}")
-        available_features = list(eval(first_cell).keys())
-
-        # Initialize the Dash app
-        app = Dash(__name__)
-
-        # Define the app layout
-        app.layout = html.Div([
-            html.H1("Interactive Species × Domains Heatmap"),
-            html.Label("Select Feature:"),
-            dcc.Dropdown(
-                id="feature-dropdown",
-                options=[{"label": feature, "value": feature} for feature in available_features],
-                value=available_features[0],  # Default selection
-                clearable=False
-            ),
-            dcc.Graph(id="heatmap"),
-        ])
-
-        # Define callback to update heatmap based on selected feature
-        @app.callback(
-            Output("heatmap", "figure"),
-            Input("feature-dropdown", "value")
-        )
-        def update_heatmap(selected_feature):
-            # Extract data for the selected feature
-            feature_data = feature_matrix.applymap(
-                lambda cell: eval(cell).get(selected_feature) if cell != '{}' else 0
-            )
-
-            # Generate hover information with neatly formatted JSON details
-            hover_text = []
-            for i, species in enumerate(feature_matrix.index):
-                hover_row = []
-                for j, domain in enumerate(feature_matrix.columns):
-                    json_data = eval(feature_matrix.iat[i, j])
-                    if json_data:  # If the cell contains valid data
-                        pretty_features = "<br>".join(
-                            f"<b>{key}:</b> {value}" for key, value in json_data.items()
-                        )
-                    else:
-                        pretty_features = "No Data"
-                    hover_info = (
-                        f"<b>Species:</b> {species}<br>"
-                        f"<b>Domain:</b> {domain}<br>"
-                        f"{pretty_features}"
-                    )
-                    hover_row.append(hover_info)
-                hover_text.append(hover_row)
-
-            # Define the heatmap
-            heatmap_trace = go.Heatmap(
-                z=feature_data.values,
-                x=feature_matrix.columns,
-                y=feature_matrix.index,
-                colorscale='Viridis',
-                colorbar=dict(title=selected_feature),
-                hoverinfo="text",
-                text=hover_text
-            )
-
-            # Create the Plotly figure
-            fig = go.Figure(data=[heatmap_trace])
-
-            # Configure layout
-            fig.update_layout(
-                title=f"Species × Domains Heatmap ({selected_feature})",
-                xaxis=dict(title="Domains"),
-                yaxis=dict(title="Species"),
-                height=800,
-                width=1200
-            )
-
             return fig
 
         # Run the app

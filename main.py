@@ -17,7 +17,6 @@ OUTPUT_DIR = "output"
 TREE_FILE_PATH = f"{OUTPUT_DIR}/species_tree_approx.nw"
 CORRELATION_MATRIX_PATH = f"{OUTPUT_DIR}/correlation_matrix.csv"
 FEATURE_MATRIX_PATH = f"{OUTPUT_DIR}/feature_matrix.csv"
-AGGREGATE_FEATURE_MATRIX_PATH = f"{OUTPUT_DIR}/aggregated_feature_matrix.csv"
 DOMAIN_CORRELATION_MATRIX_PATH = f"{OUTPUT_DIR}/domain_correlation_matrix.csv"
 DEFAULT_TREE_DEPTH = 64
 
@@ -36,13 +35,9 @@ def all_vs_all_command():
 def analyze_command():
     create_correlation_matrix(BLAST_FILE_PATH)
     create_feature_matrix(BLAST_FILE_PATH)
-    create_aggregated_feature_matrix(BLAST_FILE_PATH)
 
 def display_cor_command():
     display_species_domain_heatmap(CORRELATION_MATRIX_PATH)
-
-def display_agg_features_command():
-    display_species_domain_heatmap_with_aggregate(AGGREGATE_FEATURE_MATRIX_PATH)
 
 def display_cor_features_command():
     display_species_domain_heatmap_with_features(FEATURE_MATRIX_PATH)
@@ -59,7 +54,6 @@ COMMANDS = {
     "--display_cor_features": display_cor_features_command,
     "--display_heatmap_spxsp": display_heatmap_spxsp_command,
     "--all_vs_all": all_vs_all_command,
-    "--display_agg_features": display_agg_features_command
 }
 
 def main():

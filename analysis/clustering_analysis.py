@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import joblib
 import os
+import dash_bootstrap_components as dbc
 
 
 def prepare_clustering(true_positives):
@@ -42,6 +43,119 @@ def prepare_clustering(true_positives):
     pos = nx.spring_layout(graph)
 
     return graph, nodes, all_vs_all_df, pos
+
+
+def create_dash_component(graph, nodes, all_vs_all_df, pos):
+    """
+    Creates the Dash layout and registers callbacks for the heatmap and graph visualization.
+    """
+    unique_id = str(int(time.time() * 1000))  # Generate a unique ID based on timestamp
+    domain_selector_id = f"domain-selector-{unique_id}"
+    heatmap_id = f"heatmap-{unique_id}"
+    graph_id = f"graph-{unique_id}"
+
+    layout = dbc.Container([
+        dbc.Row([
+            dbc.Col(dcc.Dropdown(
+                id=domain_selector_id,
+                options=[{"label": node, "value": node} for node in nodes],
+                placeholder="Select one or more domains...",
+                multi=True
+            ), width=6)
+        ], className="mb-4"),
+        dbc.Row([
+            dbc.Col(dcc.Loading(
+                id=f"loading-{unique_id}",
+                type="circle",
+                children=[
+                    dcc.Graph(id=heatmap_id, style={"height": "600px", "width": "100%"}),
+                    dcc.Graph(id=graph_id, style={"height": "600px", "width": "100%"})
+                ]
+            ))
+        ])
+    ])
+
+    def register_callbacks(app):
+        @app.callback(
+            [Output(heatmap_id, "figure"), Output(graph_id, "figure")],
+            [Input(domain_selector_id, "value")]
+        )
+        def update_graphs(selected_domains):
+            print(f"Callback triggered for {unique_id}")
+            if not selected_domains:
+                filtered_nodes = nodes
+                filtered_edges = list(graph.edges())
+                filtered_matrix = all_vs_all_df
+            else:
+                filtered_edges = [
+                    (u, v) for u, v in graph.edges()
+                    if u in selected_domains or v in selected_domains
+                ]
+                filtered_nodes = list(set(node for edge in filtered_edges for node in edge))
+                filtered_matrix = all_vs_all_df.loc[filtered_nodes, filtered_nodes]
+
+            if filtered_matrix.empty or not filtered_nodes:
+                heatmap_fig = px.imshow([], title="No Data Available")
+                graph_fig = go.Figure()
+                graph_fig.update_layout(title="No Data Available")
+                return heatmap_fig, graph_fig
+
+            # Heatmap
+            heatmap_fig = px.imshow(
+                filtered_matrix,
+                x=filtered_nodes,
+                y=filtered_nodes,
+                color_continuous_scale="Viridis",
+                labels={"x": "Nodes", "y": "Nodes", "color": "Similarity"},
+                title="All-vs-All Clustering Matrix"
+            )
+
+            # Graph
+            edge_x, edge_y = [], []
+            for edge in filtered_edges:
+                x0, y0 = pos[edge[0]]
+                x1, y1 = pos[edge[1]]
+                edge_x.extend([x0, x1, None])
+                edge_y.extend([y0, y1, None])
+
+            edge_trace = go.Scatter(
+                x=edge_x, y=edge_y,
+                line=dict(width=1.5, color="red"),
+                hoverinfo="none",
+                mode="lines"
+            )
+
+            node_colors = [
+                "rgba(255, 100, 100, 0.8)" if node in selected_domains else "rgba(100, 100, 255, 0.5)"
+                for node in filtered_nodes
+            ]
+
+            node_trace = go.Scatter(
+                x=[pos[node][0] for node in filtered_nodes],
+                y=[pos[node][1] for node in filtered_nodes],
+                mode="markers+text",
+                marker=dict(
+                    size=12,
+                    color=node_colors,
+                    showscale=False
+                ),
+                text=list(filtered_nodes),
+                textposition="top center",
+                hoverinfo="text"
+            )
+
+            graph_fig = go.Figure(data=[edge_trace, node_trace])
+            graph_fig.update_layout(
+                title="Graph Visualization with Selected Nodes and Neighbors",
+                height=600,
+                showlegend=False,
+                xaxis=dict(showgrid=False, zeroline=False),
+                yaxis=dict(showgrid=False, zeroline=False)
+            )
+
+            return heatmap_fig, graph_fig
+
+    return layout, register_callbacks
 
 def create_dash_app(graph, nodes, all_vs_all_df, pos):
     """
@@ -180,7 +294,7 @@ def load_from_cache(file_path):
     try:
         data = joblib.load(file_path)
         print(f"Data loaded from cache: {file_path}")
-        return data
+        return None
     except FileNotFoundError:
         print(f"No cache found at {file_path}")
         return None
@@ -191,6 +305,7 @@ def save_to_cache(file_path, data):
     print(f"Data cached at {file_path}")
 
 def utilize_mcl_onNxN(true_positives, cache_dir="cache/"):
+    print('Utilize MCL started')
     os.makedirs(cache_dir, exist_ok=True)
 
     # Cache file paths
@@ -217,6 +332,7 @@ def utilize_mcl_onNxN(true_positives, cache_dir="cache/"):
         adj_matrix = csr_matrix(adj_matrix)
         result = mc.run_mcl(adj_matrix, inflation=1.5)
         clusters = mc.get_clusters(result)
+        print("Clusters:", clusters)
         save_to_cache(clusters_cache, clusters)
 
         # All-vs-All Matrix
@@ -233,10 +349,17 @@ def utilize_mcl_onNxN(true_positives, cache_dir="cache/"):
         pos = nx.spring_layout(graph)
         save_to_cache(positions_cache, pos)
 
+    # Debug data before returning
+    # print("Graph Nodes:", len(graph.nodes()), "Edges:", len(graph.edges()))
+    # print("Position Data:", pos)
+    # print("Matrix Shape:", all_vs_all_df.shape)
+    missing_positions = set(graph.nodes()) - set(pos.keys())
+    if missing_positions:
+        print("Missing positions for nodes:", missing_positions)
+
     # Ensure all required data is available before proceeding
     if graph is None or clusters is None or pos is None or all_vs_all_df is None:
         raise ValueError("Required data for visualization is missing or could not be computed.")
 
-    # Create and run Dash app
-    app = create_dash_app(graph, list(graph.nodes()), all_vs_all_df, pos)
-    app.run_server(debug=True, port=8051)
+    return graph, graph.nodes(), all_vs_all_df, pos
+

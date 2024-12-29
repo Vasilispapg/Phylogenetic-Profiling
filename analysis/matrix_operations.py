@@ -2,7 +2,7 @@ import pandas as pd
 import json
 from .utils import extract_species,extract_partial_species
 
-def create_correlation_matrix(blast_file_path, output_path="output/correlation_matrix.csv", using_pi=True):
+def create_correlation_matrix(blast_file_path, output_path="output/correlation_matrix.csv", using_pi=False):
     """
     Parse the BLAST file and create a correlation matrix where rows are species and columns are domains.
     """
@@ -36,8 +36,9 @@ def create_correlation_matrix(blast_file_path, output_path="output/correlation_m
 def create_feature_matrix(blast_file_path, output_path="output/feature_matrix.csv"):
     """
     Create a feature matrix where rows are species and columns are domains.
-    Each cell contains a JSON-like structure of features.
+    Each cell contains aggregated features, excluding zero-hit rows.
     """
+    # Load BLAST data
     blast_df = pd.read_csv(
         blast_file_path,
         sep='\t',
@@ -45,43 +46,50 @@ def create_feature_matrix(blast_file_path, output_path="output/feature_matrix.cs
         names=['QueryID', 'SubjectID', 'PercentIdentity', 'AlignmentLength', 'Mismatches', 'GapOpens',
                'QueryStart', 'QueryEnd', 'SubjectStart', 'SubjectEnd', 'EValue', 'BitScore']
     )
-    blast_df['Domain'] = blast_df['QueryID']
-    blast_df['Species'] = blast_df['SubjectID'].apply(extract_partial_species)
 
-    grouped = blast_df.groupby(['Species', 'Domain'])
-    feature_data = grouped.agg(
-        mean_percent_identity=('PercentIdentity', 'mean'),
-        num_hits=('PercentIdentity', 'count'),
-        mean_evalue=('EValue', 'mean'),
-        mean_alignment_length=('AlignmentLength', 'mean'),
-        mean_bitscore=('BitScore', 'mean'),
-        max_bitscore=('BitScore', 'max')
+    # Extract Domain and Species
+    blast_df['Domain'] = blast_df['QueryID']
+    blast_df['Species'] = blast_df['SubjectID'].str.extract(r'(.*?-\w+-\w+-\w+-[A-Z])')
+
+    # Group by Species and Domain
+    grouped = blast_df.groupby(['Species', 'Domain']).agg(
+        total_percent_identity=('PercentIdentity', 'sum'),
+        total_alignment_length=('AlignmentLength', 'sum'),
+        total_bitscore=('BitScore', 'sum'),
+        num_hits=('PercentIdentity', 'count'),  # Count hits
+        min_evalue=('EValue', 'min')  # Take minimum EValue
     ).reset_index()
 
-    feature_data['FeatureVector'] = feature_data.apply(
-        lambda row: json.dumps({
-            "mean_percent_identity": row['mean_percent_identity'],
-            "num_hits": row['num_hits'],
-            "mean_evalue": row['mean_evalue'],
-            "mean_alignment_length": row['mean_alignment_length'],
-            "mean_bitscore": row['mean_bitscore'],
-            "max_bitscore": row['max_bitscore']
-        }), axis=1
-    )
+    # Exclude rows with zero hits
+    grouped = grouped[grouped['num_hits'] > 0]
 
-    feature_matrix = feature_data.pivot(
-        index='Species', columns='Domain', values='FeatureVector'
-    ).fillna(json.dumps({
+    # Aggregate and normalize data for each group
+    grouped['mean_percent_identity'] = grouped['total_percent_identity'] / grouped['num_hits']
+    grouped['mean_alignment_length'] = grouped['total_alignment_length'] / grouped['num_hits']
+    grouped['mean_bitscore'] = grouped['total_bitscore'] / grouped['num_hits']
+
+    # Convert to JSON-like feature vector
+    grouped['FeatureVector'] = grouped.apply(lambda row: json.dumps({
+        "mean_percent_identity": row['mean_percent_identity'],
+        "mean_alignment_length": row['mean_alignment_length'],
+        "mean_bitscore": row['mean_bitscore'],
+        "num_hits": row['num_hits'],
+        "min_evalue": row['min_evalue']
+    }), axis=1)
+
+    # Pivot to create the feature matrix
+    feature_matrix = grouped.pivot(index='Species', columns='Domain', values='FeatureVector').fillna(json.dumps({
         "mean_percent_identity": 0,
-        "num_hits": 0,
-        "mean_evalue": 0,
         "mean_alignment_length": 0,
         "mean_bitscore": 0,
-        "max_bitscore": 0
+        "num_hits": 0,
+        "min_evalue": 0
     }))
+
+    # Save to CSV
     feature_matrix.reset_index(inplace=True)
     feature_matrix.to_csv(output_path, index=False)
-    print(f"Feature matrix with JSON vectors saved to {output_path}")
+    print(f"Feature matrix saved to {output_path}")
     return feature_matrix
 
 def find_true_positives(corr_matrix_path):

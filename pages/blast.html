@@ -1,0 +1,119 @@
+{% extends "tools.html" %}
+
+{% block content %}
+<section id="blast-tool" class="wrapper style1 fullscreen fade-up">
+    <div class="inner">
+        <h1>BLAST Analysis Tool</h1>
+        <p class="text-light">Upload your BLAST file and extract feature or correlation matrices.</p>
+        <form id="blast-upload-form" enctype="multipart/form-data" class="d-flex flex-column gap-4">
+            <div class="mb-3">
+                <label for="blast-file" class="form-label">Upload BLAST File:</label>
+                <input type="file" id="blast-file" name="file" class="bg-dark form-control text-warning border-0 p-1" required>
+                <div id="upload-message" class="text-warning mt-2"></div>
+            </div>
+
+            <div class="mb-3">
+                <label for="analysis-type" class="form-label">Select Analysis Type:</label>
+                <select id="analysis-type" class="form-select futuristic-select text-warning" required>
+                    <option value="" selected disabled>Select Analysis Type...</option>
+                    <option value="correlation">Correlation Analysis</option>
+                    <option value="features">Feature Analysis</option>
+                </select>
+            </div>
+
+            <div class="mt-4">
+                <button type="button" id="process-button" class="button futuristic-btn mt-2" disabled>Start Analysis</button>
+            </div>
+            
+            <div id="processing-message" class="text-warning mt-3"></div>
+            <div id="blast-result" class="mt-4"></div>
+        </form>
+    </div>
+</section>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const fileInput = document.getElementById("blast-file");
+        const processButton = document.getElementById("process-button");
+        const analysisType = document.getElementById("analysis-type");
+        const uploadMessage = document.getElementById("upload-message");
+        const processingMessage = document.getElementById("processing-message");
+        const resultContainer = document.getElementById("blast-result");
+
+        let uploadedFileName = "";
+
+        // Handle file upload on change
+        fileInput.addEventListener("change", async () => {
+            if (!fileInput.files[0]) {
+                uploadMessage.textContent = "Please select a file.";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            try {
+                uploadMessage.textContent = "Uploading...";
+                const response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    uploadedFileName = result.filename;
+                    uploadMessage.textContent = "File uploaded successfully.";
+                    processButton.disabled = false;
+                } else {
+                    uploadMessage.textContent = result.message || "Upload failed.";
+                }
+            } catch (error) {
+                uploadMessage.textContent = "An error occurred during upload.";
+                console.error(error);
+            }
+        });
+
+        // Handle analysis processing
+        processButton.addEventListener("click", async () => {
+            const selectedType = analysisType.value;
+            if (!selectedType) {
+                processingMessage.textContent = "Please select an analysis type.";
+                return;
+            }
+
+            if (!uploadedFileName) {
+                processingMessage.textContent = "No file uploaded.";
+                return;
+            }
+
+            processingMessage.textContent = "Processing started. Please wait...";
+
+            try {
+                const response = await fetch("/process", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ filename: uploadedFileName, analysis_type: selectedType }),
+                });
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    processingMessage.textContent = result.message;
+
+                    // Fetch results
+                    console.log(result.output_path)
+                    resultContainer.innerHTML = `
+                        <h4>Analysis Completed</h4>
+                        <a href="/${result.output_path}" class="button futuristic-btn-secondary" target="_blank">Download Results</a>
+                    `;
+                } else {
+                    processingMessage.textContent = result.message || "Processing failed.";
+                }
+            } catch (error) {
+                processingMessage.textContent = "An error occurred during processing.";
+                console.error(error);
+            }
+        });
+    });
+</script>
+
+{% endblock %}
