@@ -1,231 +1,249 @@
 {% extends "tools.html" %}
 
 {% block content %}
-<section id="heatmap-tool" class="wrapper style1 fullscreen fade-up">
-    <div class="inner">
-        <h1>Heatmap Analysis Tool</h1>
-        <p>Generate interactive all-vs-all correlation heatmaps for your datasets.</p>
 
-        <!-- Upload Form -->
-        <form id="heatmap-upload-form" enctype="multipart/form-data" class="d-flex flex-column gap-3">
-            <label for="heatmap-file" class="form-label">Upload Dataset:</label>
-            <input type="file" id="heatmap-file" name="file" class="form-control futuristic-input" required>
-            <button type="submit" class="button mt-3">Generate Heatmap</button>
-            <div id="heatmap-message" class="text-info mt-2"></div>
-        </form>
-
-        <!-- Display Heatmap -->
-        <div id="heatmap-container" style="display: none; margin-top: 20px;">
-            <h2>Heatmap and Graph Visualization</h2>
-            <div id="heatmap" style="margin-bottom: 20px;"></div>
-            <svg id="graph" width="600" height="600"></svg>
-        </div>
-    </div>
-</section>
-
-<script>
-    document.getElementById('heatmap-upload-form').addEventListener('submit', function (event) {
-        event.preventDefault();
-        const fileInput = document.getElementById('heatmap-file');
-        const file = fileInput.files[0];
-        const messageDiv = document.getElementById('heatmap-message');
-        const heatmapContainer = document.getElementById('heatmap-container');
-
-        if (!file) {
-            messageDiv.textContent = "Please select a file.";
-            return;
+    <style>
+        #loading-spinner { 
+            display: none;
+            margin: 20px auto;
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            position: absolute;
+            top: 45%;
+            left: 45%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
         }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #heatmap-container { display: none; }
+        .highlighted {
+            font-weight: bold;
+            background-color: #f39c12 !important;
+        }
+        #search-node {
+            margin-bottom: 10px;
+            width: 100%;
+            padding: 8px;
+        }
+    </style>
 
-        const formData = new FormData();
-        formData.append('file', file);
+    <section id="heatmap-tool" class="wrapper style1 fullscreen fade-up">
+        <div class="inner">
+            <h1>Heatmap Analysis Tool</h1>
+            <p>Generate interactive all-vs-all correlation heatmaps for your datasets.</p>
 
-        fetch('/tools/heatmap', {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    messageDiv.textContent = data.message;
-                    pollForResults(data.filename);
-                } else {
-                    messageDiv.textContent = data.message;
-                }
+            <!-- Upload Form -->
+            <form id="heatmap-upload-form">
+                <label for="heatmap-file" class="form-label">Upload Dataset:</label>
+                <input type="file" id="heatmap-file" name="file" class="form-control futuristic-input" required>
+                <button type="submit" class="button mt-3">Generate Heatmap</button>
+                <div id="heatmap-message" class="text-info mt-2"></div>
+            </form>
+
+            <!-- Heatmap & Graph Visualization -->
+            <div id="heatmap-container">
+                <button id="back-button" class="button mt-3">Back</button>
+                <input
+                    type="text"
+                    id="search-node"
+                    list="node-options"
+                    class="form-control"
+                    placeholder="Search and highlight nodes... (comma-separated)"
+                />
+                <datalist id="node-options"></datalist>
+                <button id="reset-zoom" class="button mt-3">Reset Zoom</button>
+                <div id="graph" style="width: 100%; height: 600px; border: 1px solid #ccc;"></div>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="loading-spinner"></div>
+        </div>
+    </section>
+
+    <script>
+        const form = document.getElementById("heatmap-upload-form");
+        const heatmapContainer = document.getElementById("heatmap-container");
+        const backButton = document.getElementById("back-button");
+        const messageDiv = document.getElementById("heatmap-message");
+        const searchNode = document.getElementById("search-node");
+        const datalist = document.getElementById("node-options");
+
+        let cy; // Cytoscape instance
+
+        // Back Button Functionality
+        backButton.addEventListener("click", () => {
+            heatmapContainer.style.display = "none";
+            form.style.display = "block";
+        });
+
+        // Submit Form
+        form.addEventListener("submit", function (event) {
+            event.preventDefault();
+            const fileInput = document.getElementById("heatmap-file");
+            const file = fileInput.files[0];
+
+            if (!file) {
+                messageDiv.textContent = "Please select a file.";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch("/tools/heatmap", {
+                method: "POST",
+                body: formData,
             })
-            .catch(error => {
-                messageDiv.textContent = "Error uploading file.";
-                console.error(error);
-            });
-    });
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.status === "success") {
+                        messageDiv.textContent = data.message;
+                        pollForResults(data.filename);
+                    } else {
+                        messageDiv.textContent = data.message;
+                    }
+                })
+                .catch((error) => {
+                    messageDiv.textContent = "Error uploading file.";
+                    console.error(error);
+                });
+        });
 
-    function pollForResults(filename) {
-        const interval = setInterval(() => {
-            fetch(`/heatmap_status/${filename}`)
-                .then(response => response.json())
-                .then(data => {
+        function pollForResults(filename) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/heatmap_status/${filename}`);
+                    const data = await response.json();
+
                     if (data.status === "success" && data.message === "Completed.") {
                         clearInterval(interval);
                         fetchHeatmapData(filename);
                     } else if (data.status === "error") {
                         clearInterval(interval);
-                        document.getElementById('heatmap-message').textContent = data.message;
+                        messageDiv.textContent = data.message;
                     } else {
-                        document.getElementById('heatmap-message').textContent = data.message;
+                        messageDiv.textContent = data.message;
                     }
-                })
-                .catch(error => {
+                } catch (error) {
                     clearInterval(interval);
-                    document.getElementById('heatmap-message').textContent = "Error checking status.";
+                    messageDiv.textContent = "Error checking status.";
                     console.error(error);
-                });
-        }, 2000);
-    }
-
-    function fetchHeatmapData(filename) {
-        fetch(`/heatmap_data/${filename}`)
-            .then(response => response.json())
-            .then(data => {
-                console.log("Fetched heatmap data:", data); // Log full response
-                if (data.status === "success") {
-                    renderHeatmap(data.matrix, data.nodes);
-                    renderGraph(data.edges, data.positions, data.nodes);
-                } else {
-                    document.getElementById('heatmap-message').textContent = data.message;
                 }
-            })
-            .catch(error => {
-                document.getElementById('heatmap-message').textContent = "Error fetching heatmap data.";
-                console.error("Fetch error:", error); // Log the error
+            }, 2000);
+        }
+
+        async function fetchHeatmapData(filename) {
+            try {
+                document.getElementById("loading-spinner").style.display = "block";
+
+                const response = await fetch(`/heatmap_data/${filename}`);
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    renderGraph(data.edges, data.positions, data.nodes);
+                    form.style.display = "none";
+                    heatmapContainer.style.display = "block";
+                } else {
+                    messageDiv.textContent = data.message;
+                }
+            } catch (error) {
+                messageDiv.textContent = "Error fetching heatmap data.";
+                console.error(error);
+            } finally {
+                document.getElementById("loading-spinner").style.display = "none";
+            }
+        }
+
+        function renderGraph(edges, positions, nodes) {
+            cy = cytoscape({
+                container: document.getElementById("graph"),
+                elements: [
+                    ...nodes.map((node) => ({
+                        data: { id: node },
+                        position: {
+                            x: positions[node][0] * 600,
+                            y: positions[node][1] * 600,
+                        },
+                    })),
+                    ...edges.map((edge) => ({
+                        data: { source: edge.source, target: edge.target },
+                    })),
+                ],
+                style: [
+                    {
+                        selector: "node",
+                        style: {
+                            "background-color": "#3498db",
+                            label: "data(id)",
+                            "font-size": "10px",
+                            color: "#fff",
+                            "text-halign": "center",
+                            "text-valign": "center",
+                        },
+                    },
+                    {
+                        selector: "edge",
+                        style: {
+                            "line-color": "#2ecc71",
+                            width: 1.5,
+                        },
+                    },
+                ],
+                layout: { name: "preset" },
+                zoom: 1,
+                minZoom: 0.5,
+                maxZoom: 2,
             });
-    }
 
+            // Populate the datalist for node search
+            nodes.forEach((node) => {
+                const option = document.createElement("option");
+                option.value = node;
+                datalist.appendChild(option);
+            });
 
-    function renderHeatmap(matrix, nodes) {
-    try {
-        if (!matrix || !nodes || matrix.length !== nodes.length) {
-            throw new Error("Invalid matrix or nodes data for rendering heatmap.");
+            // Add search functionality
+            searchNode.addEventListener("input", (event) => {
+                const query = event.target.value.split(",").map((q) => q.trim());
+
+                cy.elements().removeClass("highlighted hidden");
+
+                if (query.length > 0 && query[0] !== "") {
+                    cy.elements().addClass("hidden");
+                    query.forEach((q) => {
+                        const node = cy.$id(q);
+                        if (node.length > 0) {
+                            node.removeClass("hidden").addClass("highlighted");
+                            node.connectedEdges().removeClass("hidden").addClass("highlighted");
+                            node.connectedEdges().connectedNodes().removeClass("hidden");
+                        }
+                    });
+                }
+            });
+
+            // Add styles for highlighted elements
+            cy.style()
+                .selector(".highlighted")
+                .style({
+                    "background-color": "#f39c12",
+                    "line-color": "#f39c12",
+                    "transition-property": "background-color, line-color",
+                    "transition-duration": "0.3s",
+                })
+                .selector(".hidden")
+                .style({
+                    display: "none",
+                })
+                .update();
+
+            // Reset Zoom
+            document.getElementById("reset-zoom").addEventListener("click", () => cy.reset());
         }
+    </script>
 
-        const size = 20;
-        d3.select("#heatmap")
-            .html("")  // Clear previous heatmap
-            .append("svg")
-            .attr("width", nodes.length * size)
-            .attr("height", nodes.length * size)
-            .selectAll("rect")
-            .data(matrix.flat())
-            .enter()
-            .append("rect")
-            .attr("x", (_, i) => (i % nodes.length) * size)
-            .attr("y", (_, i) => Math.floor(i / nodes.length) * size)
-            .attr("width", size)
-            .attr("height", size)
-            .attr("fill", d => d3.interpolateViridis(d));
-    } catch (error) {
-        console.error("Error rendering heatmap:", error);
-        document.getElementById('heatmap-message').textContent = "Error rendering heatmap.";
-    }
-}
-
-    function renderGraph(edges, positions, nodes) {
-        try {
-            // Ensure all required data is provided
-            if (!edges || !positions || !nodes) {
-                throw new Error("Invalid data: Edges, positions, or nodes are missing.");
-            }
-
-            // Check for missing positions
-            const missingPositions = nodes.filter(node => !positions[node]);
-            if (missingPositions.length > 0) {
-                console.error("Missing positions for nodes:", missingPositions);
-                throw new Error("Some nodes are missing positions.");
-            }
-
-            // Check for invalid edges
-            const invalidEdges = edges.filter(edge => !positions[edge.source] || !positions[edge.target]);
-            if (invalidEdges.length > 0) {
-                console.error("Invalid edges found:", invalidEdges);
-                throw new Error("Some edges reference invalid nodes.");
-            }
-
-            const svg = d3.select("#graph");
-            svg.html(""); // Clear previous graph
-
-            // Add zoom and pan functionality
-            const zoom = d3.zoom()
-                .scaleExtent([0.5, 10])
-                .on("zoom", (event) => {
-                    g.attr("transform", event.transform);
-                });
-
-            svg.call(zoom);
-
-            // Create a group for the graph elements
-            const g = svg.append("g");
-
-            // Draw edges
-            g.selectAll("line")
-                .data(edges)
-                .enter()
-                .append("line")
-                .attr("x1", d => positions[d.source][0] * 600)
-                .attr("y1", d => positions[d.source][1] * 600)
-                .attr("x2", d => positions[d.target][0] * 600)
-                .attr("y2", d => positions[d.target][1] * 600)
-                .attr("stroke", "black")
-                .attr("stroke-width", 1);
-
-            // Draw nodes
-            g.selectAll("circle")
-                .data(nodes)
-                .enter()
-                .append("circle")
-                .attr("cx", d => positions[d][0] * 600)
-                .attr("cy", d => positions[d][1] * 600)
-                .attr("r", 5)
-                .attr("fill", "blue")
-                .call(d3.drag()
-                    .on("start", (event, d) => {
-                        d3.select(event.sourceEvent.target).raise().attr("stroke", "black");
-                    })
-                    .on("drag", (event, d) => {
-                        d3.select(event.sourceEvent.target)
-                            .attr("cx", positions[d][0] = event.x / 600)
-                            .attr("cy", positions[d][1] = event.y / 600);
-
-                        updateEdges();
-                    })
-                    .on("end", (event, d) => {
-                        d3.select(event.sourceEvent.target).attr("stroke", null);
-                    }));
-
-            // Add labels
-            g.selectAll("text")
-                .data(nodes)
-                .enter()
-                .append("text")
-                .attr("x", d => positions[d][0] * 600 + 10)
-                .attr("y", d => positions[d][1] * 600)
-                .attr("text-anchor", "start")
-                .text(d => d)
-                .style("font-size", "10px");
-
-            // Function to update edges during drag
-            function updateEdges() {
-                g.selectAll("line")
-                    .attr("x1", d => positions[d.source][0] * 600)
-                    .attr("y1", d => positions[d.source][1] * 600)
-                    .attr("x2", d => positions[d.target][0] * 600)
-                    .attr("y2", d => positions[d.target][1] * 600);
-            }
-
-        } catch (error) {
-            console.error("Error rendering graph:", error);
-            document.getElementById("heatmap-message").textContent = "Error rendering graph.";
-        }
-    }
-
-
-
-</script>
 {% endblock %}

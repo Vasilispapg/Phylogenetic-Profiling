@@ -30,7 +30,7 @@ def display_tree_command():
     display_tree(TREE_FILE_PATH, max_depth=depth)
     
 def all_vs_all_command():
-    utilize_mcl_onNxN(find_true_positives(CORRELATION_MATRIX_PATH))
+    utilize_mcl_onNxN(find_true_positives(CORRELATION_MATRIX_PATH),create_dash_app=True)
     
 def analyze_command():
     create_correlation_matrix(BLAST_FILE_PATH)

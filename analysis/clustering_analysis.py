@@ -304,7 +304,7 @@ def save_to_cache(file_path, data):
     joblib.dump(data, file_path)
     print(f"Data cached at {file_path}")
 
-def utilize_mcl_onNxN(true_positives, cache_dir="cache/"):
+def utilize_mcl_onNxN(true_positives, cache_dir="cache/",create_dash_app=False):
     print('Utilize MCL started')
     os.makedirs(cache_dir, exist_ok=True)
 
@@ -360,6 +360,11 @@ def utilize_mcl_onNxN(true_positives, cache_dir="cache/"):
     # Ensure all required data is available before proceeding
     if graph is None or clusters is None or pos is None or all_vs_all_df is None:
         raise ValueError("Required data for visualization is missing or could not be computed.")
-
-    return graph, graph.nodes(), all_vs_all_df, pos
+    
+    # Create and run Dash app
+    if create_dash_app:
+        app = create_dash_app(graph, list(graph.nodes()), all_vs_all_df, pos)
+        app.run_server(debug=True, port=8051)
+    else:
+        return graph, graph.nodes(), all_vs_all_df, pos
 
