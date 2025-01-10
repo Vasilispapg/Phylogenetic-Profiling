@@ -259,109 +259,127 @@
 
             if (!query || highlightedNodes[query]) return;
 
-            const node = cy.$id(query); // Get the Cytoscape node
-            if (node.length > 0) {
-                const defaultNodeColor = "#3498db";
+            let node = cy.$id(query); // Get the Cytoscape node
+            let isNewNode = false;
 
-                // Fetch connections from the connectionMap
-                const connections = connectionMap.get(query) || { nodes: new Set(), edges: new Set() };
-                const connectedNodes = Array.from(connections.nodes); // Assume these are plain strings
-                const connectedEdges = Array.from(connections.edges); // Assume these are plain objects with source/target
-
-                // Debugging logs
-                console.log("Query:", query);
-                console.log("Connections:", connections);
-                console.log("Connected Nodes (processed):", connectedNodes);
-                console.log("Connected Edges (processed):", connectedEdges);
-
-                // Add new nodes to the graph
-                connectedNodes.forEach((nodeId, index) => {
-                    if (!cy.hasElementWithId(nodeId)) {
-                        console.log("Adding node:", nodeId);
-
-                        if (typeof nodeId === "string" && nodeId.trim().length > 0) {
-                            // Calculate a unique offset for the new bubble
-                            const bubbleOffset = 650; // Fixed distance to separate bubbles
-                            const bubbleAngle = Object.keys(highlightedNodes).length * Math.PI / 3; // Unique angle for each bubble
-                            const baseBubblePosition = {
-                                x: node.position().x + bubbleOffset * Math.cos(bubbleAngle),
-                                y: node.position().y + bubbleOffset * Math.sin(bubbleAngle),
-                            };
-
-                            // Calculate the position of each node in the bubble
-                            const angle = (index / connectedNodes.length) * 2 * Math.PI; // Spread nodes in a circle
-                            const newNodePosition = {
-                                x: baseBubblePosition.x + 100 * Math.cos(angle), // Offset within the bubble
-                                y: baseBubblePosition.y + 100 * Math.sin(angle),
-                            };
-
-                            // Add the node to the graph
-                            cy.add({
-                                data: { id: nodeId },
-                                position: newNodePosition,
-                            });
-                        } else {
-                            console.error("Invalid node ID:", nodeId);
-                        }
-                    }
-                });
-
-                // Add new edges to the graph
-                connectedEdges.forEach((e) => {
-                    const edgeSource = e.source; // Extract source directly
-                    const edgeTarget = e.target; // Extract target directly
-                    const edgeId = `${edgeSource}-${edgeTarget}`;
-
-                    if (!cy.hasElementWithId(edgeId)) {
-                        console.log("Adding edge:", edgeId, edgeSource, edgeTarget);
-
-                        if (typeof edgeSource === "string" && typeof edgeTarget === "string") {
-                            cy.add({ data: { id: edgeId, source: edgeSource, target: edgeTarget } }); // Add edge directly
-                        } else {
-                            console.error("Invalid edge data:", e);
-                        }
-                    }
-                });
-
-                // Style the current master node and its connections
-                const color = getValidColor();
-                node.style("background-color", color);
-
-                // Style connected nodes
-                connectedNodes.forEach((nodeId) => {
-                    const cyNode = cy.getElementById(nodeId); // Convert node ID to Cytoscape.js element
-                    if (cyNode.length > 0) {
-                        cyNode.style("background-color", lightenColor(color, 20)); // Style the node
-                    } else {
-                        console.error(`Node "${nodeId}" not found in the graph.`);
-                    }
-                });
-
-                // Style connected edges
-                connectedEdges.forEach((edge) => {
-                    const cyEdge = cy.edges(`[id="${edge.id}"]`);
-                    if (cyEdge.length > 0) {
-                        cyEdge.style("line-color", lightenColor(color, 40)); // Style the edge
-                    } else {
-                        console.error(`Edge "${edge.id}" not found in the graph.`);
-                    }
-                });
-
-                // Save highlighted elements for this master node
-                highlightedNodes[query] = {
-                    nodes: new Set(connectedNodes),
-                    edges: new Set(connectedEdges.map((e) => `${e.source}-${e.target}`)),
-                    color,
+            if (node.length === 0) {
+                // Node not found, create it
+                console.log(`Node "${query}" not found. Creating a new bubble.`);
+                const newNodePosition = {
+                    x: Math.random() * 1000, // Randomized position for the new bubble
+                    y: Math.random() * 1000,
                 };
 
-                // Create a bubble for the current node
-                addBubble(query, color);
+                cy.add({
+                    data: { id: query },
+                    position: newNodePosition,
+                });
 
-                // Clear the input field
-                searchNode.value = "";
-            } else {
-                console.log(`Node "${query}" not found.`);
+                node = cy.getElementById(query); // Get the newly added node
+                isNewNode = true;
             }
+
+            const defaultNodeColor = "#3498db";
+
+            // Fetch connections from the connectionMap
+            const connections = connectionMap.get(query) || { nodes: new Set(), edges: new Set() };
+            const connectedNodes = Array.from(connections.nodes); // Assume these are plain strings
+            const connectedEdges = Array.from(connections.edges); // Assume these are plain objects with source/target
+
+            // Debugging logs
+            console.log("Query:", query);
+            console.log("Connections:", connections);
+            console.log("Connected Nodes (processed):", connectedNodes);
+            console.log("Connected Edges (processed):", connectedEdges);
+
+            // Add connected nodes to the graph
+            connectedNodes.forEach((nodeId, index) => {
+                if (!cy.hasElementWithId(nodeId)) {
+                    console.log("Adding node:", nodeId);
+
+                    if (typeof nodeId === "string" && nodeId.trim().length > 0) {
+                        // Calculate a position offset for the new bubble
+                        const bubbleOffset = 650; // Fixed distance to separate bubbles
+                        const bubbleAngle = isNewNode
+                            ? Math.random() * 2 * Math.PI // Random angle for the bubble if new
+                            : Object.keys(highlightedNodes).length * Math.PI / 3; // Unique angle for existing bubbles
+
+                        const baseBubblePosition = {
+                            x: node.position().x + bubbleOffset * Math.cos(bubbleAngle),
+                            y: node.position().y + bubbleOffset * Math.sin(bubbleAngle),
+                        };
+
+                        // Calculate the position of each node in the bubble
+                        const angle = (index / connectedNodes.length) * 2 * Math.PI; // Spread nodes in a circle
+                        const newNodePosition = {
+                            x: baseBubblePosition.x + 100 * Math.cos(angle), // Offset within the bubble
+                            y: baseBubblePosition.y + 100 * Math.sin(angle),
+                        };
+
+                        // Add the node to the graph
+                        cy.add({
+                            data: { id: nodeId },
+                            position: newNodePosition,
+                        });
+                    } else {
+                        console.error("Invalid node ID:", nodeId);
+                    }
+                }
+            });
+
+            // Add connected edges to the graph
+            connectedEdges.forEach((e) => {
+                const edgeSource = e.source; // Extract source directly
+                const edgeTarget = e.target; // Extract target directly
+                const edgeId = `${edgeSource}-${edgeTarget}`;
+
+                if (!cy.hasElementWithId(edgeId)) {
+                    console.log("Adding edge:", edgeId, edgeSource, edgeTarget);
+
+                    if (typeof edgeSource === "string" && typeof edgeTarget === "string") {
+                        cy.add({ data: { id: edgeId, source: edgeSource, target: edgeTarget } }); // Add edge directly
+                    } else {
+                        console.error("Invalid edge data:", e);
+                    }
+                }
+            });
+
+            // Style the current master node and its connections
+            const color = getValidColor();
+            node.style("background-color", color);
+
+            // Style connected nodes
+            connectedNodes.forEach((nodeId) => {
+                const cyNode = cy.getElementById(nodeId); // Convert node ID to Cytoscape.js element
+                if (cyNode.length > 0) {
+                    cyNode.style("background-color", lightenColor(color, 20)); // Style the node
+                } else {
+                    console.error(`Node "${nodeId}" not found in the graph.`);
+                }
+            });
+
+            // Style connected edges
+            connectedEdges.forEach((edge) => {
+                const cyEdge = cy.edges(`[id="${edge.id}"]`);
+                if (cyEdge.length > 0) {
+                    cyEdge.style("line-color", lightenColor(color, 40)); // Style the edge
+                } else {
+                    console.error(`Edge "${edge.id}" not found in the graph.`);
+                }
+            });
+
+            // Save highlighted elements for this master node
+            highlightedNodes[query] = {
+                nodes: new Set(connectedNodes),
+                edges: new Set(connectedEdges.map((e) => `${e.source}-${e.target}`)),
+                color,
+            };
+
+            // Create a bubble for the current node
+            addBubble(query, color);
+
+            // Clear the input field
+            searchNode.value = "";
         });
 
 

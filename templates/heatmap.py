@@ -96,8 +96,6 @@ def get_heatmap_data(filename):
         return jsonify({"status": "error", "message": str(e)})
 
 
-
-
 def compute_heatmaps(filename, input_path, cache_dir, event):
     """Compute heatmaps and graphs in a background thread."""
     try:

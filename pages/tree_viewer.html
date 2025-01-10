@@ -1,0 +1,189 @@
+{% extends "tools.html" %}
+
+{% block content %}
+<style>
+    body {
+        font-family: Arial, sans-serif;
+    }
+
+    #tree-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    svg {
+        border: 1px solid lightgray;
+        margin-top: 20px;
+    }
+
+    #slider-container {
+        margin-top: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .node circle {
+        fill: steelblue;
+        stroke: darkblue;
+        stroke-width: 2px;
+        transition: transform 0.3s ease;
+    }
+
+    .node circle:hover {
+        transform: scale(1.2);
+    }
+
+    .node text {
+        font-size: 10px;
+        fill: darkgray;
+    }
+
+    .link {
+        fill: none;
+        stroke: lightgray;
+        stroke-width: 1.5px;
+    }
+</style>
+
+<section id="tree-viewer-tool" class="wrapper style1 fullscreen fade-up">
+    <div class="inner">
+        <h1>Phylogenetic Tree Viewer</h1>
+        <p>Upload a .nw file to visualize a phylogenetic tree.</p>
+
+        <!-- File Upload Form -->
+        <form id="tree-upload-form" enctype="multipart/form-data">
+            <label for="tree-file" class="form-label">Upload Newick (.nw) File:</label>
+            <input type="file" id="tree-file" name="file" class="form-control futuristic-input" required>
+            <button type="button" id="upload-tree-button" class="button futuristic-btn mt-4">Upload and View Tree</button>
+            <div id="upload-message" class="text-warning mt-2"></div>
+        </form>
+
+        <!-- Tree Visualization -->
+        <div id="tree-viewer-result" class="mt-4 d-none">
+            <!-- Depth Slider -->
+            <div id="slider-container">
+                <label for="depth-slider" class="form-label">Tree Depth:</label>
+                <input type="range" id="depth-slider" min="1" max="50" value="12" class="form-range">
+                <span id="depth-value">Depth: 12</span>
+            </div>
+            <svg id="tree-svg" width="1000" height="1000"></svg>
+        </div>
+    </div>
+</section>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const treeFileInput = document.getElementById("tree-file");
+        const uploadTreeButton = document.getElementById("upload-tree-button");
+        const uploadMessage = document.getElementById("upload-message");
+        const treeSvg = d3.select("#tree-svg");
+        const depthSlider = document.getElementById("depth-slider");
+        const depthValue = document.getElementById("depth-value");
+
+        let treeData = null;
+        const width = 1000, height = 1000;
+
+        const svgGroup = treeSvg.append("g").attr("transform", `translate(${width / 2},${height / 2})`);
+
+        // Update depth value dynamically
+        depthSlider.addEventListener("input", () => {
+            depthValue.textContent = `Depth: ${depthSlider.value}`;
+            if (treeData) visualizeTree(treeData, parseInt(depthSlider.value));
+        });
+
+        // File upload and process
+        uploadTreeButton.addEventListener("click", async () => {
+            const file = treeFileInput.files[0];
+
+            if (!file) {
+                uploadMessage.textContent = "Please upload a .nw file.";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("max_depth", depthSlider.value);
+
+            uploadMessage.textContent = "Processing tree...";
+
+            try {
+                const response = await fetch("/tools/tree_viewer", {
+                    method: "POST",
+                    body: formData,
+                });
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    document.getElementById("tree-viewer-result").classList.remove("d-none");
+                    treeData = result.tree_data; // Store the tree data globally
+                    visualizeTree(treeData, parseInt(depthSlider.value));
+                    uploadMessage.textContent = "Tree loaded successfully!";
+                } else {
+                    uploadMessage.textContent = result.message || "Failed to load tree.";
+                }
+            } catch (error) {
+                console.error(error);
+                uploadMessage.textContent = "An error occurred while processing the tree.";
+            }
+        });
+
+        // Tree visualization function
+        function visualizeTree(treeData, depth) {
+            svgGroup.selectAll("*").remove(); // Clear existing visualization
+
+            const radius = Math.min(width, height) / 2 - 50;
+
+            const treeLayout = d3.tree().size([2 * Math.PI, radius]);
+
+            const root = d3.hierarchy(treeData);
+            root.descendants().forEach((node) => {
+                if (node.depth > depth) node.children = null; // Prune beyond max depth
+            });
+
+            const tree = treeLayout(root);
+
+            const links = svgGroup.append("g")
+                .selectAll("path")
+                .data(tree.links())
+                .join("path")
+                .attr("class", "link")
+                .attr("d", d3.linkRadial()
+                    .angle(d => d.x)
+                    .radius(d => d.y)
+                );
+
+            const nodes = svgGroup.append("g")
+                .selectAll("g")
+                .data(tree.descendants())
+                .join("g")
+                .attr("class", "node")
+                .attr("transform", d => `
+                    rotate(${d.x * 180 / Math.PI - 90})
+                    translate(${d.y},0)
+                `);
+
+            nodes.append("circle").attr("r", 4);
+
+            nodes.append("text")
+                .attr("dy", "0.32em")
+                .attr("x", d => d.x < Math.PI === !d.children ? 6 : -6)
+                .style("text-anchor", d => d.x < Math.PI === !d.children ? "start" : "end")
+                .attr("transform", d => d.x >= Math.PI ? "rotate(180)" : null)
+                .text(d => d.data.name);
+        }
+
+        // Add zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.5, 3]) // Zoom limits
+            .on("zoom", (event) => {
+                svgGroup.attr("transform", event.transform);
+            });
+
+        treeSvg.call(zoom);
+    });
+</script>
+{% endblock %}

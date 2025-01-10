@@ -3,6 +3,7 @@ import os
 import sys
 from templates.heatmap import heatmap_bp
 from templates.blast import blast_bp
+from templates.tree import tree_bp
 
 # Initialize Flask app
 app = Flask(__name__, template_folder="pages", static_folder="public")
@@ -37,8 +38,10 @@ def heatmap_tool():
     """Render the Heatmap analysis tool page."""
     return render_template('heatmap.html', active_tool="heatmap")
 
+
 app.register_blueprint(blast_bp)
 app.register_blueprint(heatmap_bp)
+app.register_blueprint(tree_bp)
 
 
 if __name__ == "__main__":

@@ -24,37 +24,29 @@ def load_species_data(species_list_path):
 
 def approximate_distance_matrix(species):
     """
-    Create a distance matrix for the given species list using hierarchical clustering.
+    Create a full distance matrix for the given species list.
     
     Parameters:
     - species: List of species names (SpeciesCode).
     
     Returns:
-    - representative_species: List of representative species after clustering.
+    - species: Original list of species.
     - lower_triangle_matrix: Lower triangular distance matrix.
     """
-    # Convert species to a numpy array
-    species_array = np.array(species)
-    # pdb.set_trace()
-    # Perform hierarchical clustering using unique species
-    cluster_model = AgglomerativeClustering(n_clusters=min(1500, len(species_array) // 3))
+    # Convert species to numerical indices for distance calculation
+    species_indices = np.arange(len(species)).reshape(-1, 1)
     
-    # Cluster the species (encoded as unique IDs)
-    labels = cluster_model.fit_predict(np.arange(len(species_array)).reshape(-1, 1))
-    
-    # Map labels back to species
-    representative_species = [species_array[i] for i in np.unique(labels)]
-    
-    # Calculate pairwise distances (numerical indices)
-    distances = pdist(np.arange(len(representative_species)).reshape(-1, 1))
+    # Calculate pairwise distances (use indices to simulate distances)
+    distances = pdist(species_indices)
     distance_matrix = squareform(distances)
 
     # Generate the lower triangular matrix
     lower_triangle_matrix = [
         [distance_matrix[i][j] for j in range(i + 1)]
-        for i in range(len(representative_species))
+        for i in range(len(species))
     ]
-    return representative_species, lower_triangle_matrix
+    return species, lower_triangle_matrix
+
 
 def construct_tree(species, distance_matrix, output_path="output/species_tree_approx.nw"):
     """
@@ -69,9 +61,13 @@ def construct_tree(species, distance_matrix, output_path="output/species_tree_ap
     sys.setrecursionlimit(10000)
     # Ensure species names are strings
     species = [str(s) for s in species]
-    pdb.set_trace()
+    # pdb.set_trace()
+    print(f"Constructing tree for {len(species)} species...")
     dm = DistanceMatrix(names=species, matrix=distance_matrix)
+    print("Distance matrix created.")
     constructor = DistanceTreeConstructor()
+    print("Constructing tree...")
     species_tree = constructor.nj(dm)
+    print("Tree constructed.")
     Phylo.write(species_tree, output_path, "newick")
     print(f"Tree saved as {output_path}")
