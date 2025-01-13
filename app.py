@@ -1,8 +1,9 @@
 from flask import Flask, render_template
 import os
 import sys
-from templates.heatmap import heatmap_bp
+from templates.allvsall import allvsall_bp
 from templates.blast import blast_bp
+from templates.heatmap import heatmap_bp
 from templates.tree import tree_bp
 
 # Initialize Flask app
@@ -33,14 +34,20 @@ def blast_tool():
     return render_template('blast.html', active_tool="blast")
 
 
+@app.route('/tools/allvsall')
+def allvsall_tool():
+    """Render the allvsall analysis tool page."""
+    return render_template('allvsall.html', active_tool="allvsall")
+
 @app.route('/tools/heatmap')
 def heatmap_tool():
-    """Render the Heatmap analysis tool page."""
+    """Render the allvsall analysis tool page."""
     return render_template('heatmap.html', active_tool="heatmap")
 
 
 app.register_blueprint(blast_bp)
 app.register_blueprint(heatmap_bp)
+app.register_blueprint(allvsall_bp)
 app.register_blueprint(tree_bp)
 
 

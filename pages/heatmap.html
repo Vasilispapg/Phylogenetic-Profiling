@@ -1,553 +1,119 @@
 {% extends "tools.html" %}
 
 {% block content %}
-<style>
-    #loading-spinner {
-        display: none;
-        margin: 20px auto;
-        border: 8px solid #f3f3f3;
-        border-top: 8px solid #3498db;
-        border-radius: 50%;
-        position: absolute;
-        top: 45%;
-        left: 45%;
-        width: 50px;
-        height: 50px;
-        animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-
-    #heatmap-container {
-        display: none;
-    }
-
-    .search-bubble {
-        display: inline-block;
-        background-color: #3498db;
-        color: #fff;
-        padding: 5px 10px;
-        border-radius: 15px;
-        margin-right: 5px;
-        margin-bottom: 5px;
-        font-size: 14px;
-        cursor: default;
-    }
-
-    .search-bubble .remove-bubble {
-        margin-left: 8px;
-        font-size: 14px;
-        cursor: pointer;
-        color: #fff;
-    }
-
-    .hidden {
-        display: none !important;
-    }
-
-    #search-node {
-        margin-bottom: 10px;
-        width: 100%;
-        padding: 8px;
-    }
-
-    #search-bubbles {
-        margin-bottom: 10px;
-    }
-</style>
-
-<section id="heatmap-tool" class="wrapper style1 fullscreen fade-up">
+<section id="blast-tool" class="wrapper style1 fullscreen fade-up">
     <div class="inner">
-        <h1>Heatmap Analysis Tool</h1>
-        <p>Generate interactive all-vs-all correlation heatmaps for your datasets.</p>
+        <h1>BLAST Analysis Tool</h1>
+        <p class="text-light">Upload your BLAST file and extract feature or correlation matrices.</p>
+        <form id="blast-upload-form" enctype="multipart/form-data" class="d-flex flex-column gap-4">
+            <div class="mb-3">
+                <label for="blast-file" class="form-label">Upload BLAST File:</label>
+                <input type="file" id="blast-file" name="file" class="bg-dark form-control text-warning border-0 p-1" required>
+                <div id="upload-message" class="text-warning mt-2"></div>
+            </div>
 
-        <!-- Upload Form -->
-        <form id="heatmap-upload-form">
-            <label for="heatmap-file" class="form-label">Upload Dataset:</label>
-            <input type="file" id="heatmap-file" name="file" class="form-control futuristic-input" required>
-            <button type="submit" class="button mt-3">Generate Heatmap</button>
-            <div id="heatmap-message" class="text-info mt-2"></div>
+            <div class="mb-3">
+                <label for="analysis-type" class="form-label">Select Analysis Type:</label>
+                <select id="analysis-type" class="form-select futuristic-select text-warning" required>
+                    <option value="" selected disabled>Select Analysis Type...</option>
+                    <option value="correlation">Correlation Analysis</option>
+                    <option value="features">Feature Analysis</option>
+                </select>
+            </div>
+
+            <div class="mt-4">
+                <button type="button" id="process-button" class="button futuristic-btn mt-2" disabled>Start Analysis</button>
+            </div>
+            
+            <div id="processing-message" class="text-warning mt-3"></div>
+            <div id="blast-result" class="mt-4"></div>
         </form>
-
-        <!-- Heatmap & Graph Visualization -->
-        <div id="heatmap-container">
-            <button id="back-button" class="button mt-3">Back</button>
-            <div id="search-bubbles"></div>
-            <input
-                type="text"
-                id="search-node"
-                list="node-options"
-                class="form-control"
-                placeholder="Search and highlight nodes..."
-            />
-            <datalist id="node-options"></datalist>
-            <button id="reset-zoom" class="button mt-3">Reset Zoom</button>
-            <div id="graph" style="width: 100%; height: 600px; border: 1px solid #ccc;"></div>
-        </div>
-
-        <!-- Loading Spinner -->
-        <div id="loading-spinner"></div>
     </div>
 </section>
 
 <script>
-    const form = document.getElementById("heatmap-upload-form");
-    const heatmapContainer = document.getElementById("heatmap-container");
-    const backButton = document.getElementById("back-button");
-    const messageDiv = document.getElementById("heatmap-message");
-    const searchNode = document.getElementById("search-node");
-    const datalist = document.getElementById("node-options");
-    const searchBubbles = document.getElementById("search-bubbles");
+    document.addEventListener("DOMContentLoaded", () => {
+        const fileInput = document.getElementById("blast-file");
+        const processButton = document.getElementById("process-button");
+        const analysisType = document.getElementById("analysis-type");
+        const uploadMessage = document.getElementById("upload-message");
+        const processingMessage = document.getElementById("processing-message");
+        const resultContainer = document.getElementById("blast-result");
 
-    let cy; // Cytoscape instance
-    let highlightedNodes = {}; // To track highlighted nodes with unique colors
+        let uploadedFileName = "";
 
-    backButton.addEventListener("click", () => {
-        heatmapContainer.style.display = "none";
-        form.style.display = "block";
-    });
+        // Handle file upload on change
+        fileInput.addEventListener("change", async () => {
+            if (!fileInput.files[0]) {
+                uploadMessage.textContent = "Please select a file.";
+                return;
+            }
 
-    form.addEventListener("submit", function (event) {
-        event.preventDefault();
-        const fileInput = document.getElementById("heatmap-file");
-        const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
 
-        if (!file) {
-            messageDiv.textContent = "Please select a file.";
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        fetch("/tools/heatmap", {
-            method: "POST",
-            body: formData,
-        })
-            .then((response) => response.json())
-            .then((data) => {
-                if (data.status === "success") {
-                    messageDiv.textContent = data.message;
-                    pollForResults(data.filename);
-                } else {
-                    messageDiv.textContent = data.message;
-                }
-            })
-            .catch((error) => {
-                messageDiv.textContent = "Error uploading file.";
-                console.error(error);
-            });
-    });
-
-    function pollForResults(filename) {
-        const interval = setInterval(async () => {
             try {
-                const response = await fetch(`/heatmap_status/${filename}`);
-                const data = await response.json();
+                uploadMessage.textContent = "Uploading...";
+                const response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+                const result = await response.json();
 
-                if (data.status === "success" && data.message === "Completed.") {
-                    clearInterval(interval);
-                    fetchHeatmapData(filename);
-                } else if (data.status === "error") {
-                    clearInterval(interval);
-                    messageDiv.textContent = data.message;
+                if (result.status === "success") {
+                    uploadedFileName = result.filename;
+                    uploadMessage.textContent = "File uploaded successfully.";
+                    processButton.disabled = false;
                 } else {
-                    messageDiv.textContent = data.message;
+                    uploadMessage.textContent = result.message || "Upload failed.";
                 }
             } catch (error) {
-                clearInterval(interval);
-                messageDiv.textContent = "Error checking status.";
+                uploadMessage.textContent = "An error occurred during upload.";
                 console.error(error);
             }
-        }, 2000);
-    }
-
-    async function fetchHeatmapData(filename) {
-        try {
-            document.getElementById("loading-spinner").style.display = "block";
-
-            const response = await fetch(`/heatmap_data/${filename}`);
-            const data = await response.json();
-
-            if (data.status === "success") {
-                renderGraph(data.edges, data.positions, data.nodes);
-                form.style.display = "none";
-                heatmapContainer.style.display = "block";
-            } else {
-                messageDiv.textContent = data.message;
-            }
-        } catch (error) {
-            messageDiv.textContent = "Error fetching heatmap data.";
-            console.error(error);
-        } finally {
-            document.getElementById("loading-spinner").style.display = "none";
-        }
-    }
-    
-
-    // Map to store all node connections
-    const connectionMap = new Map();
-
-    function renderGraph(edges, positions, nodes) {
-        // Initialize Cytoscape.js
-        cy = cytoscape({
-            container: document.getElementById("graph"),
-            elements: [
-                ...nodes.map((node) => ({
-                    data: { id: node },
-                    position: {
-                        x: positions[node][0] * 600,
-                        y: positions[node][1] * 600,
-                    },
-                })),
-                ...edges.map((edge) => ({
-                    data: { source: edge.source, target: edge.target },
-                })),
-            ],
-            style: [
-                {
-                    selector: "node",
-                    style: {
-                        "background-color": "#3498db",
-                        label: "data(id)",
-                        "font-size": "10px",
-                        color: "#fff",
-                        "text-halign": "center",
-                        "text-valign": "center",
-                    },
-                },
-                {
-                    selector: "edge",
-                    style: {
-                        "line-color": "#2ecc71",
-                        width: 1.5,
-                    },
-                },
-            ],
-            layout: { name: "preset" },
-            zoom: 1,
-            minZoom: 0.5,
-            maxZoom: 2,
         });
 
-        nodes.forEach((node) => {
-            const option = document.createElement("option");
-            option.value = node;
-            datalist.appendChild(option);
-        });
-        
-
-        // Populate connectionMap
-        edges.forEach((edge) => {
-            if (!connectionMap.has(edge.source)) {
-                connectionMap.set(edge.source, { nodes: new Set(), edges: new Set() });
+        // Handle analysis processing
+        processButton.addEventListener("click", async () => {
+            const selectedType = analysisType.value;
+            if (!selectedType) {
+                processingMessage.textContent = "Please select an analysis type.";
+                return;
             }
-            if (!connectionMap.has(edge.target)) {
-                connectionMap.set(edge.target, { nodes: new Set(), edges: new Set() });
+
+            if (!uploadedFileName) {
+                processingMessage.textContent = "No file uploaded.";
+                return;
             }
-            connectionMap.get(edge.source).nodes.add(edge.target);
-            connectionMap.get(edge.source).edges.add(edge);
-            connectionMap.get(edge.target).nodes.add(edge.source);
-            connectionMap.get(edge.target).edges.add(edge);
-        });
 
-        searchNode.addEventListener("input", (event) => {
-            const query = event.target.value.trim();
+            processingMessage.textContent = "Processing started. Please wait...";
 
-            if (!query || highlightedNodes[query]) return;
-
-            let node = cy.$id(query); // Get the Cytoscape node
-            let isNewNode = false;
-
-            if (node.length === 0) {
-                // Node not found, create it
-                console.log(`Node "${query}" not found. Creating a new bubble.`);
-                const newNodePosition = {
-                    x: Math.random() * 1000, // Randomized position for the new bubble
-                    y: Math.random() * 1000,
-                };
-
-                cy.add({
-                    data: { id: query },
-                    position: newNodePosition,
+            try {
+                const response = await fetch("/process", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ filename: uploadedFileName, analysis_type: selectedType }),
                 });
+                const result = await response.json();
 
-                node = cy.getElementById(query); // Get the newly added node
-                isNewNode = true;
+                if (result.status === "success") {
+                    processingMessage.textContent = result.message;
+
+                    // Fetch results
+                    console.log(result.output_path)
+                    resultContainer.innerHTML = `
+                        <h4>Analysis Completed</h4>
+                        <a href="/${result.output_path}" class="button futuristic-btn-secondary" target="_blank">Download Results</a>
+                    `;
+                } else {
+                    processingMessage.textContent = result.message || "Processing failed.";
+                }
+            } catch (error) {
+                processingMessage.textContent = "An error occurred during processing.";
+                console.error(error);
             }
-
-            const defaultNodeColor = "#3498db";
-
-            // Fetch connections from the connectionMap
-            const connections = connectionMap.get(query) || { nodes: new Set(), edges: new Set() };
-            const connectedNodes = Array.from(connections.nodes); // Assume these are plain strings
-            const connectedEdges = Array.from(connections.edges); // Assume these are plain objects with source/target
-
-            // Debugging logs
-            console.log("Query:", query);
-            console.log("Connections:", connections);
-            console.log("Connected Nodes (processed):", connectedNodes);
-            console.log("Connected Edges (processed):", connectedEdges);
-
-            // Add connected nodes to the graph
-            connectedNodes.forEach((nodeId, index) => {
-                if (!cy.hasElementWithId(nodeId)) {
-                    console.log("Adding node:", nodeId);
-
-                    if (typeof nodeId === "string" && nodeId.trim().length > 0) {
-                        // Calculate a position offset for the new bubble
-                        const bubbleOffset = 650; // Fixed distance to separate bubbles
-                        const bubbleAngle = isNewNode
-                            ? Math.random() * 2 * Math.PI // Random angle for the bubble if new
-                            : Object.keys(highlightedNodes).length * Math.PI / 3; // Unique angle for existing bubbles
-
-                        const baseBubblePosition = {
-                            x: node.position().x + bubbleOffset * Math.cos(bubbleAngle),
-                            y: node.position().y + bubbleOffset * Math.sin(bubbleAngle),
-                        };
-
-                        // Calculate the position of each node in the bubble
-                        const angle = (index / connectedNodes.length) * 2 * Math.PI; // Spread nodes in a circle
-                        const newNodePosition = {
-                            x: baseBubblePosition.x + 100 * Math.cos(angle), // Offset within the bubble
-                            y: baseBubblePosition.y + 100 * Math.sin(angle),
-                        };
-
-                        // Add the node to the graph
-                        cy.add({
-                            data: { id: nodeId },
-                            position: newNodePosition,
-                        });
-                    } else {
-                        console.error("Invalid node ID:", nodeId);
-                    }
-                }
-            });
-
-            // Add connected edges to the graph
-            connectedEdges.forEach((e) => {
-                const edgeSource = e.source; // Extract source directly
-                const edgeTarget = e.target; // Extract target directly
-                const edgeId = `${edgeSource}-${edgeTarget}`;
-
-                if (!cy.hasElementWithId(edgeId)) {
-                    console.log("Adding edge:", edgeId, edgeSource, edgeTarget);
-
-                    if (typeof edgeSource === "string" && typeof edgeTarget === "string") {
-                        cy.add({ data: { id: edgeId, source: edgeSource, target: edgeTarget } }); // Add edge directly
-                    } else {
-                        console.error("Invalid edge data:", e);
-                    }
-                }
-            });
-
-            // Style the current master node and its connections
-            const color = getValidColor();
-            node.style("background-color", color);
-
-            // Style connected nodes
-            connectedNodes.forEach((nodeId) => {
-                const cyNode = cy.getElementById(nodeId); // Convert node ID to Cytoscape.js element
-                if (cyNode.length > 0) {
-                    cyNode.style("background-color", lightenColor(color, 20)); // Style the node
-                } else {
-                    console.error(`Node "${nodeId}" not found in the graph.`);
-                }
-            });
-
-            // Style connected edges
-            connectedEdges.forEach((edge) => {
-                const cyEdge = cy.edges(`[id="${edge.id}"]`);
-                if (cyEdge.length > 0) {
-                    cyEdge.style("line-color", lightenColor(color, 40)); // Style the edge
-                } else {
-                    console.error(`Edge "${edge.id}" not found in the graph.`);
-                }
-            });
-
-            // Save highlighted elements for this master node
-            highlightedNodes[query] = {
-                nodes: new Set(connectedNodes),
-                edges: new Set(connectedEdges.map((e) => `${e.source}-${e.target}`)),
-                color,
-            };
-
-            // Create a bubble for the current node
-            addBubble(query, color);
-
-            // Clear the input field
-            searchNode.value = "";
         });
-
-
-
-
-        document.getElementById("reset-zoom").addEventListener("click", () => cy.reset());
-    }
-
-
-    function removeNodesWithDefaultColors() {
-    // Define the default colors for nodes and edges
-    const defaultNodeColor = "#3498db"; // Replace with your actual default node color
-    const defaultEdgeColor = "#2ecc71"; // Replace with your actual default edge color
-
-    // Helper function to convert RGB to Hex
-    function rgbToHex(rgb) {
-        const match = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-        if (!match) return rgb; // Return the original color if it's not in RGB format
-
-        const r = parseInt(match[1]).toString(16).padStart(2, "0");
-        const g = parseInt(match[2]).toString(16).padStart(2, "0");
-        const b = parseInt(match[3]).toString(16).padStart(2, "0");
-
-        return `#${r}${g}${b}`;
-    }
-
-    // Collect nodes to be removed
-    const nodesToRemove = [];
-
-    cy.nodes().forEach(node => {
-        const nodeColor = rgbToHex(node.style("background-color"));
-        const connectedEdges = node.connectedEdges();
-        // Check if the node has the default color and all connected edges are default-colored
-        const allEdgesDefaultColor = connectedEdges.every(edge => {
-            const edgeColor = rgbToHex(edge.style("line-color"));
-            return edgeColor === defaultEdgeColor;
-        });
-
-        if (nodeColor === defaultNodeColor && allEdgesDefaultColor) {
-            nodesToRemove.push(node); // Mark the node for removal
-        }
     });
-
-    // Remove marked nodes and their connected edges
-    nodesToRemove.forEach(node => {
-        // console.log(`Removing node: ${node.id()}`);
-        node.connectedEdges().remove(); // Remove all edges connected to the node
-        node.remove(); // Remove the node itself
-    });
-
-    // Remove edges with the default color that are not connected to any nodes
-    cy.edges().forEach(edge => {
-        const edgeColor = rgbToHex(edge.style("line-color"));
-        const connectedNodes = edge.connectedNodes();
-
-        if (edgeColor === defaultEdgeColor && connectedNodes.length === 0) {
-            // console.log(`Removing edge: ${edge.id()}`);
-            edge.remove();
-        }
-    });
-}
-
-
-
-    function addBubble(query, color) {
-            // Create the bubble container
-            const bubble = document.createElement("span");
-            bubble.className = "search-bubble";
-            bubble.textContent = query;
-
-            // Style the bubble with the unique color
-            bubble.style.backgroundColor = color;
-            removeNodesWithDefaultColors();
-
-            // Create the remove button
-            const removeButton = document.createElement("span");
-            removeButton.className = "remove-bubble";
-            removeButton.textContent = " X";
-
-            // Define behavior when the bubble is removed
-            removeButton.onclick = () => {
-                // Remove the highlighted nodes and edges for this bubble
-                if (highlightedNodes[query]) {
-                    const bubbleData = highlightedNodes[query];
-
-                    // Remove unique nodes and edges for this bubble
-                    bubbleData.nodes.forEach(nodeId => {
-                        if (!Object.values(highlightedNodes).some(b => b !== bubbleData && b.nodes.has(nodeId))) {
-                            cy.$id(nodeId).remove();
-                        }
-                    });
-
-                    bubbleData.edges.forEach(edgeId => {
-                        if (!Object.values(highlightedNodes).some(b => b !== bubbleData && b.edges.has(edgeId))) {
-                            cy.$id(edgeId).remove();
-                        }
-                    });
-
-                    // Delete the bubble data
-                    delete highlightedNodes[query];
-
-                    // Reset the graph if no bubbles remain
-                    if (Object.keys(highlightedNodes).length === 0) {
-                        mayResetGraph(edges, positions, nodes, highlightedNodes);
-                    }
-                }
-
-                // Remove the bubble from the DOM
-                bubble.remove();
-            };
-
-            // Add the remove button to the bubble
-            bubble.appendChild(removeButton);
-
-            // Append the bubble to the container
-            searchBubbles.appendChild(bubble);
-        }
-
-
-
-    function mayResetGraph(edges,positions,nodes,highlightedNodes){
-        if(Object.keys(highlightedNodes).length === 0){
-            // Reset the graph to the original state
-            document.getElementById("loading-spinner").style.display = "block";
-            cy.elements().remove();
-            cy.add(nodes.map((node) => ({
-                data: { id: node },
-                position: {
-                    x: positions[node][0] * 600,
-                    y: positions[node][1] * 600,
-                },
-            })));
-            cy.add(edges.map((edge) => ({
-                data: { source: edge.source, target: edge.target },
-            })));
-
-            cy.layout({ name: "preset" }).run();
-            document.getElementById("loading-spinner").style.display = "none";
-        }
-    }
-
-    function getValidColor() {
-        let color = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
-        while (color.length < 7) {
-            color = `#0${color.slice(1)}`; // Pad with zeros if necessary
-        }
-        return color;
-    }
-
-    function getRandomColor() {
-        return `#${Math.floor(Math.random() * 16777215).toString(16)}`;
-    }
-
-    function lightenColor(color, percent) {
-    const num = parseInt(color.slice(1), 16);
-    const amt = Math.round(2.55 * percent);
-    const r = (num >> 16) + amt;
-    const g = ((num >> 8) & 0x00ff) + amt;
-    const b = (num & 0x0000ff) + amt;
-
-    return `#${(
-        0x1000000 +
-        (r < 255 ? (r < 0 ? 0 : r) : 255) * 0x10000 +
-        (g < 255 ? (g < 0 ? 0 : g) : 255) * 0x100 +
-        (b < 255 ? (b < 0 ? 0 : b) : 255)
-    )
-        .toString(16)
-        .slice(1)}`;
-}
 </script>
+
 {% endblock %}

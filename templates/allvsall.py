@@ -11,8 +11,8 @@ sys.path.append(project_root)
 from analysis.clustering_analysis import utilize_mcl_onNxN
 from analysis.matrix_operations import find_true_positives
 
-# Blueprint for heatmap routes
-heatmap_bp = Blueprint('heatmap', __name__, template_folder='templates')
+# Blueprint for allvsall routes
+allvsall_bp = Blueprint('allvsall', __name__, template_folder='templates')
 
 UPLOAD_FOLDER = './uploads'
 CACHE_FOLDER = './cache'
@@ -24,9 +24,9 @@ precomputed_results = {}
 progress_status = {}
 precomputed_results_lock = Lock()
 
-@heatmap_bp.route('/tools/heatmap', methods=['GET', 'POST'])
-def heatmap_tool():
-    """Render the heatmap tool page or handle file uploads."""
+@allvsall_bp.route('/tools/allvsall', methods=['GET', 'POST'])
+def allvsall_tool():
+    """Render the allvsall tool page or handle file uploads."""
     if request.method == 'POST':
         if 'file' not in request.files:
             return jsonify({"status": "error", "message": "No file part provided."})
@@ -41,28 +41,28 @@ def heatmap_tool():
 
         # Start computation in background
         event = threading.Event()
-        thread = threading.Thread(target=compute_heatmaps, args=(file.filename, file_path, CACHE_FOLDER, event))
+        thread = threading.Thread(target=compute_allvsalls, args=(file.filename, file_path, CACHE_FOLDER, event))
         thread.start()
 
         return jsonify({"status": "success", "message": "File uploaded and processing started.", "filename": file.filename})
 
-    return render_template('heatmap.html', active_tool="heatmap")
+    return render_template('allvsall.html', active_tool="allvsall")
 
 
-@heatmap_bp.route('/heatmap_status/<filename>', methods=['GET'])
-def heatmap_status(filename):
-    """Get the status of the heatmap computation."""
+@allvsall_bp.route('/allvsall_status/<filename>', methods=['GET'])
+def allvsall_status(filename):
+    """Get the status of the allvsall computation."""
     if filename not in progress_status:
         return jsonify({"status": "error", "message": "No process found for this file."})
 
     return jsonify({"status": "success", "message": progress_status[filename]})
 
 
-@heatmap_bp.route('/heatmap_data/<filename>', methods=['GET'])
-def get_heatmap_data(filename):
-    """Fetch precomputed heatmap and graph data."""
+@allvsall_bp.route('/allvsall_data/<filename>', methods=['GET'])
+def get_allvsall_data(filename):
+    """Fetch precomputed allvsall and graph data."""
     try:
-        print(f"Request received for heatmap data: {filename}")
+        print(f"Request received for allvsall data: {filename}")
 
         if filename not in precomputed_results:
             print(f"Error: Data not found for {filename}")
@@ -87,12 +87,12 @@ def get_heatmap_data(filename):
         })
 
     except Exception as e:
-        print(f"Unexpected error in /heatmap_data: {e}")
+        print(f"Unexpected error in /allvsall_data: {e}")
         return jsonify({"status": "error", "message": str(e)})
 
 
-def compute_heatmaps(filename, input_path, cache_dir, event):
-    """Compute heatmaps and graphs in a background thread."""
+def compute_allvsalls(filename, input_path, cache_dir, event):
+    """Compute allvsalls and graphs in a background thread."""
     try:
         progress_status[filename] = "Initializing computation..."
         true_positives = find_true_positives(input_path)
