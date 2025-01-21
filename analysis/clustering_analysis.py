@@ -44,7 +44,6 @@ def prepare_clustering(true_positives):
 
     return graph, nodes, all_vs_all_df, pos
 
-
 def create_dash_component(graph, nodes, all_vs_all_df, pos):
     """
     Creates the Dash layout and registers callbacks for the heatmap and graph visualization.

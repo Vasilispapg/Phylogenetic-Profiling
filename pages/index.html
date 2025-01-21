@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 	<head>
-		<title>BCCB Thesis</title>
+		<title>Biological Computation & Computational Biology | Papagrigoriou</title>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
 		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}">
@@ -29,8 +29,8 @@
 			<!-- Intro -->
 			<section id="intro" class="wrapper style1 fullscreen fade-up">
 				<div class="inner">
-					<h1>BCCB Thesis</h1>
-					<p>Welcome to the BCCB Thesis Tool - designed for researchers and startups to simplify analysis.</p>
+					<h1>Biological Computation & Computational Biology | Papagrigoriou Thesis</h1>
+					<p>Welcome to the Biological Computation & Computational Biology | Papagrigoriou Thesis Tool - designed for researchers and startups to simplify analysis.</p>
 					<ul class="actions">
 						<li><a href="#one" class="button scrolly">Learn more</a></li>
 					</ul>
@@ -40,7 +40,7 @@
 			<!-- One -->
 			<section id="one" class="wrapper style2 spotlights">
 				<section>
-					<a href="#" class="image"><img src="{{ url_for('static', filename='img/pic01.jpg') }}" alt="Image 1" /></a>
+					<a href="#" class="image"><img src="https://www.auth.gr/wp-content/uploads/cropped-LogoAUTHblack300ppi.jpg" alt="Image 1" /></a>
 					<div class="content">
 						<div class="inner">
 							<h2>Our Mission</h2>
@@ -52,7 +52,7 @@
 					</div>
 				</section>
 				<section>
-					<a href="#" class="image"><img src="{{ url_for('static', filename='img/pic02.jpg') }}" alt="Image 2" /></a>
+					<a href="#" class="image"><img src="https://yulab-smu.top/treedata-book/treedata_files/figure-html/mgheatmap-1.svg" alt="Image 2" /></a>
 					<div class="content">
 						<div class="inner">
 							<h2>Heatmap Analysis</h2>
@@ -64,7 +64,7 @@
 					</div>
 				</section>
 				<section>
-					<a href="#" class="image"><img src="{{ url_for('static', filename='img/pic02.jpg') }}" alt="Image 2" /></a>
+					<a href="#" class="image"><img src="https://scitechdaily.com/images/Algorithm-Allows-Biologists-to-Harness-the-Capabilities-Supercomputers.jpg" alt="Image 2" /></a>
 					<div class="content">
 						<div class="inner">
 							<h2>All Vs All Graph Analysis</h2>
@@ -76,7 +76,7 @@
 					</div>
 				</section>
 				<section>
-					<a href="#" class="image"><img src="{{ url_for('static', filename='img/pic03.jpg') }}" alt="Image 3" /></a>
+					<a href="#" class="image"><img src="https://blast.ncbi.nlm.nih.gov/images/protein-blast-cover.png" alt="Image 3" /></a>
 					<div class="content">
 						<div class="inner">
 							<h2>BLAST Analysis</h2>
@@ -88,13 +88,14 @@
 					</div>
 				</section>
 				<section>
-					<a href="#" class="image"><img src="{{ url_for('static', filename='img/pic03.jpg') }}" alt="Image 3" /></a>
+					<a href="#" class="image"><img src="https://media.sciencephoto.com/c0/39/11/03/c0391103-800px-wm.jpg" alt="Image 3" /></a>
 					<div class="content">
 						<div class="inner">
 							<h2>Tree Viewer/Constructor</h2>
 							<p>Efficiently process BLAST files and extract feature-rich correlation matrices.</p>
 							<ul class="actions">
-								<li><a href="/tools/tree" class="button">Try Tree Tool</a></li>
+								<li><a href="/tools/tree_viewer" class="button">Try Tree Viewer Tool</a></li>
+								<li><a href="/tools/tree_construct" class="button">Try Tree Constructor</a></li>
 							</ul>
 						</div>
 					</div>
@@ -123,9 +124,9 @@
 							<p>Store your research data securely and retrieve it with ease.</p>
 						</section>
 					</div>
-					<ul class="actions">
+					<!-- <ul class="actions">
 						<li><a href="/features" class="button">Explore Features</a></li>
-					</ul>
+					</ul> -->
 				</div>
 			</section>
 
@@ -160,16 +161,16 @@
 							<ul class="contact">
 								<li>
 									<h3>Address</h3>
-									<span>12345 Somewhere Road, Research City, RC 12345</span>
+									<span>Aristotle University of Thessaloniki, GR-54124 Greece</span>
 								</li>
 								<li>
 									<h3>Email</h3>
-									<a href="mailto:support@BCCB.com">support@BCCB.com</a>
+									<a href="mailto:vasilispapg@outlook.com">vasilispapg@outlook.com</a>
 								</li>
-								<li>
+								<!-- <li>
 									<h3>Phone</h3>
 									<span>+1 (123) 456-7890</span>
-								</li>
+								</li> -->
 							</ul>
 						</section>
 					</div>
@@ -182,11 +183,14 @@
 		<footer id="footer" class="wrapper style1-alt">
 			<div class="inner">
 				<ul class="menu">
-					<li>&copy; BCCB. All rights reserved.</li><li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
+					<li>&copy;<span id="year" style="margin-left: 0.2em;"></span> <a href="https://websites.auth.gr/bccb/"> Biological Computation & Computational Biology</a>. All rights reserved.</li><li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
 				</ul>
 			</div>
 		</footer>
 
+		<script>
+			document.getElementById('year').innerHTML = new Date().getFullYear();
+		</script>
 		<!-- Scripts -->
 		<script src="{{ url_for('static', filename='assets/js/jquery.min.js') }}"></script>
 		<script src="{{ url_for('static', filename='assets/js/jquery.scrollex.min.js') }}"></script>
