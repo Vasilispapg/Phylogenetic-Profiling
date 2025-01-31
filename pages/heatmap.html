@@ -9,6 +9,8 @@
 <!-- Plotly & PapaParse for the first tab -->
 <script src="https://cdn.plot.ly/plotly-2.25.2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.3.2/echarts.min.js"></script>
 
 <style>
   body {
@@ -50,7 +52,8 @@
     background: #fff;
     border: 1px solid #ccc;
     border-radius: 4px;
-    min-height: 400px; 
+    overflow: hidden;
+    min-height: 800px; 
   }
 
   /* Some minimal styling for controls in first tab */
@@ -71,19 +74,39 @@
 
   /* Basic tooltip styling (used in other tabs if needed) */
   .tooltip-d3 {
-    position: absolute; 
-    background: #312450; 
+    position: absolute;
+    background: rgba(0, 0, 0, 0.8);
     color: #fff;
-    border: 1px solid #ccc; 
-    border-radius: 4px; 
-    padding: 5px; 
-    pointer-events: none; 
-    display: none;
-    z-index: 9999;
+    padding: 5px;
+    border-radius: 5px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  #heatmapCanvas {
+    display: block;
+    position: absolute;
+    top: 150px;
+    left: 200px;
+  }
+  #dendrogramSVG {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  #loadingSpinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    font-weight: bold;
+    color: #333;
   }
 </style>
 
-<section id="blast-tool" class="wrapper style1 fade-up p-3">
+<section id="blast-tool" class="wrapper style1 fade-up p-3 fullscreen">
 
   <h1>Multiple Heatmap Methods</h1>
   <p>Select a tab, upload a CSV, and generate the respective heatmap/clustering.</p>
@@ -99,18 +122,18 @@
     </li>
     <!-- SECOND TAB: Clustered Heatmap -->
     <li class="nav-item" role="presentation">
-      <button class="nav-link" id="cluster-tab" data-bs-toggle="tab" data-bs-target="#cluster" type="button"
-              role="tab" aria-controls="cluster" aria-selected="false">
-        Clustered Heatmap
+      <button class="nav-link" id="Correlation-tab" data-bs-toggle="tab" data-bs-target="#Correlation" type="button"
+              role="tab" aria-controls="Correlation" aria-selected="false">
+        Correlation Heatmap
       </button>
     </li>
     <!-- THIRD TAB: Canvas-based Heatmap -->
-     <!-- <li class="nav-item" role="presentation">
-      <button class="nav-link" id="canvas-tab" data-bs-toggle="tab" data-bs-target="#canvas-heatmap" type="button"
-              role="tab" aria-controls="canvas-heatmap" aria-selected="false">
-        Canvas Heatmap
+     <li class="nav-item" role="presentation">
+      <button class="nav-link" id="Dendrograms-tab" data-bs-toggle="tab" data-bs-target="#Dendrograms" type="button"
+              role="tab" aria-controls="Dendrograms-tab" aria-selected="false">
+          Dendrograms
       </button>
-    </li> -->
+    </li>
   </ul>
 
   <!-- Tab Panes -->
@@ -161,38 +184,39 @@
         </div>
     
         <!-- TAB 2: CLUSTERED HEATMAP (unchanged) -->
-        <div class="tab-pane fade" id="cluster" role="tabpanel" aria-labelledby="cluster-tab">
-            <h3>Clustered Heatmap with Annotations</h3>
-            <p>
-              This version shows row & column dendrograms plus color bars for each row/column cluster,
-              similar to typical microarray or scRNAseq heatmaps.
-            </p>
-          
-            <div class="d-flex gap-2">
-              <input type="file" id="clusterFile" accept=".csv" />
-              <button class="btn btn-success" id="generateBtn">Generate</button>
-            </div>
-          
-            <div class="heatmap-container">
-              <svg id="heatmapSVG"></svg>
-            </div>
-    
-        <!-- TAB 3: CANVAS-BASED HEATMAP (unchanged) -->
-        <div class="tab-pane fade" id="canvas-heatmap" role="tabpanel" aria-labelledby="canvas-tab">
-          <!-- your existing Canvas Heatmap code... -->
-          <h3>Canvas-Based Heatmap</h3>
-          <p>Use an HTML canvas for faster rendering with big numeric matrices.</p>
-    
+        <div class="tab-pane fade" id="Correlation" role="tabpanel" aria-labelledby="Correlation-tab">
+          <h3>Correlation Heatmap</h3>
+          <p>
+            This tab reads a CSV with numeric values and plots a clustered heatmap using ECharts.
+          </p>
+        
           <div class="d-flex gap-2">
-            <input type="file" id="canvasFile" accept=".csv" />
-            <button class="btn btn-info" id="canvasGenerateBtn">Generate</button>
+            <input type="file" id="fileInput" accept=".csv" />
+            <button class="btn btn-success" id="generateBtn">Generate</button>
           </div>
-    
+        
           <div class="heatmap-container">
-            <div id="loading-spinner"></div>
-            <canvas id="largeHeatmapCanvas"></canvas>
+            <div id="echartsContainer" style="width: 100%; height: 800px;"></div>
           </div>
         </div>
+    
+        <!-- TAB 3: CANVAS-BASED HEATMAP (unchanged) -->
+        <div class="tab-pane fade" id="Dendrograms" role="tabpanel" aria-labelledby="Dendrograms-tab">
+          <h3>Clustered Heatmap with Dendrograms</h3>
+          <p>Displays hierarchical clustering dendrograms alongside a heatmap.</p>
+        
+          <div class="d-flex gap-2">
+            <input type="file" id="fileInputTab3" accept=".csv" />
+            <button class="btn btn-success" id="generateBtnTab3">Generate</button>
+          </div>
+        
+          <div id="echarts-containerTab3" style="width: 100%; height: 800px;"></div>
+          <div id="dendrogramHeatmap" style="width: 100%; height: 600px;"></div>
+
+        </div>
+        
+        
+        
       </div>
     </section>
     
@@ -396,534 +420,350 @@
     }
     </script>
 
-<!-- ===================== 2) CLUSTER HEATMAP SCRIPT (unchanged) ======================= -->
+<!-- ===================== 2) CLUSTER HEATMAP SCRIPT ======================= -->
+
 <script>
-document.getElementById("clusterGenerateBtn").addEventListener("click", () => {
-  const file = document.getElementById("clusterFile").files[0];
-  if (!file) {
-    alert("Select a CSV for the Clustered Heatmap.");
-    return;
-  }
-  const spinner = document.getElementById("loading-spinner");
-  spinner.style.display = "block";
+ document.addEventListener("DOMContentLoaded", () => {
+  const fileInput = document.getElementById("fileInput");
+  const generateBtn = document.getElementById("generateBtn");
+  const echartsContainer = document.getElementById("echartsContainer");
 
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      // 1) Parse CSV
-      const lines = e.target.result.trim().split("\n").filter(l => l.trim() !== "");
-      const csvData = lines.map(line => line.split(","));
-      // First row => col headers (skip col0)
-      const headers = csvData[0].slice(1);
-      const rowData = csvData.slice(1);
+  let dataMatrix = [];
+  let rowNames = [];
+  let colNames = [];
 
-      const rowLabels = [];
-      const matrix = [];
-      rowData.forEach((rowArr) => {
-        rowLabels.push(rowArr[0]);
-        const numericVals = rowArr.slice(1).map(x => parseFloat(x) || 0);
-        matrix.push(numericVals);
-      });
-
-      // 2) Run hierarchical clustering (row + col).
-      const rowCluster = hierarchicalClustering(
-        rowLabels.map((label,i)=>({id: label, vector: matrix[i]}))
-      );
-      const colCluster = hierarchicalClustering(
-        headers.map((label,j)=> {
-          let colVals=[];
-          for(let i=0;i<matrix.length;i++){
-            colVals.push(matrix[i][j]);
-          }
-          return {id: label, vector: colVals};
-        })
-      );
-
-      // 3) Extract leaf order
-      function getLeafOrder(cluster) {
-        const order=[];
-        (function recurse(node){
-          if(node.children && node.children.length){
-            node.children.forEach(child=>recurse(child));
-          } else {
-            order.push(node.name);
-          }
-        })(cluster);
-        return order;
-      }
-      const rowOrder = getLeafOrder(rowCluster);
-      const colOrder = getLeafOrder(colCluster);
-
-      // 4) Reorder the matrix according to rowOrder, colOrder
-      const rowIndexMap={}, colIndexMap={};
-      rowOrder.forEach((r,i)=>rowIndexMap[r]=i);
-      colOrder.forEach((c,i)=>colIndexMap[c]=i);
-
-      const oldRowMap = {};
-      rowLabels.forEach((r,i)=>oldRowMap[r]=i);
-      const oldColMap = {};
-      headers.forEach((h,j)=>oldColMap[h]=j);
-
-      const newMatrix = Array(rowOrder.length)
-        .fill(null)
-        .map(()=>Array(colOrder.length).fill(0));
-      for(let r of rowOrder){
-        for(let c of colOrder){
-          newMatrix[rowIndexMap[r]][colIndexMap[c]] = matrix[oldRowMap[r]][oldColMap[c]];
-        }
-      }
-
-      // 5) For demonstration: assign random groups to each row & column
-      //    (In practice, you'd do this from the cluster tree or your metadata.)
-      const rowGroups = {};
-      rowOrder.forEach((r) => {
-        // e.g. random 3 groups => color them
-        rowGroups[r] = Math.floor(Math.random()*3); 
-      });
-      const colGroups = {};
-      colOrder.forEach((c) => {
-        colGroups[c] = Math.floor(Math.random()*2);
-      });
-
-      // 6) Render everything in a single <svg> with sub-regions
-      //    We'll define sizes for each subpanel:
-      const svg = d3.select("#clusteredHeatmapSVG");
-      svg.selectAll("*").remove();
-
-      // Some layout constants (tweak to fit your style)
-      const rowDendroWidth = 200, colDendroHeight = 200;
-      const rowBarWidth     = 20;  // row color-bar thickness
-      const colBarHeight    = 20;  // column color-bar thickness
-      const cellSize        = 15;  // each heatmap cell
-      const rowCount        = rowOrder.length;
-      const colCount        = colOrder.length;
-
-      const heatmapWidth  = colCount * cellSize;
-      const heatmapHeight = rowCount * cellSize;
-
-      const totalWidth  = rowDendroWidth + rowBarWidth + heatmapWidth + 100;
-      const totalHeight = colDendroHeight + colBarHeight + heatmapHeight + 100;
-
-      svg
-        .attr("width", totalWidth)
-        .attr("height", totalHeight);
-
-      // Now define sub-g groups:
-      // 1) Row dendro in top-left corner
-      const rowDendroG = svg.append("g")
-        .attr("transform", `translate(${rowDendroWidth},${colDendroHeight + colBarHeight}) rotate(90)`);
-      // We'll rotate 90 so it looks vertical. 
-      // Alternatively, keep it unrotated if your code already handles vertical logic.
-
-      // 2) Row color-bar
-      const rowBarG = svg.append("g")
-        .attr("transform", `translate(${rowDendroWidth},${colDendroHeight + colBarHeight})`);
-
-      // 3) Col dendro on top
-      const colDendroG = svg.append("g")
-        .attr("transform", `translate(${rowDendroWidth + rowBarWidth}, ${colDendroHeight})`);
-
-      // 4) Col color-bar
-      const colBarG = svg.append("g")
-        .attr("transform", `translate(${rowDendroWidth + rowBarWidth},${colDendroHeight})`);
-
-      // 5) Heatmap in center
-      const heatmapG = svg.append("g")
-        .attr("transform", `translate(${rowDendroWidth + rowBarWidth},${colDendroHeight + colBarHeight})`);
-
-      // 7) Actually draw the dendrograms (like your existing code).
-      //    For example, let's do row dendro with linkVertical or linkHorizontal, etc.
-      renderRowDendrogram(rowCluster, rowDendroG, rowCount, rowDendroWidth, heatmapHeight);
-      renderColDendrogram(colCluster, colDendroG, colCount, colDendroHeight, heatmapWidth);
-
-      // 8) Draw the color bars for row groups & column groups
-      drawRowColorBar(rowBarG, rowOrder, rowGroups, cellSize);
-      drawColColorBar(colBarG, colOrder, colGroups, cellSize);
-
-      // 9) Draw the heatmap
-      renderHeatmap(heatmapG, newMatrix, rowOrder, colOrder);
-
-    } catch(err) {
-      console.error("Error building annotated heatmap:", err);
-      alert("Error. Check console.");
-    } finally {
-      spinner.style.display = "none";
+  generateBtn.addEventListener("click", () => {
+    if (!fileInput.files.length) {
+      alert("Please select a CSV file first.");
+      return;
     }
-  };
-  reader.readAsText(file);
-});
-/** Minimal hierarchical clustering (avg linkage + Euclidean). */
-function hierarchicalClustering(data) {
-  let clusters = data.map(d => ({
-    name: d.id,
-    vector: d.vector,
-    children: [],
-    leaves: [d],
-  }));
-
-  function distance(v1, v2) {
-    let sum = 0;
-    for (let i = 0; i < v1.length; i++) {
-      const diff = v1[i] - v2[i];
-      sum += diff * diff;
-    }
-    return Math.sqrt(sum);
-  }
-
-  function avgLinkage(c1, c2) {
-    let sum = 0, count = 0;
-    for (const l1 of c1.leaves) {
-      for (const l2 of c2.leaves) {
-        sum += distance(l1.vector, l2.vector);
-        count++;
-      }
-    }
-    return sum / count;
-  }
-
-  function merge(c1, c2) {
-    return {
-      name: c1.name + "+" + c2.name,
-      vector: [],
-      children: [c1, c2],
-      leaves: [...c1.leaves, ...c2.leaves],
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const csvText = event.target.result;
+      processCSV(csvText);
     };
+    reader.readAsText(file);
+  });
+
+  function processCSV(csvText) {
+    const data = d3.csvParse(csvText);
+    colNames = data.columns.slice(1); // Skip first column (row labels)
+    rowNames = data.map((d) => d[data.columns[0]]); // Row labels
+    dataMatrix = data.map((row) =>
+      colNames.map((col) => parseFloat(row[col]) || 0)
+    );
+
+    renderHeatmap();
   }
 
-  while (clusters.length > 1) {
-    let minDist = Infinity;
-    let pair = [0, 0];
-    for (let i = 0; i < clusters.length; i++) {
-      for (let j = i + 1; j < clusters.length; j++) {
-        const dist = avgLinkage(clusters[i], clusters[j]);
-        if (dist < minDist) {
-          minDist = dist;
-          pair = [i, j];
-        }
+  function renderHeatmap() {
+    const chart = echarts.init(echartsContainer);
+
+    const option = {
+      tooltip: {
+        position: 'top',
+        formatter: function (params) {
+          return `
+            <b>Row:</b> ${rowNames[params.data[1]]}<br>
+            <b>Column:</b> ${colNames[params.data[0]]}<br>
+            <b>Value:</b> ${params.data[2]}
+          `;
+        },
+      },
+      grid: {
+        height: '70%',
+        top: '10%',
+      },
+      xAxis: {
+        type: 'category',
+        data: colNames,
+        splitArea: {
+          show: true,
+        },
+      },
+      yAxis: {
+        type: 'category',
+        data: rowNames,
+        splitArea: {
+          show: true,
+        },
+      },
+      visualMap: {
+        min: d3.min(dataMatrix.flat()),
+        max: d3.max(dataMatrix.flat()),
+        calculable: true,
+        orient: 'horizontal',
+        left: 'center',
+        bottom: '5%',
+      },
+      series: [
+        {
+          type: 'heatmap',
+          data: transformMatrixToSeries(dataMatrix),
+          label: {
+            show: false,
+          },
+          emphasis: {
+            itemStyle: {
+              shadowBlur: 10,
+              shadowColor: 'rgba(0, 0, 0, 0.5)',
+            },
+          },
+        },
+      ],
+    };
+
+    chart.setOption(option);
+  }
+
+  function transformMatrixToSeries(matrix) {
+    const series = [];
+    for (let i = 0; i < matrix.length; i++) {
+      for (let j = 0; j < matrix[i].length; j++) {
+        series.push([j, i, matrix[i][j]]);
       }
     }
-    const merged = merge(clusters[pair[0]], clusters[pair[1]]);
-    clusters = clusters.filter((_, idx) => idx !== pair[1] && idx !== pair[0]);
-    clusters.push(merged);
+    return series;
   }
-  return clusters[0];
-}
-
-function renderRowDendrogram(cluster, svgId, width, height) {
-  const svg = d3.select("#" + svgId)
-    .attr("width", width)
-    .attr("height", height);
-  svg.selectAll("*").remove();
-
-  const root = d3.hierarchy(cluster, d => d.children);
-  const layout = d3.cluster().size([height - 20, width - 40]);
-  layout(root);
-
-  const yScale = d3.scaleLinear()
-    .domain(d3.extent(root.descendants(), d => d.y))
-    .range([50, width - 20]);
-  const xScale = d3.scaleLinear()
-    .domain(d3.extent(root.descendants(), d => d.x))
-    .range([0, height]);
-
-  const linkGen = d3.linkVertical()
-    .x(d => yScale(d.y))
-    .y(d => xScale(d.x));
-
-  svg.append("g")
-    .selectAll("path")
-    .data(root.links())
-    .enter()
-    .append("path")
-    .attr("fill", "none")
-    .attr("stroke", "#555")
-    .attr("d", linkGen);
-
-  svg.append("g")
-    .selectAll("circle")
-    .data(root.descendants())
-    .enter()
-    .append("circle")
-    .attr("cx", d => yScale(d.y))
-    .attr("cy", d => xScale(d.x))
-    .attr("r", 2)
-    .attr("fill", "#999");
-}
-
-function renderColDendrogram(cluster, svgId, width, height) {
-  const svg = d3.select("#" + svgId)
-    .attr("width", width)
-    .attr("height", height);
-  svg.selectAll("*").remove();
-
-  const root = d3.hierarchy(cluster, d => d.children);
-  const layout = d3.cluster().size([width - 40, height - 20]);
-  layout(root);
-
-  const xScale = d3.scaleLinear()
-    .domain(d3.extent(root.descendants(), d => d.x))
-    .range([0, width]);
-  const yScale = d3.scaleLinear()
-    .domain(d3.extent(root.descendants(), d => d.y))
-    .range([height - 20, 20]);
-
-  const linkGen = d3.linkHorizontal()
-    .x(d => xScale(d.x))
-    .y(d => yScale(d.y));
-
-  svg.append("g")
-    .selectAll("path")
-    .data(root.links())
-    .enter()
-    .append("path")
-    .attr("fill", "none")
-    .attr("stroke", "#555")
-    .attr("d", linkGen);
-
-  svg.append("g")
-    .selectAll("circle")
-    .data(root.descendants())
-    .enter()
-    .append("circle")
-    .attr("cx", d => xScale(d.x))
-    .attr("cy", d => yScale(d.y))
-    .attr("r", 2)
-    .attr("fill", "#999");
-}
-
-function renderClusterHeatmap(matrix, rowOrder, colOrder) {
-  const cellSize = 15;
-  const offsetLeft = 200, offsetTop = 200;
-  const rows = matrix.length, cols = matrix[0].length;
-  const w = cols * cellSize, h = rows * cellSize;
-
-  const svg = d3.select("#clusterHeatmapSVG")
-    .attr("width", w + offsetLeft + 100)
-    .attr("height", h + offsetTop + 100);
-  svg.selectAll("*").remove();
-
-  const g = svg.append("g").attr("transform", `translate(${offsetLeft},${offsetTop})`);
-
-  const vals = matrix.flat();
-  const minVal = d3.min(vals), maxVal = d3.max(vals);
-  const colorScale = d3.scaleLinear()
-    .domain([minVal, 0, maxVal])
-    .range(["green", "black", "red"]);
-
-  const flatData = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      flatData.push({r, c, val: matrix[r][c]});
-    }
-  }
-
-  // Tooltip
-  const tooltip = d3.select("body").append("div").attr("class", "tooltip-d3");
-
-  g.selectAll("rect")
-    .data(flatData).enter()
-    .append("rect")
-    .attr("x", d => d.c * cellSize)
-    .attr("y", d => d.r * cellSize)
-    .attr("width", cellSize)
-    .attr("height", cellSize)
-    .attr("fill", d => colorScale(d.val))
-    .on("mouseover", (evt, d) => {
-      tooltip.style("display", "block")
-        .html(`
-          <b>Row:</b> ${rowOrder[d.r]}<br/>
-          <b>Col:</b> ${colOrder[d.c]}<br/>
-          <b>Value:</b> ${d.val}
-        `);
-    })
-    .on("mousemove", evt => {
-      tooltip
-        .style("left", (evt.pageX + 10) + "px")
-        .style("top", (evt.pageY - 10) + "px");
-    })
-    .on("mouseout", () => tooltip.style("display", "none"));
-
-  // Zoom
-  const zoom = d3.zoom()
-    .scaleExtent([0.5, 8])
-    .on("zoom", (evt) => {
-      g.attr("transform",
-        `translate(${offsetLeft},${offsetTop}) scale(${evt.transform.k})
-         translate(${-offsetLeft},${-offsetTop})
-         translate(${evt.transform.x},${evt.transform.y})`);
-    });
-  svg.call(zoom);
-}
-</script>
-
-<script>
-/** 
- * Draw a small color bar for each row. 
- * rowOrder is an array of leaf labels in final order.
- * rowGroups is an object: rowLabel -> group index
- */
- function drawRowColorBar(g, rowOrder, rowGroups, cellSize) {
-  // We'll place a small rectangle for each row, color-coded by group.
-  // E.g. define a color scale:
-  const color = d3.scaleOrdinal()
-    .domain([0,1,2]) // if you used random 3 groups above
-    .range(["#AA4444","#44AA44","#4444AA"]);
-
-  // We'll create a rect for each row:
-  g.selectAll(".row-color")
-    .data(rowOrder)
-    .enter()
-    .append("rect")
-    .attr("class","row-color")
-    .attr("x", 0)
-    .attr("y", (_, i)=> i*cellSize)
-    .attr("width", 20)     // rowBarWidth in the main code
-    .attr("height", cellSize)
-    .attr("fill", d => color(rowGroups[d] || 0)); // fallback group=0 if missing
-}
-
-/** 
- * Draw a small color bar for each column.
- * colOrder is an array of leaf labels in final order.
- * colGroups is an object: colLabel -> group index
- */
-function drawColColorBar(g, colOrder, colGroups, cellSize) {
-  // Use the same or different color scale
-  const color = d3.scaleOrdinal()
-    .domain([0,1,2]) 
-    .range(["#FFDD00","#6666FF","#FF66AA"]);
-
-  // We'll create a rect for each column
-  // but remember, for columns, x depends on col index
-  g.selectAll(".col-color")
-    .data(colOrder)
-    .enter()
-    .append("rect")
-    .attr("class","col-color")
-    .attr("x", (d,i)=> i*cellSize)
-    .attr("y", 0)
-    .attr("width", cellSize)
-    .attr("height", 20)  // colBarHeight from main code
-    .attr("fill", d=>color(colGroups[d]||0));
-}
-
-/** 
- * Draw the heatmap (like your existing code).
- * newMatrix is already row x col in final order.
- */
-function renderHeatmap(g, matrix, rowOrder, colOrder) {
-  const rows = matrix.length;
-  const cols = matrix[0].length;
-  const cellSize=15;
-  
-  // flatten
-  const flatData = [];
-  for(let i=0;i<rows;i++){
-    for(let j=0;j<cols;j++){
-      flatData.push({r:i, c:j, value: matrix[i][j]});
-    }
-  }
-  // color scale
-  const allVals = matrix.flat();
-  const minVal = d3.min(allVals), maxVal = d3.max(allVals);
-  const colorScale = d3.scaleLinear()
-    .domain([minVal,0,maxVal])
-    .range(["blue","white","orange"]); // or your choice
-
-  // draw rects
-  g.selectAll("rect")
-    .data(flatData)
-    .enter()
-    .append("rect")
-    .attr("x", d=> d.c * cellSize)
-    .attr("y", d=> d.r * cellSize)
-    .attr("width", cellSize)
-    .attr("height", cellSize)
-    .attr("fill", d=> colorScale(d.value));
-
-  // (Optional) add row or column labels, tooltip, etc.
-}
-</script>
-
-<!-- ===================== 3) CANVAS HEATMAP SCRIPT (unchanged) ========================= -->
-<script>
-document.getElementById("canvasGenerateBtn").addEventListener("click", () => {
-  const file = document.getElementById("canvasFile").files[0];
-  if (!file) {
-    alert("Select a CSV for the Canvas Heatmap.");
-    return;
-  }
-
-  const spinner = document.getElementById("loading-spinner");
-  spinner.style.display = "block";
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    console.time("canvasHeatmapTotal");
-    try {
-      console.time("parseCSV");
-      const lines = e.target.result.trim().split("\n")
-        .filter(line => line.trim() !== "");
-      const csvData = lines.map(line => line.split(","));
-      console.log("Canvas Heatmap: #lines=", lines.length);
-      console.log("First 5 lines:", csvData.slice(0,5));
-      console.timeEnd("parseCSV");
-
-      console.time("buildMatrix");
-      const matrix = csvData.map((row, rowIdx) => row.map((cell, colIdx) => {
-        const val = parseFloat(cell);
-        return isNaN(val) ? 0 : val;
-      }));
-      console.timeEnd("buildMatrix");
-
-      console.log(`Matrix size for canvas: ${matrix.length} x ${matrix[0].length}`);
-      renderCanvasHeatmap(matrix);
-    } catch (err) {
-      console.error("Error building canvas heatmap:", err);
-      alert("Error building canvas heatmap. Check console for details.");
-    } finally {
-      console.timeEnd("canvasHeatmapTotal");
-      spinner.style.display = "none";
-    }
-  };
-
-  reader.readAsText(file);
 });
 
-function renderCanvasHeatmap(matrix) {
-  console.time("renderCanvasHeatmap");
-  const canvas = document.getElementById("largeHeatmapCanvas");
-  const ctx = canvas.getContext("2d");
+ </script>
+  
+<!-- ===================== 3) CANVAS HEATMAP SCRIPT ========================= -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const fileInput = document.getElementById("fileInputTab3");
+  const generateBtn = document.getElementById("generateBtnTab3");
+  const container = document.getElementById("echarts-containerTab3");
 
-  const rows = matrix.length;
-  const cols = matrix[0].length;
-  const cellSize = 2; // smaller => less total size
-
-  canvas.width = cols * cellSize;
-  canvas.height = rows * cellSize;
-
-  const allVals = matrix.flat();
-  const minVal = Math.min(...allVals);
-  const maxVal = Math.max(...allVals);
-  console.log("Canvas heatmap minVal:", minVal, "maxVal:", maxVal);
-
-  function getColor(value) {
-    const ratio = (value - minVal) / (maxVal - minVal || 1);
-    // green -> red
-    const hue = 120 - 120 * ratio;
-    return `hsl(${hue}, 100%, 50%)`;
-  }
-
-  console.time("drawLoop");
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      ctx.fillStyle = getColor(matrix[r][c]);
-      ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+  generateBtn.addEventListener("click", () => {
+    if (!fileInput.files.length) {
+      alert("Please select a CSV file.");
+      return;
     }
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const csvText = event.target.result;
+      processCSV(csvText);
+    };
+    reader.readAsText(file);
+  });
+
+  function processCSV(csvText) {
+    const data = d3.csvParse(csvText);
+
+    const rowNames = data.map((d) => d[data.columns[0]]);
+    const colNames = data.columns.slice(1);
+    const matrix = data.map((row) =>
+      colNames.map((col) => parseFloat(row[col]) || 0)
+    );
+
+    drawECharts(matrix, rowNames, colNames);
   }
-  console.timeEnd("drawLoop");
-  console.timeEnd("renderCanvasHeatmap");
-}
+
+  function drawECharts(matrix, rowNames, colNames) {
+    const container = document.getElementById("dendrogramHeatmap");
+    const myChart = echarts.init(container);
+
+    // Perform hierarchical clustering
+    const rowTree = hierarchicalClustering(matrix);
+    const colTree = hierarchicalClustering(
+      matrix[0].map((_, i) => matrix.map((row) => row[i]))
+    );
+
+    // Get leaf order
+    const rowOrder = getLeafOrder(rowTree);
+    const colOrder = getLeafOrder(colTree);
+
+    // Reorder matrix and data for visualization
+    const reorderedMatrix = rowOrder.map((i) =>
+      colOrder.map((j) => matrix[i][j])
+    );
+
+    // Prepare heatmap data
+    const heatmapData = reorderedMatrix.flatMap((row, i) =>
+      row.map((value, j) => [j, i, value])
+    );
+
+    // Visual options
+    const option = {
+      tooltip: {
+        position: "top",
+        formatter: (params) => {
+          const col = colNames[colOrder[params.data[0]]];
+          const row = rowNames[rowOrder[params.data[1]]];
+          const value = params.data[2];
+          return `<b>Row:</b> ${row}<br><b>Column:</b> ${col}<br><b>Value:</b> ${value}`;
+        },
+      },
+      grid: {
+        top: "20%",
+        bottom: "10%",
+        left: "10%",
+        right: "10%",
+        containLabel: true,
+      },
+      xAxis: {
+        type: "category",
+        data: colOrder.map((i) => colNames[i]),
+        axisLabel: {
+          rotate: 45,
+        },
+      },
+      yAxis: {
+        type: "category",
+        data: rowOrder.map((i) => rowNames[i]),
+      },
+      dataZoom: [
+        {
+          type: "slider",
+          xAxisIndex: 0,
+        },
+        {
+          type: "slider",
+          yAxisIndex: 0,
+        },
+      ],
+      visualMap: {
+        min: d3.min(matrix.flat()),
+        max: d3.max(matrix.flat()),
+        calculable: true,
+        orient: "vertical",
+        left: "right",
+        top: "middle",
+        inRange: {
+          color: ["#313695", "#74add1", "#fdae61", "#a50026"],
+        },
+      },
+      series: [
+        {
+          name: "Heatmap",
+          type: "heatmap",
+          data: heatmapData,
+          label: {
+            show: false,
+          },
+          emphasis: {
+            itemStyle: {
+              borderColor: "#333",
+              borderWidth: 1,
+            },
+          },
+        },
+      ],
+    };
+
+    myChart.setOption(option);
+
+    // Draw dendrograms
+    drawDendrogram(myChart, rowTree, "vertical", rowNames);
+    drawDendrogram(myChart, colTree, "horizontal", colNames);
+  }
+
+  function drawDendrogram(chart, tree, orientation, labels) {
+    const branches = [];
+
+    function traverse(node, depth) {
+      if (!node.children.length) {
+        branches.push({ depth, index: node.index });
+      } else {
+        node.children.forEach((child) => traverse(child, depth + 1));
+      }
+    }
+
+    traverse(tree, 0);
+
+    const data = branches.map((b) => ({
+      name: labels[b.index],
+      value: b.depth,
+    }));
+
+    const series = {
+      type: "custom",
+      renderItem: (params, api) => {
+        const coord = api.coord([api.value(1), api.value(0)]);
+        return {
+          type: "line",
+          shape: {
+            x1: coord[0],
+            y1: coord[1],
+            x2: coord[0] + 10,
+            y2: coord[1] + 10,
+          },
+          style: {
+            stroke: "black",
+            lineWidth: 2,
+          },
+        };
+      },
+      data,
+    };
+
+    chart.setOption({
+      series: [...chart.getOption().series, series],
+    });
+  }
+
+  function hierarchicalClustering(matrix) {
+    const clusters = matrix.map((row, i) => ({
+      index: i,
+      value: row,
+      children: [],
+    }));
+
+    while (clusters.length > 1) {
+      let minDist = Infinity;
+      let pair = [];
+
+      for (let i = 0; i < clusters.length; i++) {
+        for (let j = i + 1; j < clusters.length; j++) {
+          const dist = euclideanDistance(
+            clusters[i].value,
+            clusters[j].value
+          );
+          if (dist < minDist) {
+            minDist = dist;
+            pair = [i, j];
+          }
+        }
+      }
+
+      const [i, j] = pair;
+      const mergedCluster = {
+        value: clusters[i].value.map(
+          (val, k) => (val + clusters[j].value[k]) / 2
+        ),
+        children: [clusters[i], clusters[j]],
+      };
+
+      clusters.splice(j, 1);
+      clusters.splice(i, 1);
+      clusters.push(mergedCluster);
+    }
+
+    return clusters[0];
+  }
+
+  function euclideanDistance(row1, row2) {
+    return Math.sqrt(
+      row1.reduce((sum, val, i) => sum + Math.pow(val - row2[i], 2), 0)
+    );
+  }
+
+  function getLeafOrder(tree) {
+    const leaves = [];
+    (function traverse(node) {
+      if (node.children.length === 0) {
+        leaves.push(node.index);
+      } else {
+        node.children.forEach(traverse);
+      }
+    })(tree);
+    return leaves;
+  }
+});
 </script>
 
 {% endblock %}

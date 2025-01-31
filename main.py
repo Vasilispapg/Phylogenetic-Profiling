@@ -3,7 +3,6 @@ import pandas as pd
 from tree_construction.construct_tree import load_species_data, approximate_distance_matrix, construct_tree
 from tree_construction.display_tree import display_tree
 from analysis.matrix_operations import create_correlation_matrix, create_feature_matrix, find_true_positives
-from analysis.heatmap_visualization import run_heatmap_app
 from analysis.clustering_analysis import utilize_mcl_onNxN
 from visualization.display_correlation import (
     display_species_domain_heatmap, display_species_domain_heatmap_with_features
