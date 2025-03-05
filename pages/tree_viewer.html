@@ -66,7 +66,7 @@
             <!-- Depth Slider -->
             <div id="slider-container">
                 <label for="depth-slider" class="form-label">Tree Depth:</label>
-                <input type="range" id="depth-slider" min="1" max="50" value="12" class="form-range">
+                <input type="range" id="depth-slider" min="1" max="2250" value="12" class="form-range">
                 <span id="depth-value">Depth: 12</span>
             </div>
             <svg id="tree-svg" width="1000" height="1000"></svg>
@@ -122,6 +122,7 @@
                     treeData = result.tree_data; // Store the tree data globally
                     visualizeTree(treeData, parseInt(depthSlider.value));
                     uploadMessage.textContent = "Tree loaded successfully!";
+                    depthSlider.max = result.max_depth_tree;
                 } else {
                     uploadMessage.textContent = result.message || "Failed to load tree.";
                 }

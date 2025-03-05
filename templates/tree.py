@@ -38,6 +38,12 @@ def tree_viewer_tool():
     """Render the Tree Viewer tool page."""
     return render_template("tree_viewer.html", active_tool="tree_viewer")
 
+def get_max_depth(clade, current_depth=0):
+    """Recursively calculate the maximum depth of the tree."""
+    if not clade.clades:  # If it's a leaf node
+        return current_depth
+    return max(get_max_depth(child, current_depth + 1) for child in clade.clades)
+
 
 @tree_bp.route("/tools/tree_viewer", methods=["POST"])
 def tree_viewer_endpoint():
@@ -52,8 +58,6 @@ def tree_viewer_endpoint():
 
         # Parse the Newick file
         tree = Phylo.read(io.StringIO(file_content), "newick")
-        print(tree)  # Debug parsed tree
-        print(tree.root)  # Debug root node
 
         # Get max depth for processing
         max_depth = int(request.form.get("max_depth", 12))
@@ -61,9 +65,12 @@ def tree_viewer_endpoint():
 
         # Convert the tree to D3.js-compatible JSON
         tree_data = convert_tree_to_d3(tree, max_depth)
+        
+        max_depth_tree = get_max_depth(tree.root)
+
 
         # Return JSON data
-        return jsonify({"status": "success", "tree_data": tree_data})
+        return jsonify({"status": "success", "tree_data": tree_data,"max_depth_tree":max_depth_tree})
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
