@@ -3,7 +3,6 @@ import plotly.graph_objects as go
 import pandas as pd
 from dash import Dash, dcc, html, Input, Output
 import pandas as pd
-import plotly.graph_objects as go
 import numpy as np
 
 def display_species_domain_heatmap(correlation_matrix_path="species_domain_count_matrix.csv"):
