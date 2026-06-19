@@ -399,5 +399,5 @@ def cluster_domains(corr_matrix_path, cache_dir="cache/", threshold=DEFAULT_THRE
         app.run(debug=_dash_debug(), port=8051)
         return
 
-    return graph, list(graph.nodes()), all_vs_all_df, pos
+    return graph, list(graph.nodes()), all_vs_all_df, pos, metrics
 

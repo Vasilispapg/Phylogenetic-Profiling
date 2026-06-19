@@ -97,6 +97,7 @@ def get_allvsall_data(filename):
             "edges": [{"source": u, "target": v} for u, v in graph.edges()],
             "matrix": all_vs_all_df,
             "positions": pos,
+            "metrics": result.get("metrics"),
         })
 
     except Exception as e:
@@ -107,8 +108,9 @@ def get_allvsall_data(filename):
 def compute_allvsalls(filename, input_path, cache_dir):
     """Compute allvsalls and graphs in a background thread."""
     try:
-        _set_status(filename, "Performing clustering...")
-        graph, graph_nodes, all_vs_all_df, pos = cluster_domains(input_path, cache_dir=cache_dir)
+        _set_status(filename, "Reading correlation matrix...")
+        _set_status(filename, "Building domain graph and running Markov clustering...")
+        graph, graph_nodes, all_vs_all_df, pos, metrics = cluster_domains(input_path, cache_dir=cache_dir)
 
         with _lock:
             precomputed_results[filename] = {
@@ -116,6 +118,7 @@ def compute_allvsalls(filename, input_path, cache_dir):
                 "graph_nodes": graph_nodes,
                 "all_vs_all_df": all_vs_all_df,
                 "pos": pos,
+                "metrics": metrics,
             }
             progress_status[filename] = "Completed."
     except Exception as e:

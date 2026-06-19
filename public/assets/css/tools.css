@@ -1,0 +1,198 @@
+/* Shared component styling for the tool pages (keeps the existing theme). */
+:root {
+  --tool-accent: #e44c65;
+  --tool-line: rgba(255, 255, 255, 0.25);
+  --tool-fill: rgba(255, 255, 255, 0.06);
+  --tool-text: #f4f4f8;
+  --tool-muted: rgba(255, 255, 255, 0.6);
+}
+
+/* Inputs & selects */
+.futuristic-input,
+.futuristic-select {
+  width: 100%;
+  background: var(--tool-fill);
+  border: 1px solid var(--tool-line);
+  color: var(--tool-text);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.futuristic-input:focus,
+.futuristic-select:focus {
+  outline: none;
+  border-color: var(--tool-accent);
+  box-shadow: 0 0 0 3px rgba(228, 76, 101, 0.25);
+}
+.futuristic-select option { color: #1a1a1a; }
+.futuristic-input::file-selector-button {
+  margin-right: 12px;
+  border: 1px solid var(--tool-line);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--tool-text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+/* Buttons */
+.futuristic-btn,
+.futuristic-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.1s, opacity 0.15s, background 0.15s;
+}
+.futuristic-btn { background: var(--tool-accent); color: #fff; }
+.futuristic-btn-secondary { background: transparent; color: var(--tool-text); border-color: var(--tool-line); }
+.futuristic-btn:hover,
+.futuristic-btn-secondary:hover { opacity: 0.92; }
+.futuristic-btn:active,
+.futuristic-btn-secondary:active { transform: scale(0.98); }
+.futuristic-btn:disabled,
+.futuristic-btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Drag & drop upload zone */
+.dropzone {
+  border: 1px dashed var(--tool-line);
+  border-radius: 12px;
+  padding: 1.75rem 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.dropzone:hover { border-color: rgba(255, 255, 255, 0.45); }
+.dropzone.is-dragover { border-color: var(--tool-accent); background: rgba(228, 76, 101, 0.08); }
+.dropzone .dz-icon { font-size: 1.75rem; opacity: 0.7; }
+.dropzone .dz-title { margin: 8px 0 2px; font-weight: 600; }
+.dropzone .dz-hint { margin: 0; font-size: 0.85rem; color: var(--tool-muted); }
+.dropzone input[type="file"] { display: none; }
+
+/* Selected-file pill */
+.file-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--tool-line);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 0.85rem;
+}
+
+/* Status banner + indeterminate progress */
+.tool-status {
+  display: none;
+  margin-top: 1rem;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+.tool-status.show { display: block; }
+.tool-status.is-info { background: rgba(124, 117, 214, 0.18); color: #d6d2f5; }
+.tool-status.is-error { background: rgba(228, 76, 101, 0.18); color: #f6c0c9; }
+.tool-status.is-success { background: rgba(93, 202, 165, 0.18); color: #b8ead9; }
+.tool-progress {
+  height: 4px;
+  margin-top: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.tool-progress > span {
+  display: block;
+  width: 35%;
+  height: 100%;
+  background: var(--tool-accent);
+  animation: tool-indet 1.2s ease-in-out infinite;
+}
+@keyframes tool-indet {
+  0% { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+
+/* Workflow stepper */
+.tool-stepper { display: flex; align-items: center; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.tool-step { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--tool-muted); }
+.tool-step .dot {
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 600;
+  background: rgba(255, 255, 255, 0.1); color: var(--tool-muted);
+}
+.tool-step.done .dot { background: rgba(93, 202, 165, 0.25); color: #b8ead9; }
+.tool-step.active .dot { background: var(--tool-accent); color: #fff; }
+.tool-step.active { color: var(--tool-text); font-weight: 600; }
+.tool-stepper .bar { flex: 1; min-width: 16px; height: 1px; background: var(--tool-line); }
+
+/* Keep the side nav labels on one line so "Tree viewer/builder" don't truncate. */
+#sidebar nav ul li a { white-space: nowrap; }
+
+/* Animations */
+@keyframes tool-fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.tool-status.show,
+.tool-stepper,
+.file-pill[style*="inline"] { animation: tool-fade-in 0.25s ease both; }
+.futuristic-btn,
+.futuristic-btn-secondary,
+.dropzone,
+.futuristic-input,
+.futuristic-select { transition: all 0.15s ease; }
+
+/* Reusable loading overlay with a caption explaining the current step */
+.tool-loader {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  margin-top: 1rem;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--tool-line);
+}
+.tool-loader.show { display: flex; }
+.tool-loader .spinner {
+  width: 22px; height: 22px; flex: 0 0 22px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--tool-accent);
+  border-radius: 50%;
+  animation: tool-spin 0.8s linear infinite;
+}
+@keyframes tool-spin { to { transform: rotate(360deg); } }
+.tool-loader .caption { font-size: 0.95rem; }
+.tool-loader .caption small { display: block; color: var(--tool-muted); font-size: 0.8rem; margin-top: 2px; }
+
+/* Result info banner */
+.tool-note {
+  margin-top: 1rem; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem;
+  background: rgba(124, 117, 214, 0.18); color: #d6d2f5;
+}
+.tool-note.is-warn { background: rgba(228, 76, 101, 0.16); color: #f6c0c9; }
+
+/* Responsive: keep everything fluid and the nav usable on small screens. */
+img, svg, canvas { max-width: 100%; }
+#graph, #tree-svg, #featureHeatmap, #echartsContainer, #echarts-containerTab3, #dendrogramHeatmap { max-width: 100%; }
+
+@media screen and (max-width: 980px) {
+  #sidebar .inner nav ul {
+    display: flex; flex-wrap: nowrap; overflow-x: auto;
+    gap: 0 4px; -webkit-overflow-scrolling: touch; padding-bottom: 4px;
+  }
+  #sidebar .inner nav ul li { display: inline-block; }
+}
+@media screen and (max-width: 736px) {
+  #sidebar nav ul li a { font-size: 0.85rem !important; }
+  .tool-stepper { font-size: 0.78rem; gap: 6px; }
+  .tool-step .dot { width: 20px; height: 20px; font-size: 0.7rem; }
+  .dropzone { padding: 1.25rem 0.85rem; }
+  #graph { height: 60vh !important; }
+  .futuristic-btn, .futuristic-btn-secondary { width: 100%; justify-content: center; }
+}

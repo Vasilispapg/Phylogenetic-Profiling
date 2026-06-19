@@ -3,116 +3,105 @@
 {% block content %}
 <section id="blast-tool" class="wrapper style1 fullscreen fade-up">
     <div class="inner">
-        <h1>BLAST Analysis Tool</h1>
-        <p class="text-light">Upload your BLAST file and extract feature or correlation matrices.</p>
-        <form id="blast-upload-form" enctype="multipart/form-data" class="d-flex flex-column gap-4">
-            <div class="mb-3">
-                <label for="blast-file" class="form-label">Upload BLAST File:</label>
-                <input type="file" id="blast-file" name="file" class="bg-dark form-control text-warning border-0 p-1" required>
-                <div id="upload-message" class="text-warning mt-2"></div>
-            </div>
+        <div class="tool-stepper">
+            <div class="tool-step active"><span class="dot">1</span> Upload BLAST</div>
+            <span class="bar"></span>
+            <div class="tool-step"><span class="dot">2</span> Choose analysis</div>
+            <span class="bar"></span>
+            <div class="tool-step"><span class="dot">3</span> Download matrix</div>
+        </div>
 
-            <div class="mb-3">
-                <label for="analysis-type" class="form-label">Select Analysis Type:</label>
-                <select id="analysis-type" class="form-select futuristic-select text-warning" required>
-                    <option value="" selected disabled>Select Analysis Type...</option>
-                    <option value="correlation">Correlation Analysis</option>
-                    <option value="features">Feature Analysis</option>
-                </select>
-            </div>
+        <h1>BLAST analysis</h1>
+        <p>Upload a BLAST tabular file (<code>-outfmt 6</code>) to build a correlation matrix
+           (species &times; domains) or a feature matrix.</p>
 
-            <div class="mt-4">
-                <button type="button" id="process-button" class="button futuristic-btn mt-2" disabled>Start Analysis</button>
-            </div>
-            
-            <div id="processing-message" class="text-warning mt-3"></div>
-            <div id="blast-result" class="mt-4"></div>
-        </form>
+        <div id="blast-dropzone" class="dropzone">
+            <input type="file" id="blast-file" accept=".blastp,.tsv,.tab,.txt,.out,.csv">
+            <div class="dz-icon"><i class="fas fa-upload"></i></div>
+            <p class="dz-title">Drop a BLAST file here</p>
+            <p class="dz-hint">or click to browse &middot; .blastp / .tsv / .txt</p>
+        </div>
+        <div id="blast-file-pill" class="file-pill" style="display:none"></div>
+
+        <div style="margin-top:1.25rem; max-width:420px;">
+            <label for="analysis-type" class="form-label">Analysis type</label>
+            <select id="analysis-type" class="futuristic-select" required>
+                <option value="" selected disabled>Select analysis type&hellip;</option>
+                <option value="correlation">Correlation matrix</option>
+                <option value="features">Feature matrix</option>
+            </select>
+        </div>
+
+        <div style="margin-top:1.25rem">
+            <button type="button" id="process-button" class="futuristic-btn" disabled>
+                <i class="fas fa-play"></i> Start analysis
+            </button>
+        </div>
+
+        <div id="blast-status" class="tool-status"></div>
+        <div id="blast-result" class="mt-3"></div>
     </div>
 </section>
 
 <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const fileInput = document.getElementById("blast-file");
-        const processButton = document.getElementById("process-button");
-        const analysisType = document.getElementById("analysis-type");
-        const uploadMessage = document.getElementById("upload-message");
-        const processingMessage = document.getElementById("processing-message");
-        const resultContainer = document.getElementById("blast-result");
+document.addEventListener("DOMContentLoaded", () => {
+    const input = document.getElementById("blast-file");
+    const analysisType = document.getElementById("analysis-type");
+    const processButton = document.getElementById("process-button");
+    const statusEl = document.getElementById("blast-status");
+    const result = document.getElementById("blast-result");
+    let uploadedName = "";
 
-        let uploadedFileName = "";
-
-        // Handle file upload on change
-        fileInput.addEventListener("change", async () => {
-            if (!fileInput.files[0]) {
-                uploadMessage.textContent = "Please select a file.";
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append("file", fileInput.files[0]);
-
+    Phylo.dropzone({
+        zone: document.getElementById("blast-dropzone"),
+        input: input,
+        pill: document.getElementById("blast-file-pill"),
+        onFile: async (file) => {
+            result.innerHTML = "";
+            processButton.disabled = true;
+            uploadedName = "";
+            Phylo.status(statusEl, "Uploading&hellip;", "info", true);
             try {
-                uploadMessage.textContent = "Uploading...";
-                const response = await fetch("/upload", {
-                    method: "POST",
-                    body: formData,
-                });
-                const result = await response.json();
-
-                if (result.status === "success") {
-                    uploadedFileName = result.filename;
-                    uploadMessage.textContent = "File uploaded successfully.";
+                const res = await Phylo.upload("/upload", file);
+                if (res.status === "success") {
+                    uploadedName = res.filename;
                     processButton.disabled = false;
+                    Phylo.status(statusEl, '<i class="fas fa-check"></i> File uploaded. Choose an analysis type.', "success");
                 } else {
-                    uploadMessage.textContent = result.message || "Upload failed.";
+                    Phylo.status(statusEl, res.message || "Upload failed.", "error");
                 }
-            } catch (error) {
-                uploadMessage.textContent = "An error occurred during upload.";
-                console.error(error);
+            } catch (e) {
+                Phylo.status(statusEl, "An error occurred during upload.", "error");
             }
-        });
-
-        // Handle analysis processing
-        processButton.addEventListener("click", async () => {
-            const selectedType = analysisType.value;
-            if (!selectedType) {
-                processingMessage.textContent = "Please select an analysis type.";
-                return;
-            }
-
-            if (!uploadedFileName) {
-                processingMessage.textContent = "No file uploaded.";
-                return;
-            }
-
-            processingMessage.textContent = "Processing started. Please wait...";
-
-            try {
-                const response = await fetch("/process", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ filename: uploadedFileName, analysis_type: selectedType }),
-                });
-                const result = await response.json();
-
-                if (result.status === "success") {
-                    processingMessage.textContent = result.message;
-
-                    const downloadUrl = `/downloads/${encodeURIComponent(result.filename)}`;
-                    resultContainer.innerHTML = `
-                        <h4>Analysis Completed</h4>
-                        <a href="${downloadUrl}" class="button futuristic-btn-secondary" target="_blank">Download Results</a>
-                    `;
-                } else {
-                    processingMessage.textContent = result.message || "Processing failed.";
-                }
-            } catch (error) {
-                processingMessage.textContent = "An error occurred during processing.";
-                console.error(error);
-            }
-        });
+        },
     });
-</script>
 
+    processButton.addEventListener("click", async () => {
+        if (!analysisType.value) { Phylo.status(statusEl, "Please select an analysis type.", "error"); return; }
+        if (!uploadedName) { Phylo.status(statusEl, "Please upload a file first.", "error"); return; }
+
+        result.innerHTML = "";
+        Phylo.status(statusEl, "Processing&hellip; please wait.", "info", true);
+        try {
+            const res = await fetch("/process", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ filename: uploadedName, analysis_type: analysisType.value }),
+            }).then((r) => r.json());
+
+            if (res.status === "success") {
+                Phylo.status(statusEl, '<i class="fas fa-check"></i> Analysis completed.', "success");
+                const url = `/downloads/${encodeURIComponent(res.filename)}`;
+                result.innerHTML =
+                    `<a href="${url}" class="futuristic-btn-secondary" target="_blank">` +
+                    `<i class="fas fa-download"></i> Download ${res.filename}</a>`;
+            } else {
+                Phylo.status(statusEl, res.message || "Processing failed.", "error");
+            }
+        } catch (e) {
+            Phylo.status(statusEl, "An error occurred during processing.", "error");
+        }
+    });
+});
+</script>
 {% endblock %}

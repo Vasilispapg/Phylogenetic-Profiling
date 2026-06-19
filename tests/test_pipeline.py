@@ -158,7 +158,7 @@ def test_cluster_domains_finds_two_modules(tmp_path):
     p = tmp_path / "corr.csv"
     p.write_text(csv)
 
-    graph, nodes, allvsall, pos = cluster_domains(str(p), threshold=0.5, inflation=2.0)
+    graph, nodes, allvsall, pos, metrics = cluster_domains(str(p), threshold=0.5, inflation=2.0)
     assert set(nodes) == {"P1-a", "P1-b", "P2-a", "P2-b"}
     # P1-a and P1-b co-cluster; P1-a and P2-a do not.
     assert allvsall.loc["P1-a", "P1-b"] == 1
