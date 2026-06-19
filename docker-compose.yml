@@ -2,7 +2,8 @@ services:
   web:
     build: .
     ports:
-      - "5000:5000"
+      # Host 8000 -> container 8000 (host 5000 is taken by AirPlay on macOS).
+      - "8000:8000"
     environment:
       # Set to 1 only for local debugging (never in production).
       - FLASK_DEBUG=0

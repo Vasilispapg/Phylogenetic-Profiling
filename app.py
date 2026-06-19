@@ -49,7 +49,9 @@ app.register_blueprint(tree_bp)
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    # Default 8000: on macOS port 5000 (and 7000) is taken by the AirPlay
+    # Receiver (Server: AirTunes), which silently hijacks http://localhost:5000.
+    port = int(os.environ.get("PORT", 8000))
     host = os.environ.get("HOST", "127.0.0.1")
     debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
     app.run(host=host, port=port, debug=debug)

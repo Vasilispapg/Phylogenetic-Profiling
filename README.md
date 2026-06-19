@@ -9,9 +9,15 @@ species × domain presence/absence matrices and from them:
   graph) with a **clustering-quality validation report**,
 - interactive **heatmaps** and an **all-vs-all graph** in the browser.
 
-> New to the code? Read [`INDEX.md`](INDEX.md) (file map) and
-> [`CODE_ANALYSIS.md`](CODE_ANALYSIS.md) (architecture, data flow, methods,
-> limitations) — they describe what the code does now without re-reading it all.
+## Documentation
+- [`docs/INDEX.md`](docs/INDEX.md) — file-by-file map of the codebase.
+- [`docs/CODE_ANALYSIS.md`](docs/CODE_ANALYSIS.md) — architecture, data flow, methods, limitations.
+- [`docs/METHODS.md`](docs/METHODS.md) — scientific rationale and how to interpret results.
+- [`docs/DATA.md`](docs/DATA.md) — exact input/output formats.
+- [`docs/API.md`](docs/API.md) — HTTP endpoint request/response schemas.
+- [`docs/CLAUDE.md`](docs/CLAUDE.md) — onboarding notes for AI agents working in this repo.
+
+These describe what the code does now, so you don't have to re-read it all.
 
 ## Tools (web)
 
@@ -28,7 +34,7 @@ species × domain presence/absence matrices and from them:
 ### Docker (recommended)
 ```bash
 docker compose up --build
-# open http://localhost:5000
+# open http://localhost:8000
 ```
 Uploaded/generated files persist in `./uploads`, `./downloads`, `./cache`.
 
@@ -36,12 +42,17 @@ Uploaded/generated files persist in `./uploads`, `./downloads`, `./cache`.
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python app.py                 # dev server on http://127.0.0.1:5000
+python app.py                 # dev server on http://127.0.0.1:8000
 # production:
-gunicorn --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:5000 app:app
+gunicorn --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:8000 app:app
 ```
+
+> **macOS note:** the default port is **8000**, not 5000 — on macOS the AirPlay
+> Receiver (System Settings → General → AirDrop & Handoff) occupies ports 5000
+> and 7000 and will silently answer with `Server: AirTunes`, making the app look
+> broken. Use 8000, or disable the AirPlay Receiver.
 Run **1 worker** (threads for concurrency): job state is in-memory, so multiple
-workers would not share it. See [`CODE_ANALYSIS.md`](CODE_ANALYSIS.md).
+workers would not share it. See [`docs/CODE_ANALYSIS.md`](docs/CODE_ANALYSIS.md).
 
 ## CLI
 
@@ -76,7 +87,7 @@ SubjectStart, SubjectEnd, EValue, BitScore`.
 
 | Var | Default | Meaning |
 |-----|---------|---------|
-| `PORT` / `HOST` | `5000` / `127.0.0.1` | Dev server bind |
+| `PORT` / `HOST` | `8000` / `127.0.0.1` | Dev server bind (5000 clashes with macOS AirPlay) |
 | `FLASK_DEBUG` | `0` (off) | Enable Flask debugger (never in production) |
 | `MAX_UPLOAD_MB` | `200` | Max upload size |
 | `DASH_DEBUG` | off | Debug mode for standalone Dash apps |

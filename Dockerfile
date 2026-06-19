@@ -23,10 +23,10 @@ COPY . .
 # Runtime directories for uploads / generated results / cache.
 RUN mkdir -p uploads downloads cache output
 
-EXPOSE 5000
+EXPOSE 8000
 
 # A single worker keeps the in-memory job store consistent across requests
 # (status polling + downloads), while threads serve concurrent uploads/polls.
 # Background tree construction runs in-process inside this worker.
 CMD ["gunicorn", "--workers", "1", "--threads", "8", "--timeout", "120", \
-     "--bind", "0.0.0.0:5000", "app:app"]
+     "--bind", "0.0.0.0:8000", "app:app"]
