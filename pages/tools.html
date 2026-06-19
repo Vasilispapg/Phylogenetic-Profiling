@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-    <title>Tools - BCCP Thesis</title>
+    <title>PhyloFlask</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}">
@@ -20,6 +20,7 @@
     <!-- Sidebar -->
     <section id="sidebar">
         <div class="inner">
+            <a href="/" class="brand"><i class="fas fa-dna"></i> PhyloFlask</a>
             <nav>
                 <ul>
                     <li><a style="font-size:0.8rem" href="/">Home</a></li>
@@ -28,6 +29,8 @@
                     <li><a style="font-size:0.8rem" href="{{ url_for('allvsall.allvsall_tool') }}">All vs All Analysis</a></li>
                     <li><a style="font-size:0.8rem" href="{{ url_for('tree.tree_viewer_tool') }}">Tree viewer</a></li>
                     <li><a style="font-size:0.8rem" href="{{ url_for('tree.tree_construct_tool') }}">Tree builder</a></li>
+                    <li><a style="font-size:0.8rem" href="{{ url_for('how_to') }}">How to use</a></li>
+                    <li><a style="font-size:0.8rem" href="{{ url_for('faq') }}">FAQ</a></li>
                 </ul>
             </nav>
         </div>
@@ -46,8 +49,8 @@
     <footer id="footer" class="wrapper style1-alt">
         <div class="inner">
             <ul class="menu">
-                <li>&copy; BCCP. All rights reserved.</li>
-                <li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
+                <li>&copy; PhyloFlask &middot; BCCB Group, AUTH</li>
+                <li><a href="{{ url_for('faq') }}">FAQ</a> &middot; <a href="{{ url_for('how_to') }}">How to use</a></li>
             </ul>
         </div>
     </footer>

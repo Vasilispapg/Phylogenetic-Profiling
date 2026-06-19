@@ -34,6 +34,18 @@ def blast_tool():
     return render_template('blast.html', active_tool="blast")
 
 
+@app.route('/how-to')
+def how_to():
+    """Step-by-step guide to using PhyloFlask."""
+    return render_template('help.html', active_tool="help")
+
+
+@app.route('/faq')
+def faq():
+    """Frequently asked questions and concepts."""
+    return render_template('faq.html', active_tool="faq")
+
+
 # Single shared download endpoint. send_from_directory rejects path traversal.
 @app.route('/downloads/<path:filename>', methods=['GET'])
 def download_file(filename):

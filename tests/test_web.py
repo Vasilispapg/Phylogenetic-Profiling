@@ -17,6 +17,8 @@ def client():
     "/tools/heatmap",
     "/tools/tree_construct",
     "/tools/tree_viewer",
+    "/how-to",
+    "/faq",
 ])
 def test_tool_pages_render(client, path):
     resp = client.get(path)

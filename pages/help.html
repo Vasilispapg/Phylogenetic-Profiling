@@ -1,0 +1,104 @@
+{% extends "tools.html" %}
+
+{% block content %}
+<style>
+    .doc { max-width: 920px; }
+    .doc h1 { margin-bottom: 0.25rem; }
+    .doc .lead { color: rgba(255,255,255,0.75); font-size: 1.05rem; margin-bottom: 1.5rem; }
+    .doc-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; padding: 1.25rem 1.4rem; margin-bottom: 1.1rem; }
+    .doc-card h3 { margin: 0 0 0.5rem; display: flex; align-items: center; gap: 10px; }
+    .doc-card h3 .ic { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: rgba(228,76,101,0.18); color: #f2aab4; }
+    .doc-grid { display: grid; grid-template-columns: 120px 1fr; gap: 6px 16px; font-size: 0.95rem; }
+    .doc-grid dt { color: #f2aab4; font-weight: 600; }
+    .doc-grid dd { margin: 0; color: rgba(255,255,255,0.85); }
+    .pipe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 1.5rem; }
+    .pipe .step { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 8px 14px; font-size: 0.9rem; }
+    .pipe .arrow { opacity: 0.6; }
+    .doc code { background: rgba(0,0,0,0.25); padding: 1px 6px; border-radius: 5px; }
+</style>
+
+<section class="wrapper style1 fullscreen fade-up">
+    <div class="inner doc">
+        <h1>How to use PhyloFlask</h1>
+        <p class="lead">PhyloFlask turns a BLAST search into interactive phylogenetic-profiling
+            visualisations: it builds species × domain presence/absence matrices and, from them, a
+            species tree, domain clusters and heatmaps.</p>
+
+        <h3>The pipeline at a glance</h3>
+        <div class="pipe">
+            <span class="step"><i class="fas fa-dna"></i> 1. BLAST file</span>
+            <span class="arrow"><i class="fas fa-arrow-right"></i></span>
+            <span class="step"><i class="fas fa-table-cells"></i> 2. Correlation / feature matrix</span>
+            <span class="arrow"><i class="fas fa-arrow-right"></i></span>
+            <span class="step"><i class="fas fa-share-nodes"></i> 3. Tree / Clusters / Heatmap</span>
+        </div>
+        <p style="color:rgba(255,255,255,0.7); margin-bottom:1.5rem;">Run <strong>BLAST Analysis first</strong> —
+            the correlation matrix it produces is the input for the tree builder, all-vs-all and heatmaps.</p>
+
+        <div class="doc-card">
+            <h3><span class="ic"><i class="fas fa-dna"></i></span> 1 · BLAST Analysis</h3>
+            <dl class="doc-grid">
+                <dt>What it is</dt><dd>Parses a BLAST tabular file and aggregates hits into a matrix.</dd>
+                <dt>Input</dt><dd>A BLAST <code>-outfmt 6</code> file (<code>.blastp/.tsv/.txt</code>). Query = domain, Subject = species.</dd>
+                <dt>You see</dt><dd>An upload drop-zone, an analysis-type selector, and a download link.</dd>
+                <dt>You can do</dt><dd>Choose <strong>Correlation matrix</strong> (presence/absence counts) or <strong>Feature matrix</strong> (per-cell JSON: %identity, bitscore, e-value, hits). Download the CSV.</dd>
+                <dt>Why</dt><dd>A hit only counts as “present” when its <code>E-value ≤ 1e-5</code>, so profiles stay meaningful for downstream comparison.</dd>
+            </dl>
+        </div>
+
+        <div class="doc-card">
+            <h3><span class="ic"><i class="fas fa-sitemap"></i></span> 2 · Tree builder</h3>
+            <dl class="doc-grid">
+                <dt>What it is</dt><dd>Builds a Neighbour-Joining species tree from domain profiles.</dd>
+                <dt>Input</dt><dd>The <strong>correlation matrix CSV</strong> from step 1.</dd>
+                <dt>You see</dt><dd>A workflow stepper, an upload zone, a progress bar, and a download link for the resulting <code>.nw</code> file.</dd>
+                <dt>You can do</dt><dd>Upload &amp; start construction; download the Newick tree, then open it in the Tree viewer.</dd>
+                <dt>Why</dt><dd>Distances are the <strong>Jaccard distance</strong> between species’ presence/absence profiles — species that share domain content sit close together.</dd>
+            </dl>
+        </div>
+
+        <div class="doc-card">
+            <h3><span class="ic"><i class="fas fa-share-nodes"></i></span> 3 · All-vs-all (domain clustering)</h3>
+            <dl class="doc-grid">
+                <dt>What it is</dt><dd>Clusters domains that share a phylogenetic profile (Markov Clustering).</dd>
+                <dt>Input</dt><dd>The correlation matrix CSV.</dd>
+                <dt>You see</dt><dd>An interactive network (nodes = domains, coloured by cluster, sized by degree), a result note with cluster count &amp; modularity, and a linked co-cluster matrix.</dd>
+                <dt>You can do</dt><dd>Drag/zoom; hover for a tooltip; <strong>click a node</strong> to isolate its cluster; move the <strong>min-similarity slider</strong> to prune weak edges; switch layout; <strong>click a heatmap cell</strong> to jump to that domain in the network.</dd>
+                <dt>Why</dt><dd>Edges connect domains with Jaccard similarity ≥ threshold; co-occurring domains are candidate functional modules. Modularity ≈ 0 means the data has little structure (see FAQ).</dd>
+            </dl>
+        </div>
+
+        <div class="doc-card">
+            <h3><span class="ic"><i class="fas fa-tree"></i></span> 4 · Tree viewer</h3>
+            <dl class="doc-grid">
+                <dt>What it is</dt><dd>An interactive radial viewer for any Newick tree.</dd>
+                <dt>Input</dt><dd>A <code>.nw</code> file (e.g. from the Tree builder).</dd>
+                <dt>You see</dt><dd>A radial tree with leaves coloured by genus.</dd>
+                <dt>You can do</dt><dd><strong>Click nodes</strong> to collapse/expand; use <strong>expand-to-depth</strong>, expand-all, collapse; <strong>search</strong> a species to highlight its path to the root; zoom/pan; hover for descendant counts.</dd>
+                <dt>Why</dt><dd>Collapsing is essential for large trees (hundreds of leaves); colouring by genus reveals whether related species group together.</dd>
+            </dl>
+        </div>
+
+        <div class="doc-card">
+            <h3><span class="ic"><i class="fas fa-fire"></i></span> 5 · Heatmaps</h3>
+            <dl class="doc-grid">
+                <dt>What it is</dt><dd>Three views of a matrix CSV: feature heatmap, correlation heatmap, dendrograms.</dd>
+                <dt>Input</dt><dd>A feature/correlation matrix CSV (processed in your browser).</dd>
+                <dt>You see</dt><dd>A species × domain heatmap with a colour scale.</dd>
+                <dt>You can do</dt><dd>Pick a <strong>feature</strong>, filter by <strong>min hits</strong>, toggle <strong>log scale</strong> and <strong>ordering</strong>, box-zoom, download a PNG, and <strong>click a cell</strong> to see its full feature vector.</dd>
+                <dt>Why</dt><dd>Log scaling and ordering make broad patterns of presence/abundance visible across many domains at once.</dd>
+            </dl>
+        </div>
+
+        <div class="doc-card">
+            <h3><span class="ic"><i class="fas fa-circle-info"></i></span> Tips</h3>
+            <ul style="margin:0; padding-left:1.1rem; color:rgba(255,255,255,0.85);">
+                <li>Local URL is <code>http://127.0.0.1:8000</code> (port 5000 is taken by AirPlay on macOS).</li>
+                <li>Most tools accept the correlation matrix from BLAST Analysis — run that first.</li>
+                <li>Large trees take time to build (Neighbour-Joining is O(n³)); the progress bar keeps you posted.</li>
+                <li>See the <a href="{{ url_for('faq') }}">FAQ</a> for the science behind each step.</li>
+            </ul>
+        </div>
+    </div>
+</section>
+{% endblock %}
