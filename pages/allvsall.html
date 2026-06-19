@@ -2,6 +2,7 @@
 
 {% block content %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.23.0/cytoscape.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.25.2.min.js"></script>
 <style>
     #loading-spinner {
         display: none;
@@ -136,6 +137,10 @@
                 <div id="graph" style="width: 100%; height: 600px; border: 1px solid rgba(255,255,255,0.2); border-radius:10px;"></div>
                 <div id="cy-tooltip" style="display:none;position:absolute;pointer-events:none;background:#2b2747;color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:8px;padding:6px 10px;font-size:0.8rem;z-index:5;max-width:240px;line-height:1.4;"></div>
             </div>
+
+            <h3 style="margin-top:1.5rem;font-size:1.05rem;">Co-cluster matrix
+                <small style="opacity:.65;font-weight:400;">— click a cell or a node to link the two views</small></h3>
+            <div id="cocluster-heatmap" style="width:100%;max-width:520px;"></div>
         </div>
 
         <!-- Loading Spinner -->
@@ -257,6 +262,7 @@
             if (data.status === "success") {
                 renderGraph(data.edges, data.positions, data.nodes, data.node_cluster || {}, data.degree || {});
                 showNote(data.metrics);
+                setupLinkedViews(data);
                 form.style.display = "none";
                 allvsallContainer.style.display = "block";
             } else {
@@ -270,6 +276,50 @@
         }
     }
     
+    // ---- Linked views: network <-> co-cluster heatmap ----
+    let hmOrder = [];
+    function isolateClusterOf(n) {
+        const cl = n.data("cl");
+        const same = cy.nodes().filter((x) => x.data("cl") === cl);
+        cy.elements().addClass("dim");
+        same.removeClass("dim");
+        same.connectedEdges().filter((ed) => same.contains(ed.source()) && same.contains(ed.target())).removeClass("dim");
+    }
+    function highlightHeatmapRow(domain) {
+        const k = hmOrder.indexOf(domain);
+        if (k < 0 || !window.Plotly) return;
+        Plotly.relayout("cocluster-heatmap", { shapes: [
+            { type: "rect", x0: -0.5, x1: hmOrder.length - 0.5, y0: k - 0.5, y1: k + 0.5, line: { width: 0 }, fillcolor: "rgba(255,255,255,0.16)" },
+            { type: "rect", y0: -0.5, y1: hmOrder.length - 0.5, x0: k - 0.5, x1: k + 0.5, line: { width: 0 }, fillcolor: "rgba(255,255,255,0.16)" },
+        ]});
+    }
+    function setupLinkedViews(data) {
+        if (!window.Plotly || !data.matrix) return;
+        const matrix = data.matrix, nodes = data.nodes, nc = data.node_cluster || {};
+        const order = [...nodes.keys()].sort((a, b) => (nc[nodes[a]] ?? 0) - (nc[nodes[b]] ?? 0));
+        hmOrder = order.map((i) => nodes[i]);
+        const z = order.map((i) => order.map((j) => matrix[i][j]));
+        Plotly.newPlot("cocluster-heatmap", [{
+            z, x: hmOrder, y: hmOrder, type: "heatmap",
+            colorscale: [[0, "rgba(124,117,214,0.12)"], [1, "#e44c65"]], showscale: false,
+            hovertemplate: "%{y} ↔ %{x}<extra></extra>",
+        }], {
+            autosize: true, height: 420, margin: { l: 10, r: 10, t: 10, b: 10 },
+            xaxis: { showticklabels: false, ticks: "" },
+            yaxis: { showticklabels: false, ticks: "", scaleanchor: "x" },
+            paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+        }, { responsive: true, displaylogo: false }).then((gd) => {
+            gd.on("plotly_click", (ev) => {
+                const d = ev.points[0].x, n = cy.$id(d);
+                if (n.nonempty()) {
+                    isolateClusterOf(n);
+                    highlightHeatmapRow(d);
+                    cy.animate({ fit: { eles: cy.nodes().filter((x) => x.data("cl") === n.data("cl")), padding: 60 } }, { duration: 400 });
+                }
+            });
+        });
+    }
+
     function renderGraph(edges, positions, nodes, nodeCluster, degree) {
         console.time("renderGraph");
         nodeCluster = nodeCluster || {};
@@ -368,13 +418,9 @@
         });
         cy.on("mouseout", "node", () => { cy.elements().removeClass("hl"); tip.style.display = "none"; });
 
-        // Click a node -> isolate its cluster (dim the rest); click background to clear.
-        cy.on("tap", "node", (e) => {
-            const same = cy.nodes().filter((x) => x.data("cl") === e.target.data("cl"));
-            cy.elements().addClass("dim");
-            same.removeClass("dim");
-            same.connectedEdges().filter((ed) => same.contains(ed.source()) && same.contains(ed.target())).removeClass("dim");
-        });
+        // Click a node -> isolate its cluster + highlight it in the co-cluster
+        // heatmap (linked views). Click the background to clear.
+        cy.on("tap", "node", (e) => { isolateClusterOf(e.target); highlightHeatmapRow(e.target.id()); });
         cy.on("tap", (e) => { if (e.target === cy) cy.elements().removeClass("dim"); });
 
         cy.ready(() => cy.fit(undefined, 40));

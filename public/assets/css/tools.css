@@ -11,6 +11,10 @@
    content extends past the section and reveals the white body — match it. */
 body { background-color: rgb(94, 66, 166); }
 
+/* Tool pages are content-heavy (graphs, heatmaps): drop the 100vh "fullscreen"
+   centring so content starts at the top instead of after a huge empty band. */
+.wrapper.fullscreen { min-height: auto; padding-top: 3rem; padding-bottom: 3rem; }
+
 /* Inputs & selects */
 .futuristic-input,
 .futuristic-select {
