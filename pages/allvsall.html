@@ -117,8 +117,25 @@
                 placeholder="Search and highlight nodes..."
             />
             <datalist id="node-options"></datalist>
-            <button id="reset-zoom" class="button mt-3">Reset Zoom</button>
-            <div id="graph" style="width: 100%; height: 600px; border: 1px solid #ccc;"></div>
+            <div id="graph-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:10px 0;">
+                <button id="reset-zoom" class="futuristic-btn-secondary"><i class="fas fa-expand"></i> Reset</button>
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;">Layout
+                    <select id="layout-select" class="futuristic-select" style="width:auto;padding:6px 10px;">
+                        <option value="cose">Force</option>
+                        <option value="concentric">Concentric</option>
+                        <option value="circle">Circle</option>
+                        <option value="grid">Grid</option>
+                    </select>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;flex:1;min-width:200px;">Min similarity
+                    <input type="range" id="edge-weight" min="0" max="1" step="0.05" value="0" style="flex:1;">
+                    <span id="edge-weight-val" style="width:34px;">0.00</span>
+                </label>
+            </div>
+            <div id="graph-wrap" style="position:relative;">
+                <div id="graph" style="width: 100%; height: 600px; border: 1px solid rgba(255,255,255,0.2); border-radius:10px;"></div>
+                <div id="cy-tooltip" style="display:none;position:absolute;pointer-events:none;background:#2b2747;color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:8px;padding:6px 10px;font-size:0.8rem;z-index:5;max-width:240px;line-height:1.4;"></div>
+            </div>
         </div>
 
         <!-- Loading Spinner -->
@@ -238,7 +255,7 @@
             const data = await response.json();
 
             if (data.status === "success") {
-                renderGraph(data.edges, data.positions, data.nodes);
+                renderGraph(data.edges, data.positions, data.nodes, data.node_cluster || {}, data.degree || {});
                 showNote(data.metrics);
                 form.style.display = "none";
                 allvsallContainer.style.display = "block";
@@ -253,8 +270,12 @@
         }
     }
     
-    function renderGraph(edges, positions, nodes) {
+    function renderGraph(edges, positions, nodes, nodeCluster, degree) {
         console.time("renderGraph");
+        nodeCluster = nodeCluster || {};
+        degree = degree || {};
+        const clusterColor = (c) => (c == null ? "#5dcaa5" : `hsl(${(c * 47) % 360},55%,62%)`);
+        const maxDeg = Math.max(1, ...nodes.map((n) => degree[n] || 0));
         originalNodes = [...nodes]; // Copy the nodes array to `originalNodes`
         originalEdges = [...edges]; // Copy the edges array to `originalEdges`
         originalPositions = { ...positions }; // Save positions for resetting graph
@@ -283,54 +304,100 @@
         cy = cytoscape({
             container: document.getElementById("graph"),
             elements: [
-                ...nodes.map((node) => ({ data: { id: node } })),
-                ...edges.map((edge) => ({ data: { source: edge.source, target: edge.target } })),
+                ...nodes.map((node) => ({
+                    data: {
+                        id: node,
+                        color: clusterColor(nodeCluster[node]),
+                        deg: degree[node] || 1,
+                        cl: nodeCluster[node],
+                    },
+                })),
+                ...edges.map((edge) => ({
+                    data: { source: edge.source, target: edge.target, weight: edge.weight != null ? edge.weight : 1 },
+                })),
             ],
             style: [
                 {
                     selector: "node",
                     style: {
-                        "background-color": "#5dcaa5",
-                        width: 13, height: 13,
+                        "background-color": "data(color)",          // colour by MCL cluster
+                        width: `mapData(deg, 1, ${maxDeg}, 12, 34)`, // size by degree
+                        height: `mapData(deg, 1, ${maxDeg}, 12, 34)`,
                         label: "data(id)",
                         "font-size": 9,
                         color: "#fff",
                         "text-halign": "center",
                         "text-valign": "center",
-                        // Labels only appear when you zoom in -> no white blob when zoomed out.
-                        "min-zoomed-font-size": 14,
+                        "min-zoomed-font-size": 14,                  // labels appear on zoom-in
                         "text-outline-color": "#2b2747",
                         "text-outline-width": 2,
-                        "transition-property": "background-color, width, height",
+                        "transition-property": "width, height, border-width, background-opacity",
                         "transition-duration": "0.18s",
                     },
                 },
-                {
-                    selector: "node:selected, node.hl",
-                    style: { "background-color": "#e44c65", width: 22, height: 22 },
-                },
+                { selector: "node:selected, node.hl", style: { "border-color": "#fff", "border-width": 3, "z-index": 10 } },
+                { selector: "node.dim", style: { "background-opacity": 0.12, "text-opacity": 0 } },
                 {
                     selector: "edge",
-                    style: { "line-color": "rgba(255,255,255,0.12)", width: 1, "curve-style": "haystack" },
+                    style: { "line-color": "rgba(255,255,255,0.10)", width: `mapData(weight, 0, 1, 0.4, 4)`, "curve-style": "haystack" },
                 },
-                { selector: "edge.hl", style: { "line-color": "#e44c65", width: 2 } },
+                { selector: "edge.hl", style: { "line-color": "#e44c65", width: 2.5, "z-index": 9 } },
+                { selector: "edge.dim", style: { "line-opacity": 0.02 } },
             ],
             layout: {
                 name: "cose", animate: true, animationDuration: 700, padding: 40,
                 nodeRepulsion: 9000, idealEdgeLength: 90, edgeElasticity: 80,
                 gravity: 0.3, numIter: 700, randomize: true, fit: true,
             },
-            minZoom: 0.2, maxZoom: 3, wheelSensitivity: 0.3,
+            minZoom: 0.15, maxZoom: 3, wheelSensitivity: 0.3,
         });
 
-        // Hover: reveal a node + its neighbourhood (label shows on zoom/hover).
+        // Hover: highlight neighbourhood + show a tooltip.
+        const tip = document.getElementById("cy-tooltip");
         cy.on("mouseover", "node", (e) => {
             const n = e.target;
             n.addClass("hl");
             n.connectedEdges().addClass("hl").connectedNodes().addClass("hl");
+            tip.innerHTML = `<strong>${n.id()}</strong><br>cluster ${n.data("cl")} &middot; ${n.data("deg")} links`;
+            tip.style.display = "block";
         });
-        cy.on("mouseout", "node", () => cy.elements().removeClass("hl"));
+        cy.on("mousemove", "node", (e) => {
+            const p = e.renderedPosition || e.target.renderedPosition();
+            tip.style.left = (p.x + 14) + "px";
+            tip.style.top = (p.y + 10) + "px";
+        });
+        cy.on("mouseout", "node", () => { cy.elements().removeClass("hl"); tip.style.display = "none"; });
+
+        // Click a node -> isolate its cluster (dim the rest); click background to clear.
+        cy.on("tap", "node", (e) => {
+            const same = cy.nodes().filter((x) => x.data("cl") === e.target.data("cl"));
+            cy.elements().addClass("dim");
+            same.removeClass("dim");
+            same.connectedEdges().filter((ed) => same.contains(ed.source()) && same.contains(ed.target())).removeClass("dim");
+        });
+        cy.on("tap", (e) => { if (e.target === cy) cy.elements().removeClass("dim"); });
+
         cy.ready(() => cy.fit(undefined, 40));
+
+        // Min-similarity slider: hide weak edges live.
+        const ew = document.getElementById("edge-weight");
+        const ewVal = document.getElementById("edge-weight-val");
+        if (ew) {
+            ew.oninput = () => {
+                const t = parseFloat(ew.value);
+                ewVal.textContent = t.toFixed(2);
+                cy.batch(() => cy.edges().forEach((ed) => ed.style("display", ed.data("weight") >= t ? "element" : "none")));
+            };
+        }
+        // Layout switcher.
+        const ls = document.getElementById("layout-select");
+        if (ls) {
+            ls.onchange = () => {
+                const opts = { name: ls.value, animate: true, padding: 40, fit: true };
+                if (ls.value === "concentric") { opts.concentric = (n) => n.data("deg"); opts.levelWidth = () => 4; }
+                cy.layout(opts).run();
+            };
+        }
 
         nodes.forEach((node) => {
             const option = document.createElement("option");

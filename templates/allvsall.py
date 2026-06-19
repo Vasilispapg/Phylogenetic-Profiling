@@ -4,6 +4,8 @@ from threading import Lock
 
 from flask import Blueprint, jsonify, render_template, request
 from werkzeug.utils import secure_filename
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components
 
 from analysis.clustering_analysis import cluster_domains
 
@@ -88,14 +90,26 @@ def get_allvsall_data(filename):
 
         graph = result["graph"]
         graph_nodes = list(result["graph_nodes"])
-        all_vs_all_df = result["all_vs_all_df"].values.tolist()
+        df = result["all_vs_all_df"]
         pos = {node: [float(x), float(y)] for node, (x, y) in result["pos"].items()}
+
+        # Cluster id per node = connected component of the co-cluster matrix.
+        _, labels = connected_components(csr_matrix(df.to_numpy() > 0), directed=False)
+        node_cluster = {node: int(labels[i]) for i, node in enumerate(graph_nodes)}
+        degree = {n: int(graph.degree(n)) for n in graph_nodes}
+
+        edges = [
+            {"source": u, "target": v, "weight": round(float(d.get("weight", 1.0)), 3)}
+            for u, v, d in graph.edges(data=True)
+        ]
 
         return jsonify({
             "status": "success",
             "nodes": graph_nodes,
-            "edges": [{"source": u, "target": v} for u, v in graph.edges()],
-            "matrix": all_vs_all_df,
+            "node_cluster": node_cluster,
+            "degree": degree,
+            "edges": edges,
+            "matrix": df.values.tolist(),
             "positions": pos,
             "metrics": result.get("metrics"),
         })

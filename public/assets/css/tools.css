@@ -7,6 +7,10 @@
   --tool-muted: rgba(255, 255, 255, 0.6);
 }
 
+/* The HTML5UP theme colours its sections, not the body. On tall tool pages the
+   content extends past the section and reveals the white body — match it. */
+body { background-color: rgb(94, 66, 166); }
+
 /* Inputs & selects */
 .futuristic-input,
 .futuristic-select {
