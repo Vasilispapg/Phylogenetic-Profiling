@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import DnaHelix from "../components/DnaHelix.jsx";
+import DnaHero from "../components/DnaHero.jsx";
 
 const TOOLS = [
   ["/blast", "fa-dna", "BLAST Analysis", "Build the species × domain matrix from a BLAST file."],
@@ -30,7 +30,7 @@ export default function Landing() {
             <Link to="/how-to" className="btn btn-secondary">How it works</Link>
           </div>
         </div>
-        <div><DnaHelix /></div>
+        <div><DnaHero /></div>
       </section>
 
       <div className="section-head"><div className="eyebrow">The toolkit</div><h2>Five tools, one pipeline</h2></div>
