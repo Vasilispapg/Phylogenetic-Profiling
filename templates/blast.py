@@ -1,20 +1,26 @@
-from flask import Blueprint, jsonify, request,send_file
 import os
-import sys
-# Include project root for analysis scripts
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.append(project_root)
+
+from flask import Blueprint, jsonify, request
+from werkzeug.utils import secure_filename
 
 from analysis.matrix_operations import create_feature_matrix, create_correlation_matrix
 
-# Blueprint for heatmap routes
+# Blueprint for BLAST routes
 blast_bp = Blueprint('blast', __name__, template_folder='templates')
 
 UPLOAD_FOLDER = './uploads'
 OUTPUT_FOLDER = './downloads'
 CACHE_FOLDER = './cache'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 os.makedirs(CACHE_FOLDER, exist_ok=True)
+
+ALLOWED_EXTENSIONS = {'.blastp', '.tsv', '.tab', '.txt', '.out', '.csv'}
+
+
+def _allowed(filename):
+    return os.path.splitext(filename)[1].lower() in ALLOWED_EXTENSIONS
+
 
 # Upload Route
 @blast_bp.route('/upload', methods=['POST'])
@@ -23,22 +29,26 @@ def upload_file():
     if 'file' not in request.files:
         return jsonify({"status": "error", "message": "No file part"})
     file = request.files['file']
-    if file.filename == '':
+    safe_name = secure_filename(file.filename or "")
+    if not safe_name:
         return jsonify({"status": "error", "message": "No selected file"})
+    if not _allowed(safe_name):
+        return jsonify({"status": "error", "message": "Unsupported file type"})
 
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file_path = os.path.join(UPLOAD_FOLDER, safe_name)
     try:
         file.save(file_path)
-        return jsonify({"status": "success", "message": "File uploaded successfully!", "filename": file.filename})
+        return jsonify({"status": "success", "message": "File uploaded successfully!", "filename": safe_name})
     except Exception as e:
         return jsonify({"status": "error", "message": f"Error saving file: {str(e)}"})
+
 
 # Process Route
 @blast_bp.route('/process', methods=['POST'])
 def process_file():
     """Process uploaded file based on analysis type."""
-    data = request.json
-    filename = data.get('filename')
+    data = request.json or {}
+    filename = secure_filename(data.get('filename') or "")
     analysis_type = data.get('analysis_type')
 
     if not filename:
@@ -50,9 +60,9 @@ def process_file():
     if not os.path.exists(input_path):
         return jsonify({"status": "error", "message": "File not found"})
 
-    # Determine output file name based on analysis type
+    # Output file name (unified with the CLI naming).
     if analysis_type == "features":
-        output_filename = "feature_result.csv"
+        output_filename = "feature_matrix.csv"
     elif analysis_type == "correlation":
         output_filename = "correlation_matrix.csv"
     else:
@@ -62,18 +72,23 @@ def process_file():
     try:
         if analysis_type == "features":
             create_feature_matrix(input_path, output_path)
-        elif analysis_type == "correlation":
+        else:
             create_correlation_matrix(input_path, output_path)
 
-        return jsonify({"status": "success", "message": "Processing completed", "output_path": output_path})
+        return jsonify({
+            "status": "success",
+            "message": "Processing completed",
+            "filename": output_filename,
+        })
     except Exception as e:
         return jsonify({"status": "error", "message": f"An error occurred: {str(e)}"})
+
 
 # Get Results
 @blast_bp.route('/results', methods=['GET'])
 def get_results():
-    """Fetch results for the processed file."""
-    filename = request.args.get('filename')
+    """Check that a processed result file exists."""
+    filename = secure_filename(request.args.get('filename') or "")
     if not filename:
         return jsonify({"status": "error", "message": "Filename not provided"})
 
@@ -81,14 +96,4 @@ def get_results():
     if not os.path.exists(result_path):
         return jsonify({"status": "error", "message": "Result file not found"})
 
-    return jsonify({"status": "success", "file_path": result_path})
-
-# Download Results
-@blast_bp.route('/downloads/<filename>', methods=['GET'])
-def download_file(filename):
-    """Download processed file."""
-    file_path = os.path.join(OUTPUT_FOLDER, filename)
-    if not os.path.exists(file_path):
-        return "File not found", 404
-
-    return send_file(file_path, as_attachment=True)
+    return jsonify({"status": "success", "filename": filename})

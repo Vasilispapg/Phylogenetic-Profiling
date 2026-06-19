@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      # Set to 1 only for local debugging (never in production).
+      - FLASK_DEBUG=0
+      - MAX_UPLOAD_MB=200
+    volumes:
+      # Persist uploaded and generated files on the host.
+      - ./uploads:/app/uploads
+      - ./downloads:/app/downloads
+      - ./cache:/app/cache
+    restart: unless-stopped

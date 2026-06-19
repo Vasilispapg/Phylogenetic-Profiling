@@ -1,9 +1,25 @@
 # display_correlation.py
+import json
+import os
+
 import plotly.graph_objects as go
 import pandas as pd
 from dash import Dash, dcc, html, Input, Output
-import pandas as pd
 import numpy as np
+
+
+def _dash_debug():
+    return os.environ.get("DASH_DEBUG", "").lower() in ("1", "true", "yes")
+
+
+def _parse_cell(cell):
+    """Safely parse a JSON feature-vector cell into a dict (never eval)."""
+    if not isinstance(cell, str) or cell in ("", "{}"):
+        return {}
+    try:
+        return json.loads(cell)
+    except (ValueError, TypeError):
+        return {}
 
 def display_species_domain_heatmap(correlation_matrix_path="species_domain_count_matrix.csv"):
     """
@@ -71,9 +87,15 @@ def display_species_domain_heatmap_with_features(correlation_matrix_path="specie
         # Load the JSON feature matrix
         feature_matrix = pd.read_csv(correlation_matrix_path, index_col=0)
 
-        # Extract all available feature keys from the JSON-like data
-        first_cell = next(iter(feature_matrix.iloc[0].dropna()), "{}")
-        available_features = list(eval(first_cell).keys())
+        # Extract all available feature keys from the first non-empty cell.
+        available_features = []
+        for cell in feature_matrix.to_numpy().ravel():
+            parsed = _parse_cell(cell)
+            if parsed:
+                available_features = list(parsed.keys())
+                break
+        if not available_features:
+            raise ValueError("No feature data found in the matrix.")
 
         # Initialize the Dash app
         app = Dash(__name__)
@@ -123,13 +145,13 @@ def display_species_domain_heatmap_with_features(correlation_matrix_path="specie
         )
         def update_heatmap(selected_feature, min_hits, sort_order):
             # Extract data for the selected feature
-            feature_data = feature_matrix.applymap(
-                lambda cell: eval(cell).get(selected_feature) if cell != '{}' else 0
+            feature_data = feature_matrix.map(
+                lambda cell: _parse_cell(cell).get(selected_feature, 0) or 0
             )
 
             # Filter data based on minimum hits
-            num_hits_data = feature_matrix.applymap(
-                lambda cell: eval(cell).get("num_hits") if cell != '{}' else 0
+            num_hits_data = feature_matrix.map(
+                lambda cell: _parse_cell(cell).get("num_hits", 0) or 0
             )
             mask = num_hits_data >= min_hits
             feature_data_filtered = feature_data.where(mask, other=0)
@@ -148,7 +170,7 @@ def display_species_domain_heatmap_with_features(correlation_matrix_path="specie
             for i, species in enumerate(feature_matrix.index):
                 hover_row = []
                 for j, domain in enumerate(feature_matrix.columns):
-                    json_data = eval(feature_matrix.iat[i, j])
+                    json_data = _parse_cell(feature_matrix.iat[i, j])
                     hover_info = f"<b>Species:</b> {species}<br><b>Domain:</b> {domain}"
                     hover_info += "".join(f"<br><b>{k}:</b> {v}" for k, v in json_data.items())
                     hover_row.append(hover_info)
@@ -178,7 +200,7 @@ def display_species_domain_heatmap_with_features(correlation_matrix_path="specie
             return fig
 
         # Run the app
-        app.run_server(debug=True)
+        app.run(debug=_dash_debug())
 
     except Exception as e:
         print(f"An error occurred: {e}")

@@ -99,11 +99,10 @@
                 if (result.status === "success") {
                     processingMessage.textContent = result.message;
 
-                    // Fetch results
-                    console.log(result.output_path)
+                    const downloadUrl = `/downloads/${encodeURIComponent(result.filename)}`;
                     resultContainer.innerHTML = `
                         <h4>Analysis Completed</h4>
-                        <a href="/${result.output_path}" class="button futuristic-btn-secondary" target="_blank">Download Results</a>
+                        <a href="${downloadUrl}" class="button futuristic-btn-secondary" target="_blank">Download Results</a>
                     `;
                 } else {
                     processingMessage.textContent = result.message || "Processing failed.";

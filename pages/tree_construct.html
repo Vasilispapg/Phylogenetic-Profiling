@@ -4,12 +4,13 @@
 <section id="tree-construct-tool" class="wrapper style1 fullscreen fade-up">
     <div class="inner">
         <h1>Phylogenetic Tree Construction</h1>
-        <p>Upload a species data file to construct a phylogenetic tree.</p>
+        <p>Upload a <strong>correlation matrix CSV</strong> (rows = species, columns = domains,
+           as produced by the BLAST &rarr; Correlation analysis). A Neighbour-Joining tree is
+           built from the Jaccard distances between species' domain presence/absence profiles.</p>
         <form id="tree-construct-form" enctype="multipart/form-data">
-            <label for="tree-file" class="form-label">Upload Species Data File:</label>
-            <input type="file" id="tree-file" name="file" class="form-control futuristic-input" required>
-            <label for="max-depth" class="form-label mt-3">Maximum Tree Depth (Optional):</label>
-            <input type="number" id="max-depth" class="form-control futuristic-input text-warning" value="12" min="1">
+            <label for="tree-file" class="form-label">Upload Correlation Matrix (.csv):</label>
+            <input type="file" id="tree-file" name="file" accept=".csv,.tsv,.txt"
+                   class="form-control futuristic-input" required>
             <button type="button" id="construct-tree-button" class="button futuristic-btn mt-4">Start Construction</button>
             <div id="upload-message" class="text-warning mt-2"></div>
         </form>
@@ -20,75 +21,79 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
     const treeFileInput = document.getElementById("tree-file");
-    const maxDepthInput = document.getElementById("max-depth");
     const constructTreeButton = document.getElementById("construct-tree-button");
     const uploadMessage = document.getElementById("upload-message");
     const downloadContainer = document.getElementById("download-container");
 
-    constructTreeButton.addEventListener("click", async () => {
-    const treeFile = treeFileInput.files[0];
-    const maxDepth = parseInt(maxDepthInput.value, 10) || 12;
+    function pollStatus(jobId) {
+        const pollInterval = setInterval(async () => {
+            try {
+                const statusResponse = await fetch(
+                    `/tools/tree_status?job_id=${encodeURIComponent(jobId)}`
+                );
 
-    if (!treeFile) {
-        uploadMessage.textContent = "Please upload a file.";
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", treeFile);
-    formData.append("max_depth", maxDepth);
-
-    uploadMessage.textContent = "Uploading and processing...";
-    downloadContainer.innerHTML = ""; // Clear previous download links
-
-    try {
-        const response = await fetch("/tools/tree_construct", {
-            method: "POST",
-            body: formData,
-        });
-
-        const result = await response.json();
-
-        if (response.ok && result.status === "success") {
-            uploadMessage.textContent = "Tree construction started. Please wait...";
-
-            // Poll for tree construction status
-            const inputFile = treeFile.name;
-            const pollInterval = setInterval(async () => {
-                try {
-                    const statusResponse = await fetch(`/tools/tree_status?input_file=${encodeURIComponent(inputFile)}`);
-                    const statusResult = await statusResponse.json();
-
-                    if (statusResult.status === "completed") {
-                        clearInterval(pollInterval);
-                        uploadMessage.textContent = "Tree construction completed!";
-
-                        // Create a download link for the constructed tree
-                        const downloadLink = document.createElement("a");
-                        downloadLink.href = statusResult.download_url;
-                        downloadLink.textContent = `Download ${statusResult.original_filename}`;
-                        downloadLink.className = "button futuristic-btn mt-4";
-                        downloadLink.target = "_blank"; // Open the link in a new tab
-                        downloadContainer.appendChild(downloadLink);
-                    } else if (statusResult.status === "failed") {
-                        clearInterval(pollInterval);
-                        uploadMessage.textContent = "Tree construction failed.";
-                    }
-                } catch (pollError) {
+                if (statusResponse.status === 404) {
                     clearInterval(pollInterval);
-                    uploadMessage.textContent = "An error occurred while checking the tree status.";
-                    console.error(pollError);
+                    uploadMessage.textContent = "Job not found.";
+                    return;
                 }
-            }, 3000); // Poll every 3 seconds
-        } else {
-            uploadMessage.textContent = result.message || "Failed to start tree construction.";
-        }
-    } catch (error) {
-        uploadMessage.textContent = "An error occurred.";
-        console.error(error);
-    }
-});
-});
 
+                const statusResult = await statusResponse.json();
+
+                if (statusResult.status === "completed") {
+                    clearInterval(pollInterval);
+                    uploadMessage.textContent = "Tree construction completed!";
+
+                    const downloadLink = document.createElement("a");
+                    downloadLink.href = statusResult.download_url;
+                    downloadLink.textContent = `Download ${statusResult.original_filename}`;
+                    downloadLink.className = "button futuristic-btn mt-4";
+                    downloadLink.target = "_blank";
+                    downloadContainer.appendChild(downloadLink);
+                } else if (statusResult.status === "failed") {
+                    clearInterval(pollInterval);
+                    uploadMessage.textContent =
+                        "Tree construction failed: " + (statusResult.message || "unknown error");
+                }
+            } catch (pollError) {
+                clearInterval(pollInterval);
+                uploadMessage.textContent = "An error occurred while checking the tree status.";
+                console.error(pollError);
+            }
+        }, 3000); // Poll every 3 seconds
+    }
+
+    constructTreeButton.addEventListener("click", async () => {
+        const treeFile = treeFileInput.files[0];
+        if (!treeFile) {
+            uploadMessage.textContent = "Please upload a file.";
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", treeFile);
+
+        uploadMessage.textContent = "Uploading and processing...";
+        downloadContainer.innerHTML = ""; // Clear previous download links
+
+        try {
+            const response = await fetch("/tools/tree_construct", {
+                method: "POST",
+                body: formData,
+            });
+            const result = await response.json();
+
+            if (response.ok && result.status === "success" && result.job_id) {
+                uploadMessage.textContent = "Tree construction started. Please wait...";
+                pollStatus(result.job_id);
+            } else {
+                uploadMessage.textContent = result.message || "Failed to start tree construction.";
+            }
+        } catch (error) {
+            uploadMessage.textContent = "An error occurred.";
+            console.error(error);
+        }
+    });
+});
 </script>
 {% endblock %}
