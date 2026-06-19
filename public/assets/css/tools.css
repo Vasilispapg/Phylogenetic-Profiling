@@ -25,7 +25,9 @@
   --tool-text: var(--text);
   --tool-muted: var(--text-2);
   --font: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
 }
+h1, h2, h3, h4 { font-family: var(--font-display) !important; }
 
 /* ---- Global flip: light background, dark text ---- */
 html, body { background: var(--bg) !important; }
