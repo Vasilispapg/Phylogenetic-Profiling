@@ -4,10 +4,10 @@
 <style>
     #tree-wrap { position: relative; margin-top: 16px; }
     #tree-svg { width: 100%; max-width: 900px; height: auto; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; }
-    .link { fill: none; stroke: rgba(255,255,255,0.32); stroke-width: 1px; }
-    .node circle { stroke: #241f3d; stroke-width: 1.5px; cursor: pointer; }
-    .node text { font-size: 9px; fill: #e9e7f5; }
-    #tree-tooltip { display:none; position:absolute; pointer-events:none; background:#2b2747; color:#fff; border:1px solid rgba(255,255,255,0.25); border-radius:8px; padding:6px 10px; font-size:0.8rem; line-height:1.4; z-index:5; max-width:260px; }
+    .link { fill: none; stroke: rgba(18,28,54,0.22); stroke-width: 1px; }
+    .node circle { stroke: #ffffff; stroke-width: 1.5px; cursor: pointer; }
+    .node text { font-size: 9px; fill: #0e1726; }
+    #tree-tooltip { display:none; position:absolute; pointer-events:none; background:#111827; color:#fff; border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:6px 10px; font-size:0.8rem; line-height:1.4; z-index:5; max-width:260px; }
     .tree-ctl { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:1rem; }
     .tree-ctl label { display:flex; align-items:center; gap:8px; font-size:0.85rem; }
 </style>
@@ -70,7 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const genus = (name) => { const p = (name || "").split("-"); return p.length > 2 ? p[2].split("_")[0] : (name || ""); };
     function genusColor(d) {
-        if (d.children || d._children) return d._children ? "#e44c65" : "#cfcaf2";
+        if (d.children || d._children) return d._children ? "#2f6bff" : "#9aa3b5";
         const gn = genus(d.data.name); if (!gn) return "#9aa0c9";
         let h = 0; for (const ch of gn) h = (h * 31 + ch.charCodeAt(0)) % 360;
         return `hsl(${h},60%,62%)`;

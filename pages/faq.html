@@ -2,19 +2,22 @@
 
 {% block content %}
 <style>
-    .faq { max-width: 920px; }
-    .faq .lead { color: rgba(255,255,255,0.75); font-size: 1.05rem; margin-bottom: 1.5rem; }
-    .faq h2 { font-size: 1.15rem; margin: 1.75rem 0 0.6rem; color: #f2aab4; }
-    .faq details { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 0 1.1rem; margin-bottom: 8px; transition: background 0.15s; }
-    .faq details[open] { background: rgba(255,255,255,0.08); }
-    .faq summary { cursor: pointer; padding: 13px 0; font-weight: 600; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .faq { max-width: 920px; margin: 0 auto; }
+    .faq h1 { font-size: 2.3rem; }
+    .faq .lead { color: var(--text-2); font-size: 1.1rem; margin-bottom: 1.5rem; max-width: 720px; }
+    .faq h2 { font-size: 1.2rem; margin: 2rem 0 0.6rem; color: var(--accent); }
+    .faq details { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 0 1.2rem; margin-bottom: 10px; box-shadow: var(--shadow); transition: box-shadow 0.15s, transform 0.12s; }
+    .faq details[open] { box-shadow: var(--shadow-hover); }
+    .faq details:hover { transform: translateY(-1px); }
+    .faq summary { cursor: pointer; padding: 15px 0; font-weight: 600; color: var(--text); list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
     .faq summary::-webkit-details-marker { display: none; }
-    .faq summary::after { content: "\f067"; font-family: "Font Awesome 5 Free"; font-weight: 900; opacity: 0.6; font-size: 0.8rem; }
+    .faq summary::after { content: "\f067"; font-family: "Font Awesome 5 Free"; font-weight: 900; color: var(--accent); font-size: 0.8rem; }
     .faq details[open] summary::after { content: "\f068"; }
-    .faq .a { padding: 0 0 14px; color: rgba(255,255,255,0.85); line-height: 1.7; }
-    .faq code { background: rgba(0,0,0,0.25); padding: 1px 6px; border-radius: 5px; }
-    .about { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; padding: 1.4rem; margin-top: 1.5rem; }
-    .about p { color: rgba(255,255,255,0.82); }
+    .faq .a { padding: 0 0 16px; color: var(--text); line-height: 1.75; }
+    .faq code { background: var(--surface-2); color: #b4275e; padding: 1px 6px; border-radius: 6px; }
+    .about { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 1.5rem; margin-top: 1.75rem; box-shadow: var(--shadow); }
+    .about p { color: var(--text); }
+    .about a { color: var(--accent); font-weight: 600; }
 </style>
 
 <section class="wrapper style1 fullscreen fade-up">
@@ -88,14 +91,14 @@
             <p><strong>Authors:</strong> Alexandros Michailidis, Vasileios S. Papagrigoriou, Christos A. Ouzounis.<br>
                 BCCB Group, Artificial Intelligence &amp; Information Analysis Laboratory, School of Informatics,
                 Aristotle University of Thessaloniki, Greece.</p>
-            <p style="color:rgba(255,255,255,0.7); font-size:0.95rem;">Phylogenetic profiling infers structural and
+            <p style="color:var(--text-2); font-size:0.95rem;">Phylogenetic profiling infers structural and
                 functional properties of genes from their presence/absence patterns across complete genomes. The input
                 is a list of species identifiers derived from BLASTp hits against indexed Reference Proteomes
                 (COGENT-like identifiers), enabling rapid, scalable visual inference of gene function and evolutionary
                 relationships to facilitate hypothesis generation.</p>
             <p><a href="https://f1000research-files.f1000.com/posters/compressed/f1000research-728675.pdf" target="_blank" rel="noopener">
                 <i class="fas fa-file-pdf"></i> Poster (F1000Research, p. 104)</a></p>
-            <p style="font-size:0.9rem; color:rgba(255,255,255,0.7);"><strong>Reference:</strong> Cohen BA, Mitra RD,
+            <p style="font-size:0.9rem; color:var(--text-2);"><strong>Reference:</strong> Cohen BA, Mitra RD,
                 Hughes JD &amp; Church GM (2000). A computational analysis of whole-genome expression data reveals
                 chromosomal domains of gene expression. <em>Nature Genetics</em> 26(2), 183–186.
                 <a href="https://doi.org/10.1038/79896" target="_blank" rel="noopener">https://doi.org/10.1038/79896</a></p>

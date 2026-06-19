@@ -3,8 +3,10 @@
 	<head>
 		<title>PhyloFlask — phylogenetic profile visualization</title>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}">
+		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/fontawesome-all.min.css') }}">
+		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/tools.css') }}">
 		<noscript><link rel="stylesheet" href="{{ url_for('static', filename='assets/css/noscript.css') }}"></noscript>
 	</head>
 	<body class="is-preload">
@@ -34,8 +36,16 @@
 					<ul class="actions">
 						<li><a href="/tools/blast" class="button primary">Get started</a></li>
 							<li><a href="/how-to" class="button">How to use</a></li>
-							<li><a href="/faq" class="button">FAQ</a></li>
+							<li><a href="/faq" class="button secondary">FAQ</a></li>
 					</ul>
+						<div class="pill-tags" style="margin-top:2rem;">
+							<span class="pill-tag"><i class="fas fa-diagram-project"></i> phylogenetic profiling</span>
+							<span class="pill-tag"><i class="fas fa-magnifying-glass"></i> BLAST</span>
+							<span class="pill-tag"><i class="fas fa-sitemap"></i> Neighbour-Joining</span>
+							<span class="pill-tag"><i class="fas fa-share-nodes"></i> Markov clustering</span>
+							<span class="pill-tag"><i class="fas fa-fire"></i> heatmaps</span>
+							<span class="pill-tag"><i class="fas fa-dna"></i> bioinformatics</span>
+						</div>
 				</div>
 			</section>
 

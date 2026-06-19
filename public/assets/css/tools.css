@@ -1,252 +1,203 @@
-/* Shared component styling for the tool pages (keeps the existing theme). */
+/* PhyloFlask — light, modern "biotech SaaS" theme.
+   Loaded after the HTML5UP main.css on every tool/doc page; it flips the dark
+   template to a clean light, card-based look and styles all shared components. */
 :root {
-  --tool-accent: #e44c65;
-  --tool-line: rgba(255, 255, 255, 0.25);
-  --tool-fill: rgba(255, 255, 255, 0.06);
-  --tool-text: #f4f4f8;
-  --tool-muted: rgba(255, 255, 255, 0.6);
+  --bg: #eaeef6;
+  --bg-2: #f6f8fc;
+  --surface: #ffffff;
+  --surface-2: #f3f5fa;
+  --text: #0e1726;
+  --text-2: #586074;
+  --text-3: #8b93a5;
+  --line: rgba(18, 28, 54, 0.10);
+  --line-2: rgba(18, 28, 54, 0.16);
+  --ink: #111827;            /* black pill buttons */
+  --accent: #2f6bff;         /* links / active */
+  --accent-soft: #e7eeff;
+  --teal: #0bb39a;
+  --radius: 16px;
+  --radius-sm: 11px;
+  --pill: 999px;
+  --shadow: 0 10px 30px rgba(20, 30, 60, 0.08);
+  --shadow-hover: 0 16px 40px rgba(20, 30, 60, 0.14);
+  --tool-accent: var(--accent);
+  --tool-line: var(--line);
+  --tool-text: var(--text);
+  --tool-muted: var(--text-2);
+  --font: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* The HTML5UP theme colours its sections, not the body. On tall tool pages the
-   content extends past the section and reveals the white body — match it. */
-body { background-color: rgb(94, 66, 166); }
+/* ---- Global flip: light background, dark text ---- */
+html, body { background: var(--bg) !important; }
+body {
+  color: var(--text) !important;
+  font-family: var(--font) !important;
+  background-image: radial-gradient(1200px 600px at 80% -10%, #dfe7fb 0%, rgba(223,231,251,0) 60%) !important;
+}
+#wrapper, #wrapper > section, .wrapper, section.wrapper, .wrapper.style1, .wrapper.style1-alt, .wrapper.style2 {
+  background-color: transparent !important;
+  color: var(--text) !important;
+}
+.wrapper.fullscreen { min-height: auto; padding-top: 2.5rem; padding-bottom: 2.5rem; }
+h1, h2, h3, h4, h5, h6 { color: var(--text) !important; font-family: var(--font) !important; letter-spacing: -0.01em; }
+h1 { font-weight: 800; }
+p, li, dd, dt, span, label, td, th, summary, div { color: inherit; }
+a { color: var(--accent); }
+a:hover { color: #1b4fd6; }
+code { background: var(--surface-2); color: #b4275e; padding: 1px 6px; border-radius: 6px; }
+.text-warning, .text-info, .text-muted, .text-light { color: var(--text-2) !important; }
 
-/* Tool pages are content-heavy (graphs, heatmaps): drop the 100vh "fullscreen"
-   centring so content starts at the top instead of after a huge empty band. */
-.wrapper.fullscreen { min-height: auto; padding-top: 3rem; padding-bottom: 3rem; }
+/* ---- Top navbar (HTML5UP #sidebar) ---- */
+#sidebar { background: transparent; }
+#sidebar .inner {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: saturate(160%) blur(10px);
+  -webkit-backdrop-filter: saturate(160%) blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+#sidebar .brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em;
+  color: var(--text) !important; text-decoration: none; padding: 12px 0 4px;
+}
+#sidebar .brand i { color: var(--accent); }
+#sidebar nav ul { display: flex; flex-wrap: wrap; gap: 2px 6px; }
+#sidebar nav ul li a {
+  color: var(--text-2) !important; font-weight: 500;
+  border-radius: var(--pill); padding: 7px 13px !important;
+  transition: background 0.15s, color 0.15s;
+}
+#sidebar nav ul li a:hover { color: var(--text) !important; background: var(--surface-2); }
+#sidebar nav ul li a.active { color: var(--accent) !important; background: var(--accent-soft); }
 
-/* Inputs & selects */
-.futuristic-input,
-.futuristic-select {
-  width: 100%;
-  background: var(--tool-fill);
-  border: 1px solid var(--tool-line);
-  color: var(--tool-text);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 0.95rem;
+/* ---- Buttons (modern pills) ---- */
+.button, .futuristic-btn, .futuristic-btn-secondary, .btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  border-radius: var(--pill) !important; font-weight: 600;
+  padding: 11px 22px !important; font-size: 0.95rem; cursor: pointer;
+  border: 1px solid transparent !important; transition: transform 0.12s, box-shadow 0.15s, background 0.15s;
+  text-decoration: none; line-height: 1;
+}
+.button, .button.primary, .futuristic-btn, .btn-primary {
+  background: var(--ink) !important; color: #fff !important; box-shadow: 0 6px 18px rgba(17, 24, 39, 0.18);
+}
+.button:hover, .futuristic-btn:hover, .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 26px rgba(17, 24, 39, 0.26); color: #fff !important; }
+.futuristic-btn-secondary, .btn-success, .button.secondary {
+  background: var(--surface) !important; color: var(--text) !important; border-color: var(--line-2) !important; box-shadow: var(--shadow);
+}
+.futuristic-btn-secondary:hover, .button.secondary:hover { transform: translateY(-1px); border-color: var(--accent) !important; color: var(--text) !important; }
+.futuristic-btn:disabled, .futuristic-btn-secondary:disabled, button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ---- Inputs & selects ---- */
+.futuristic-input, .futuristic-select, input[type="text"], input[type="file"], select, textarea, .form-control, .form-select {
+  width: 100%; background: var(--surface) !important; border: 1px solid var(--line-2) !important;
+  color: var(--text) !important; border-radius: var(--radius-sm) !important; padding: 10px 12px; font-size: 0.95rem;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.futuristic-input:focus,
-.futuristic-select:focus {
-  outline: none;
-  border-color: var(--tool-accent);
-  box-shadow: 0 0 0 3px rgba(228, 76, 101, 0.25);
+.futuristic-input:focus, .futuristic-select:focus, input:focus, select:focus, .form-control:focus {
+  outline: none; border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(47, 107, 255, 0.18) !important;
 }
-.futuristic-select option { color: #1a1a1a; }
 .futuristic-input::file-selector-button {
-  margin-right: 12px;
-  border: 1px solid var(--tool-line);
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--tool-text);
-  border-radius: 6px;
-  padding: 6px 12px;
-  cursor: pointer;
+  margin-right: 12px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text);
+  border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 500;
 }
 
-/* Buttons */
-.futuristic-btn,
-.futuristic-btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: transform 0.1s, opacity 0.15s, background 0.15s;
-}
-.futuristic-btn { background: var(--tool-accent); color: #fff; }
-.futuristic-btn-secondary { background: transparent; color: var(--tool-text); border-color: var(--tool-line); }
-.futuristic-btn:hover,
-.futuristic-btn-secondary:hover { opacity: 0.92; }
-.futuristic-btn:active,
-.futuristic-btn-secondary:active { transform: scale(0.98); }
-.futuristic-btn:disabled,
-.futuristic-btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
-
-/* Drag & drop upload zone */
+/* ---- Drop-zone ---- */
 .dropzone {
-  border: 1px dashed var(--tool-line);
-  border-radius: 12px;
-  padding: 1.75rem 1.25rem;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  background: var(--surface); border: 1.5px dashed var(--line-2); border-radius: var(--radius);
+  padding: 1.9rem 1.25rem; text-align: center; cursor: pointer; box-shadow: var(--shadow);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
-.dropzone:hover { border-color: rgba(255, 255, 255, 0.45); }
-.dropzone.is-dragover { border-color: var(--tool-accent); background: rgba(228, 76, 101, 0.08); }
-.dropzone .dz-icon { font-size: 1.75rem; opacity: 0.7; }
-.dropzone .dz-title { margin: 8px 0 2px; font-weight: 600; }
-.dropzone .dz-hint { margin: 0; font-size: 0.85rem; color: var(--tool-muted); }
+.dropzone:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: var(--shadow-hover); }
+.dropzone.is-dragover { border-color: var(--accent); background: var(--accent-soft); }
+.dropzone .dz-icon { font-size: 1.9rem; color: var(--accent); transition: transform 0.2s; }
+.dropzone:hover .dz-icon { transform: translateY(-3px); }
+.dropzone .dz-title { margin: 10px 0 2px; font-weight: 700; color: var(--text); }
+.dropzone .dz-hint { margin: 0; font-size: 0.85rem; color: var(--text-3); }
 .dropzone input[type="file"] { display: none; }
 
-/* Selected-file pill */
 .file-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--tool-line);
-  border-radius: 999px;
-  padding: 5px 14px;
-  font-size: 0.85rem;
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 12px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--pill);
+  padding: 6px 14px; font-size: 0.85rem; color: var(--text);
 }
 
-/* Status banner + indeterminate progress */
-.tool-status {
-  display: none;
-  margin-top: 1rem;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 0.95rem;
-}
+/* ---- Status banner + progress + loader + note ---- */
+.tool-status { display: none; margin-top: 1rem; padding: 11px 15px; border-radius: var(--radius-sm); font-size: 0.95rem; border: 1px solid transparent; }
 .tool-status.show { display: block; }
-.tool-status.is-info { background: rgba(124, 117, 214, 0.18); color: #d6d2f5; }
-.tool-status.is-error { background: rgba(228, 76, 101, 0.18); color: #f6c0c9; }
-.tool-status.is-success { background: rgba(93, 202, 165, 0.18); color: #b8ead9; }
-.tool-progress {
-  height: 4px;
-  margin-top: 10px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 999px;
-  overflow: hidden;
-}
-.tool-progress > span {
-  display: block;
-  width: 35%;
-  height: 100%;
-  background: var(--tool-accent);
-  animation: tool-indet 1.2s ease-in-out infinite;
-}
-@keyframes tool-indet {
-  0% { margin-left: -35%; }
-  100% { margin-left: 100%; }
-}
+.tool-status.is-info { background: var(--accent-soft); color: #1c44b8; border-color: rgba(47,107,255,0.2); }
+.tool-status.is-error { background: #fdecef; color: #b4275e; border-color: rgba(180,39,94,0.18); }
+.tool-status.is-success { background: #e6f7f0; color: #0a7f63; border-color: rgba(11,179,154,0.22); }
+.tool-progress { height: 5px; margin-top: 10px; background: rgba(18,28,54,0.10); border-radius: var(--pill); overflow: hidden; }
+.tool-progress > span { display: block; width: 35%; height: 100%; background: var(--accent); animation: tool-indet 1.2s ease-in-out infinite; }
+@keyframes tool-indet { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
 
-/* Workflow stepper */
-.tool-stepper { display: flex; align-items: center; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
-.tool-step { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--tool-muted); }
-.tool-step .dot {
-  width: 24px; height: 24px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.8rem; font-weight: 600;
-  background: rgba(255, 255, 255, 0.1); color: var(--tool-muted);
-}
-.tool-step.done .dot { background: rgba(93, 202, 165, 0.25); color: #b8ead9; }
-.tool-step.active .dot { background: var(--tool-accent); color: #fff; }
-.tool-step.active { color: var(--tool-text); font-weight: 600; }
-.tool-stepper .bar { flex: 1; min-width: 16px; height: 1px; background: var(--tool-line); }
-
-/* Keep the side nav labels on one line so "Tree viewer/builder" don't truncate. */
-#sidebar nav ul li a { white-space: nowrap; }
-
-/* Animations */
-@keyframes tool-fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.tool-status.show,
-.tool-stepper,
-.file-pill[style*="inline"] { animation: tool-fade-in 0.25s ease both; }
-.futuristic-btn,
-.futuristic-btn-secondary,
-.dropzone,
-.futuristic-input,
-.futuristic-select { transition: all 0.15s ease; }
-
-/* Reusable loading overlay with a caption explaining the current step */
-.tool-loader {
-  display: none;
-  align-items: center;
-  gap: 12px;
-  margin-top: 1rem;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--tool-line);
-}
+.tool-loader { display: none; align-items: center; gap: 12px; margin-top: 1rem; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
 .tool-loader.show { display: flex; }
-.tool-loader .spinner {
-  width: 22px; height: 22px; flex: 0 0 22px;
-  border: 3px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--tool-accent);
-  border-radius: 50%;
-  animation: tool-spin 0.8s linear infinite;
-}
+.tool-loader .spinner { width: 22px; height: 22px; flex: 0 0 22px; border: 3px solid var(--surface-2); border-top-color: var(--accent); border-radius: 50%; animation: tool-spin 0.8s linear infinite; }
 @keyframes tool-spin { to { transform: rotate(360deg); } }
-.tool-loader .caption { font-size: 0.95rem; }
-.tool-loader .caption small { display: block; color: var(--tool-muted); font-size: 0.8rem; margin-top: 2px; }
+.tool-loader .caption { font-size: 0.95rem; color: var(--text); }
+.tool-loader .caption small { display: block; color: var(--text-3); font-size: 0.8rem; margin-top: 2px; }
 
-/* Result info banner */
-.tool-note {
-  margin-top: 1rem; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem;
-  background: rgba(124, 117, 214, 0.18); color: #d6d2f5;
+.tool-note { margin-top: 1rem; padding: 11px 15px; border-radius: var(--radius-sm); font-size: 0.9rem; background: var(--accent-soft); color: #1c44b8; }
+.tool-note.is-warn { background: #fdecef; color: #b4275e; }
+
+/* ---- Workflow stepper ---- */
+.tool-stepper { display: flex; align-items: center; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.tool-step { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-3); }
+.tool-step .dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; background: var(--surface-2); color: var(--text-3); }
+.tool-step.done .dot { background: #e6f7f0; color: #0a7f63; }
+.tool-step.active .dot { background: var(--accent); color: #fff; }
+.tool-step.active { color: var(--text); font-weight: 600; }
+.tool-stepper .bar { flex: 1; min-width: 16px; height: 1px; background: var(--line); }
+
+/* ---- Cards ---- */
+.doc-card, .about, .card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); transition: transform 0.15s, box-shadow 0.15s;
 }
-.tool-note.is-warn { background: rgba(228, 76, 101, 0.16); color: #f6c0c9; }
+.doc-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
 
-/* Responsive: keep everything fluid and the nav usable on small screens. */
+/* ---- Pill tags (biotech keyword chips) ---- */
+.pill-tags { display: flex; flex-wrap: wrap; gap: 10px; }
+.pill-tag {
+  display: inline-flex; align-items: center; gap: 8px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--pill); padding: 9px 18px;
+  font-size: 0.9rem; font-weight: 500; color: var(--text); box-shadow: var(--shadow);
+}
+.pill-tag i { color: var(--accent); }
+
+/* ---- Stat cards ---- */
+.stat-card { background: var(--ink); color: #fff; border-radius: var(--radius); padding: 1.1rem 1.25rem; }
+.stat-card .n { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em; }
+.stat-card .l { font-size: 0.8rem; color: rgba(255,255,255,0.7); }
+
+/* ---- Visualisation containers on light ---- */
+#graph { background: var(--surface) !important; border: 1px solid var(--line) !important; }
+#tree-svg { background: var(--surface) !important; border: 1px solid var(--line) !important; }
+#cy-tooltip, #tree-tooltip { background: #111827 !important; color: #fff !important; border-color: rgba(255,255,255,0.18) !important; }
+.search-bubble { box-shadow: var(--shadow); }
+
+/* ---- Footer ---- */
+#footer, #footer .inner { background: transparent !important; }
+#footer .menu li, #footer a { color: var(--text-2) !important; }
+
 img, svg, canvas { max-width: 100%; }
-#graph, #tree-svg, #featureHeatmap, #echartsContainer, #echarts-containerTab3, #dendrogramHeatmap { max-width: 100%; }
 
+/* ---- Animations ---- */
+@keyframes tool-fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.inner > h1, .tool-stepper, .doc-card, .faq details, .dropzone, .pill-tags, .stat-card { animation: tool-fade-in 0.4s ease both; }
+
+/* ---- Responsive ---- */
 @media screen and (max-width: 980px) {
-  #sidebar .inner nav ul {
-    display: flex; flex-wrap: nowrap; overflow-x: auto;
-    gap: 0 4px; -webkit-overflow-scrolling: touch; padding-bottom: 4px;
-  }
-  #sidebar .inner nav ul li { display: inline-block; }
+  #sidebar .inner nav ul { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
 }
 @media screen and (max-width: 736px) {
-  #sidebar nav ul li a { font-size: 0.85rem !important; }
   .tool-stepper { font-size: 0.78rem; gap: 6px; }
-  .tool-step .dot { width: 20px; height: 20px; font-size: 0.7rem; }
-  .dropzone { padding: 1.25rem 0.85rem; }
+  .dropzone { padding: 1.4rem 0.9rem; }
   #graph { height: 60vh !important; }
-  .futuristic-btn, .futuristic-btn-secondary { width: 100%; justify-content: center; }
+  .futuristic-btn, .futuristic-btn-secondary, .button { width: auto; justify-content: center; }
 }
-
-/* ---- Modern SaaS polish ---- */
-#sidebar .brand {
-  display: flex; align-items: center; gap: 8px;
-  font-weight: 700; font-size: 1.15rem; letter-spacing: 0.3px;
-  color: #fff; padding: 14px 0 6px; text-decoration: none;
-}
-#sidebar .brand i { color: var(--tool-accent); }
-#sidebar nav ul li a { transition: color 0.15s, transform 0.15s; }
-#sidebar nav ul li a:hover { color: #fff; }
-#sidebar nav ul li a.active { color: #fff; }
-
-/* Primary button: subtle gradient + lift/glow on hover */
-.futuristic-btn {
-  background-image: linear-gradient(135deg, #e44c65, #c43c70);
-  box-shadow: 0 2px 10px rgba(228, 76, 101, 0.25);
-}
-.futuristic-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(228, 76, 101, 0.4); }
-.futuristic-btn-secondary:hover { transform: translateY(-1px); border-color: rgba(255, 255, 255, 0.45); }
-
-/* Drop-zone: lift the icon and glow on hover/drag */
-.dropzone .dz-icon { transition: transform 0.2s; }
-.dropzone:hover .dz-icon { transform: translateY(-3px); }
-.dropzone.is-dragover { box-shadow: 0 0 0 4px rgba(228, 76, 101, 0.15); }
-
-/* Cards gently lift */
-.doc-card, .about { transition: transform 0.15s, border-color 0.15s; }
-.doc-card:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.28); }
-
-/* Content fades up on load */
-.inner > h1, .inner > .tool-stepper, .inner > .dropzone, .inner > .doc-card, .faq details {
-  animation: tool-fade-in 0.4s ease both;
-}
-
-/* Shimmer utility for skeleton/loading states */
-.shimmer {
-  background: linear-gradient(100deg, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.16) 50%, rgba(255,255,255,0.06) 70%);
-  background-size: 200% 100%;
-  animation: tool-shimmer 1.3s infinite;
-}
-@keyframes tool-shimmer { to { background-position: -200% 0; } }
-
-/* Respect reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }

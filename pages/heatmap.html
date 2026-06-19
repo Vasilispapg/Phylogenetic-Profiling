@@ -38,11 +38,15 @@
 
   /* Tabs container styling */
   #heatmapTabs {
-    background: #312450; 
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 5px;
+    gap: 4px;
+    box-shadow: var(--shadow);
   }
-  .nav-link.active {
-    color: black !important;
-  }
+  #heatmapTabs .nav-link { color: var(--text-2); border-radius: 9px; border: none; }
+  #heatmapTabs .nav-link.active { color: #fff !important; background: var(--ink); }
 
   /* Wrapper for each heatmap/canvas with a light background and border */
   .heatmap-container {
