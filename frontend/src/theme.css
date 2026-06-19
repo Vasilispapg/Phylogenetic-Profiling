@@ -4,7 +4,7 @@
   --surface: #ffffff; --surface-2: #f3f5fa;
   --text: #0e1726; --text-2: #586074; --text-3: #8b93a5;
   --line: rgba(18,28,54,.10); --line-2: rgba(18,28,54,.16);
-  --ink: #111827; --accent: #2f6bff; --accent-soft: #e7eeff; --teal: #0bb39a; --coral: #e44c65;
+  --ink: #14181f; --accent: #e11d48; --accent-soft: #fde7ec; --teal: #0bb39a; --coral: #e44c65;
   --radius: 16px; --radius-sm: 11px; --pill: 999px;
   --shadow: 0 10px 30px rgba(20,30,60,.08); --shadow-hover: 0 16px 40px rgba(20,30,60,.14);
   --font: "Inter","Segoe UI",system-ui,-apple-system,sans-serif;
@@ -35,6 +35,8 @@ strong, b { font-weight: 700; color: var(--text); }
 .btn-primary:hover { transform: translateY(-1px); color: #fff; box-shadow: 0 14px 28px rgba(17,24,39,.3); }
 .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--line-2); box-shadow: var(--shadow); }
 .btn-secondary:hover { transform: translateY(-1px); border-color: var(--accent); }
+.btn-accent { background: var(--accent); color: #fff; box-shadow: 0 8px 20px rgba(225,29,72,.28); border-radius: 12px; }
+.btn-accent:hover { transform: translateY(-1px); color: #fff; box-shadow: 0 14px 28px rgba(225,29,72,.36); }
 .btn:disabled, .btn.is-disabled { background: var(--surface-2); color: var(--text-3); box-shadow: none;
   border-color: var(--line); cursor: not-allowed; transform: none; }
 
@@ -173,4 +175,5 @@ h1.display { font-family: var(--font-display); font-weight: 700; font-size: clam
   .hero { grid-template-columns: 1fr; }
   .stat-row { grid-template-columns: 1fr 1fr; }
   .feature { grid-column: span 2; }
+  .hero-albus { grid-template-columns: 1fr !important; min-height: 0 !important; gap: 8px !important; }
 }
