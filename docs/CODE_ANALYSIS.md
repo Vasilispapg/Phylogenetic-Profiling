@@ -69,14 +69,14 @@ the client depth slider prunes the view.
 
 | Method | Path | Handler | Notes |
 |--------|------|---------|-------|
-| GET | `/`, `/tools`, `/tools/blast` | `app.py` | pages |
+| GET | `/`, `/tools`, `/tools/blast`, `/how-to`, `/faq` | `app.py` | pages |
 | GET | `/downloads/<path:filename>` | `app.py` | shared, traversal-safe |
 | POST | `/upload` | blast | secure_filename + extension allowlist |
 | POST | `/process` | blast | builds matrix → `downloads/`, returns `filename` |
 | GET | `/results` | blast | existence check |
 | GET | `/tools/heatmap` | heatmap | client-side only |
 | GET/POST | `/tools/allvsall` | allvsall | POST starts clustering job |
-| GET | `/allvsall_status/<f>`, `/allvsall_data/<f>` | allvsall | poll + fetch |
+| GET | `/allvsall_status/<f>`, `/allvsall_data/<f>` | allvsall | poll + fetch (data includes node_cluster, degree, edge weights, metrics) |
 | GET/POST | `/tools/tree_construct` | tree | POST → `job_id` (202) |
 | GET | `/tools/tree_status?job_id=` | tree | `in_progress\|completed\|failed`, 404 if unknown |
 | GET/POST | `/tools/tree_viewer` | tree | POST parses Newick |

@@ -5,8 +5,8 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 
 ## Entry points
 
-- **`app.py`** — Flask app (`app`). Page routes `/`, `/tools`, `/tools/blast`;
-  single shared download endpoint `GET /downloads/<path:filename>`
+- **`app.py`** — Flask app (`app`). Page routes `/`, `/tools`, `/tools/blast`,
+  `/how-to`, `/faq`; single shared download endpoint `GET /downloads/<path:filename>`
   (`send_from_directory`, traversal-safe). Registers all blueprints. Reads
   `PORT/HOST/FLASK_DEBUG/MAX_UPLOAD_MB` from env. WSGI callable for gunicorn = `app:app`.
 - **`main.py`** — CLI dispatcher. `COMMANDS` dict maps `--analyze`,
@@ -76,13 +76,17 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 
 - **`pages/tools.html`** — base layout + nav (uses blueprint-qualified `url_for`).
   All tool pages `{% extends "tools.html" %}`.
-- **`pages/index.html`** — landing page.
-- **`pages/blast.html`** — upload + process; download via `/downloads/<filename>`.
+- **`pages/index.html`** — PhyloFlask landing page.
+- **`pages/help.html`** — "How to use" guide (`/how-to`).
+- **`pages/faq.html`** — FAQ + concepts + credits (`/faq`).
+- **`pages/blast.html`** — drop-zone upload + process; download via `/downloads/<filename>`.
 - **`pages/tree_construct.html`** — upload correlation matrix, poll by `job_id`.
-- **`pages/tree_viewer.html`** — D3 radial tree; depth slider prunes client-side.
-- **`pages/allvsall.html`** — Cytoscape graph + heatmap of clustering results.
-- **`pages/heatmap.html`** — self-contained client-side heatmap tool.
-- **`public/main.js`** — null-safe fallback upload handlers (no-op where forms absent).
+- **`pages/tree_viewer.html`** — collapsible radial D3 tree (genus colours, search).
+- **`pages/allvsall.html`** — Cytoscape network (cluster colours, slider, layouts)
+  linked to a Plotly co-cluster heatmap.
+- **`pages/heatmap.html`** — client-side heatmap tool (order/log toggles, cell-click).
+- **`public/assets/css/tools.css`** — shared themed components, responsive rules, polish.
+- **`public/assets/js/tools.js`** — `Phylo` helpers: dropzone, upload, poll, status.
 
 ## Data & outputs
 

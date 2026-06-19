@@ -1,13 +1,19 @@
-# Phylogenetic Profiling
+# PhyloFlask
 
-A Flask web app (with a parallel CLI) for **phylogenetic profiling** of protein
-domains across species, starting from a BLAST tabular file. It builds
-species × domain presence/absence matrices and from them:
+**PhyloFlask** — a software framework for large-scale **phylogenetic profile
+visualization**. A Flask web app (with a parallel CLI) that turns a BLAST
+tabular file into interactive species trees, domain clusters and heatmaps. It
+builds species × domain presence/absence matrices and from them:
 
 - a **Neighbour-Joining species tree** (Jaccard distance between domain profiles),
-- **domain clusters** (Markov Clustering on a domain × domain profile-similarity
-  graph) with a **clustering-quality validation report**,
-- interactive **heatmaps** and an **all-vs-all graph** in the browser.
+  shown in an interactive collapsible radial viewer (colour-by-genus, search),
+- **domain clusters** (Markov Clustering) shown as an interactive network
+  (colour-by-cluster, edge-weight slider, layout switcher) **linked** to a
+  co-cluster heatmap, with a **clustering-quality validation report**,
+- interactive **heatmaps** (Plotly/ECharts) in the browser.
+
+By A. Michailidis, V. S. Papagrigoriou & C. A. Ouzounis — BCCB Group, Aristotle
+University of Thessaloniki. See the in-app **How to use** and **FAQ** pages.
 
 ## Documentation
 - [`docs/INDEX.md`](docs/INDEX.md) — file-by-file map of the codebase.
@@ -24,10 +30,12 @@ These describe what the code does now, so you don't have to re-read it all.
 | Page | Route | What it does |
 |------|-------|--------------|
 | BLAST Analysis | `/tools/blast` | Upload a BLAST file → build correlation or feature matrix (downloadable) |
-| Heatmap | `/tools/heatmap` | Upload a matrix CSV → interactive heatmaps (client-side: Plotly/ECharts) |
-| All vs All | `/tools/allvsall` | Upload a correlation matrix → MCL domain clusters + graph/heatmap |
-| Tree Construct | `/tools/tree_construct` | Upload a correlation matrix → NJ tree (Newick), async job + polling |
-| Tree Viewer | `/tools/tree_viewer` | Upload a `.nw` file → interactive radial D3 tree |
+| Heatmap | `/tools/heatmap` | Upload a matrix CSV → interactive heatmaps (order/log toggles, cell-click, zoom, PNG) |
+| All vs All | `/tools/allvsall` | Upload a correlation matrix → MCL clusters: network coloured by cluster + linked co-cluster heatmap |
+| Tree builder | `/tools/tree_construct` | Upload a correlation matrix → NJ tree (Newick), async job + polling |
+| Tree viewer | `/tools/tree_viewer` | Upload a `.nw` file → collapsible radial tree (genus colours, search) |
+| How to use | `/how-to` | Per-tool walkthrough |
+| FAQ | `/faq` | Concepts, methods, troubleshooting, credits |
 
 ## Quick start
 

@@ -5,7 +5,8 @@ All responses are JSON unless noted. Error responses are
 
 ## Pages (HTML)
 `GET /`, `GET /tools`, `GET /tools/blast`, `GET /tools/heatmap`,
-`GET /tools/tree_construct`, `GET /tools/tree_viewer` → rendered templates (200).
+`GET /tools/tree_construct`, `GET /tools/tree_viewer`, `GET /how-to`, `GET /faq`
+→ rendered templates (200).
 
 ## Downloads
 ### `GET /downloads/<filename>`
@@ -56,12 +57,17 @@ Poll until `message == "Completed."`.
 {
   "status": "success",
   "nodes": ["DomainA", "DomainB", "..."],
-  "edges": [{"source": "DomainA", "target": "DomainB"}],
+  "node_cluster": {"DomainA": 0, "DomainB": 1},
+  "degree": {"DomainA": 5, "DomainB": 2},
+  "edges": [{"source": "DomainA", "target": "DomainB", "weight": 0.67}],
   "matrix": [[1, 0], [0, 1]],
-  "positions": {"DomainA": [0.12, -0.34]}
+  "positions": {"DomainA": [0.12, -0.34]},
+  "metrics": {"n_clusters": 4, "modularity": 0.71, "warning": null}
 }
 ```
-Nodes are **domains**; `matrix` is the domain × domain co-cluster matrix.
+Nodes are **domains**. `node_cluster` colours them, `degree` sizes them, edge
+`weight` is the Jaccard similarity, `matrix` is the domain × domain co-cluster
+matrix (drives the linked heatmap), and `metrics` is the validation report.
 
 ## Tree blueprint
 ### `POST /tools/tree_construct`

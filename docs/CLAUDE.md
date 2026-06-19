@@ -6,7 +6,7 @@ Agent onboarding for this repo. Read this first; for a file map see
 codebase.
 
 ## What this is
-A Flask web app + CLI for **phylogenetic profiling** of protein domains: parse a
+**PhyloFlask** — a Flask web app + CLI for **phylogenetic profiling** of protein domains: parse a
 BLAST file → species × domain presence/absence matrices → Neighbour-Joining
 species tree (Jaccard) and domain clusters (MCL) with a validation report, plus
 browser heatmaps and an all-vs-all graph.
