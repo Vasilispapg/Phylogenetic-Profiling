@@ -38,6 +38,15 @@ These describe what the code does now, so you don't have to re-read it all.
 | How to use | `/how-to` | Per-tool walkthrough |
 | FAQ | `/faq` | Concepts, methods, troubleshooting, credits |
 
+## Frontend
+
+Two UIs share the same Flask JSON API:
+- **Classic** — server-rendered Jinja pages (light, zero build), served by Flask.
+- **React SPA** — a modern Vite + React app in [`frontend/`](frontend/) that consumes
+  the API. Dev: run Flask (`python app.py`, :8000) **and** `cd frontend && npm install && npm run dev`
+  (:5173, proxied). Build: `npm run build` → `frontend/dist/`. See [`frontend/README.md`](frontend/README.md).
+  Design system: [`docs/DESIGN.md`](docs/DESIGN.md) (live gallery at `/styleguide`).
+
 ## Quick start
 
 ### Docker (recommended)
