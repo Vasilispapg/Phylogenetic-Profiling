@@ -22,6 +22,7 @@ University of Thessaloniki. See the in-app **How to use** and **FAQ** pages.
 - [`docs/DATA.md`](docs/DATA.md) — exact input/output formats.
 - [`docs/API.md`](docs/API.md) — HTTP endpoint request/response schemas.
 - [`docs/CLAUDE.md`](docs/CLAUDE.md) — onboarding notes for AI agents working in this repo.
+- [`docs/DESIGN.md`](docs/DESIGN.md) — design system & component templates (live gallery at `/styleguide`).
 
 These describe what the code does now, so you don't have to re-read it all.
 

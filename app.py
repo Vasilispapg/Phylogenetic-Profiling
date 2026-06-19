@@ -46,6 +46,12 @@ def faq():
     return render_template('faq.html', active_tool="faq")
 
 
+@app.route('/styleguide')
+def styleguide():
+    """Living design-system gallery (component templates)."""
+    return render_template('styleguide.html', active_tool="styleguide")
+
+
 # Single shared download endpoint. send_from_directory rejects path traversal.
 @app.route('/downloads/<path:filename>', methods=['GET'])
 def download_file(filename):

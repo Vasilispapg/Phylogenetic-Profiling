@@ -79,6 +79,7 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 - **`pages/index.html`** — PhyloFlask landing page.
 - **`pages/help.html`** — "How to use" guide (`/how-to`).
 - **`pages/faq.html`** — FAQ + concepts + credits (`/faq`).
+- **`pages/styleguide.html`** — living design-system gallery (`/styleguide`); see `docs/DESIGN.md`.
 - **`pages/blast.html`** — drop-zone upload + process; download via `/downloads/<filename>`.
 - **`pages/tree_construct.html`** — upload correlation matrix, poll by `job_id`.
 - **`pages/tree_viewer.html`** — collapsible radial D3 tree (genus colours, search).

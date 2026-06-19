@@ -19,6 +19,7 @@ def client():
     "/tools/tree_viewer",
     "/how-to",
     "/faq",
+    "/styleguide",
 ])
 def test_tool_pages_render(client, path):
     resp = client.get(path)
