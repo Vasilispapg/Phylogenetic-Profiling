@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import DnaHero from "../components/DnaHero.jsx";
+import Reveal from "../components/Reveal.jsx";
 
 const TOOLS = [
   ["/blast", "fa-dna", "BLAST Analysis", "Build the species × domain matrix from a BLAST file."],
@@ -16,7 +17,7 @@ export default function Landing() {
     <div className="fade-up">
       <section style={{ display: "grid", gridTemplateColumns: "1fr 1.05fr", gap: 24, alignItems: "center", minHeight: "64vh" }} className="hero-albus">
         <div>
-          <div className="eyebrow" style={{ marginBottom: 14 }}>01 — phylogenetic profiling</div>
+          <div className="hero-badge"><span className="dot" /> Comparative genomics, at proteome scale</div>
           <h1 className="display" style={{ fontSize: "clamp(2.7rem, 6vw, 4.6rem)", lineHeight: 1.0 }}>
             Phylogenetic<br />profiling,<br />by design.
           </h1>
@@ -26,25 +27,29 @@ export default function Landing() {
             and evolutionary links.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link to="/blast" className="btn btn-accent">Learn more <i className="fa-solid fa-arrow-right" /></Link>
+            <Link to="/blast" className="btn btn-accent">Learn more <span className="btn-ico"><i className="fa-solid fa-arrow-right" /></span></Link>
             <Link to="/how-to" className="btn btn-secondary">How it works</Link>
           </div>
         </div>
         <div><DnaHero /></div>
       </section>
 
-      <div className="section-head"><div className="eyebrow">The toolkit</div><h2>Five tools, one pipeline</h2></div>
+      <div className="section-head"><h2>Five tools, one pipeline</h2>
+        <p className="section-sub">From a single BLAST file to species trees, domain clusters and heatmaps —
+           each step in the pipeline is its own focused, interactive tool.</p></div>
       <div className="tools-grid">
-        {TOOLS.map(([to, ic, h, p]) => (
-          <Link key={to} to={to} className="tool-card">
-            <div className="ic"><i className={"fa-solid " + ic} /></div>
-            <h3>{h}</h3><p style={{ color: "var(--text-2)", margin: 0, fontSize: ".92rem" }}>{p}</p>
-            <span className="more">Open <i className="fa-solid fa-arrow-right" /></span>
-          </Link>
+        {TOOLS.map(([to, ic, h, p], i) => (
+          <Reveal key={to} delay={i * 60}>
+            <Link to={to} className="tool-card">
+              <div className="ic"><i className={"fa-solid " + ic} /></div>
+              <h3>{h}</h3><p style={{ color: "var(--text-2)", margin: 0, fontSize: ".92rem" }}>{p}</p>
+              <span className="more">Open <i className="fa-solid fa-arrow-right" /></span>
+            </Link>
+          </Reveal>
         ))}
       </div>
 
-      <div className="section-head"><div className="eyebrow">About</div><h2>Built at the BCCB Group, AUTH</h2></div>
+      <div className="section-head"><h2>Built at the BCCB Group, AUTH</h2></div>
       <div className="card card-pad" style={{ marginBottom: 20 }}>
         <p><strong>PhyloFlask</strong> — by <strong>A. Michailidis, V. S. Papagrigoriou &amp; C. A. Ouzounis</strong>
            (Biological Computation &amp; Computational Biology Group, Aristotle University of Thessaloniki). Scalable

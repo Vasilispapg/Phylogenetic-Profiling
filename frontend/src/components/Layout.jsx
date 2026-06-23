@@ -24,8 +24,8 @@ export default function Layout() {
             ))}
           </nav>
           <span className="spacer" />
-          <Link to="/blast" className="btn btn-primary" style={{ padding: "9px 18px", fontSize: ".9rem" }}>
-            Start now <i className="fa-solid fa-arrow-right" />
+          <Link to="/blast" className="btn btn-primary" style={{ padding: "7px 8px 7px 18px", fontSize: ".9rem" }}>
+            Start now <span className="btn-ico"><i className="fa-solid fa-arrow-right" /></span>
           </Link>
         </div>
       </header>
