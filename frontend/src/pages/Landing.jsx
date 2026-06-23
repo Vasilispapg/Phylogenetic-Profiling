@@ -1,13 +1,16 @@
 import { Link } from "react-router-dom";
 import DnaHero from "../components/DnaHero.jsx";
+import Reveal from "../components/Reveal.jsx";
 
 const TOOLS = [
-  ["/blast", "fa-dna", "BLAST Analysis", "Build the species × domain matrix from a BLAST file."],
-  ["/tree-builder", "fa-sitemap", "Tree builder", "Neighbour-Joining species tree from domain profiles."],
-  ["/tree-viewer", "fa-tree", "Tree viewer", "Collapsible radial tree — colour by genus, search, zoom."],
-  ["/all-vs-all", "fa-share-nodes", "All-vs-all", "Cluster domains (MCL) as an interactive linked network."],
-  ["/heatmap", "fa-fire", "Heatmaps", "Feature/correlation heatmaps with ordering, log scale, zoom."],
-  ["/how-to", "fa-book-open", "How to use", "A plain-language guide for biologists and programmers."],
+  ["/blast", "fa-dna", "BLAST analysis", "Build the species × domain matrix from a BLAST file."],
+  ["/heatmap", "fa-fire", "Heatmap", "Feature & correlation heatmaps — metric selector, compare two."],
+  ["/clustergram", "fa-border-all", "Clustergram", "Clustered heatmap with row & column dendrograms."],
+  ["/explorer", "fa-diagram-project", "Linked explorer", "Clustered heatmap ↔ domain network, synchronised."],
+  ["/embedding", "fa-braille", "Embedding map", "2D PCA / t-SNE projection of co-occurrence profiles."],
+  ["/all-vs-all", "fa-share-nodes", "All-vs-all", "Cluster domains (MCL) as an interactive network."],
+  ["/tree-viewer", "fa-tree", "Tree viewer", "Collapsible radial species tree — colour, search, zoom."],
+  ["/tree-builder", "fa-sitemap", "Tree builder", "Neighbour-Joining tree from domain profiles."],
 ];
 const POSTER = "https://f1000research-files.f1000.com/posters/compressed/f1000research-728675.pdf";
 
@@ -16,7 +19,7 @@ export default function Landing() {
     <div className="fade-up">
       <section style={{ display: "grid", gridTemplateColumns: "1fr 1.05fr", gap: 24, alignItems: "center", minHeight: "64vh" }} className="hero-albus">
         <div>
-          <div className="eyebrow" style={{ marginBottom: 14 }}>01 — phylogenetic profiling</div>
+          <div className="hero-badge"><span className="dot" /> Comparative genomics, at proteome scale</div>
           <h1 className="display" style={{ fontSize: "clamp(2.7rem, 6vw, 4.6rem)", lineHeight: 1.0 }}>
             Phylogenetic<br />profiling,<br />by design.
           </h1>
@@ -26,25 +29,29 @@ export default function Landing() {
             and evolutionary links.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link to="/blast" className="btn btn-accent">Learn more <i className="fa-solid fa-arrow-right" /></Link>
+            <Link to="/blast" className="btn btn-accent">Learn more <span className="btn-ico"><i className="fa-solid fa-arrow-right" /></span></Link>
             <Link to="/how-to" className="btn btn-secondary">How it works</Link>
           </div>
         </div>
         <div><DnaHero /></div>
       </section>
 
-      <div className="section-head"><div className="eyebrow">The toolkit</div><h2>Five tools, one pipeline</h2></div>
+      <div className="section-head"><h2>Eight tools, one pipeline</h2>
+        <p className="section-sub">From a single BLAST file to species trees, clustergrams, domain networks,
+           heatmaps and 2D embeddings — each step is its own focused, interactive tool.</p></div>
       <div className="tools-grid">
-        {TOOLS.map(([to, ic, h, p]) => (
-          <Link key={to} to={to} className="tool-card">
-            <div className="ic"><i className={"fa-solid " + ic} /></div>
-            <h3>{h}</h3><p style={{ color: "var(--text-2)", margin: 0, fontSize: ".92rem" }}>{p}</p>
-            <span className="more">Open <i className="fa-solid fa-arrow-right" /></span>
-          </Link>
+        {TOOLS.map(([to, ic, h, p], i) => (
+          <Reveal key={to} delay={i * 60}>
+            <Link to={to} className="tool-card">
+              <div className="ic"><i className={"fa-solid " + ic} /></div>
+              <h3>{h}</h3><p style={{ color: "var(--text-2)", margin: 0, fontSize: ".92rem" }}>{p}</p>
+              <span className="more">Open <i className="fa-solid fa-arrow-right" /></span>
+            </Link>
+          </Reveal>
         ))}
       </div>
 
-      <div className="section-head"><div className="eyebrow">About</div><h2>Built at the BCCB Group, AUTH</h2></div>
+      <div className="section-head"><h2>Built at the BCCB Group, AUTH</h2></div>
       <div className="card card-pad" style={{ marginBottom: 20 }}>
         <p><strong>PhyloFlask</strong> — by <strong>A. Michailidis, V. S. Papagrigoriou &amp; C. A. Ouzounis</strong>
            (Biological Computation &amp; Computational Biology Group, Aristotle University of Thessaloniki). Scalable

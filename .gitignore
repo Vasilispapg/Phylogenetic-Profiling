@@ -41,3 +41,11 @@ cache/
 # Sample inputs under data/ are intentionally tracked.
 downloads/
 uploads/
+
+# Locally-installed design skills / agent tooling (npx skills, impeccable).
+# Kept out of the project repo; the hooks still run locally.
+.agents/
+.codex/
+.claude/skills/
+skills-lock.json
+.impeccable/
