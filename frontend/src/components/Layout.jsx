@@ -4,6 +4,7 @@ const LINKS = [
   ["/", "Home"],
   ["/blast", "BLAST"],
   ["/heatmap", "Heatmap"],
+  ["/clustergram", "Clustergram"],
   ["/all-vs-all", "All-vs-all"],
   ["/tree-viewer", "Tree viewer"],
   ["/tree-builder", "Tree builder"],
