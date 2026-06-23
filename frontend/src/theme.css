@@ -197,6 +197,7 @@ h1.display { font-family: var(--font-display); font-weight: 700; font-size: clam
   .feature { grid-column: span 2; }
   .hero-albus { grid-template-columns: 1fr !important; min-height: 0 !important; gap: 8px !important; }
 }
+@media (max-width: 1024px) { .explorer-grid { grid-template-columns: 1fr !important; } }
 
 /* Scroll reveal — gentle heavy fade-up with blur (IntersectionObserver adds .in) */
 .reveal { opacity: 0; transform: translateY(18px); filter: blur(6px); }

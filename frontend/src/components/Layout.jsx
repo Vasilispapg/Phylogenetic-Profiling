@@ -5,6 +5,7 @@ const LINKS = [
   ["/blast", "BLAST"],
   ["/heatmap", "Heatmap"],
   ["/clustergram", "Clustergram"],
+  ["/explorer", "Explorer"],
   ["/all-vs-all", "All-vs-all"],
   ["/tree-viewer", "Tree viewer"],
   ["/tree-builder", "Tree builder"],
