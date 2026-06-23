@@ -16,6 +16,7 @@ export default defineConfig({
       "/allvsall_status": api,
       "/allvsall_data": api,
       "/clustergram": api,
+      "/embedding": api,
       "/tools": api, // POST endpoints: tree_construct, tree_status, tree_viewer, allvsall
     },
   },

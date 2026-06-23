@@ -58,3 +58,55 @@ def clustergram():
         "row_order": row_order, "col_order": col_order,
         "row_dendro": row_dendro, "col_dendro": col_dendro,
     })
+
+
+@heatmap_bp.route('/embedding', methods=['POST'])
+def embedding():
+    """Project domains (columns) or species (rows) into 2D by their co-occurrence
+    profile (PCA or t-SNE) and colour by a KMeans clustering of the profiles."""
+    import numpy as np
+    from sklearn.cluster import KMeans
+    from sklearn.decomposition import PCA
+    from sklearn.manifold import TSNE
+    from sklearn.preprocessing import StandardScaler
+
+    payload = request.get_json(silent=True) or {}
+    z = payload.get('z')
+    if not z or not isinstance(z, list) or not z[0]:
+        return jsonify({"status": "error", "message": "No matrix provided."})
+
+    axis = payload.get('axis', 'domains')
+    method = payload.get('method', 'pca')
+    k = int(payload.get('k', 8))
+
+    try:
+        m = np.asarray(z, dtype=float)
+    except Exception:
+        return jsonify({"status": "error", "message": "Matrix must be numeric."})
+
+    x = m.T if axis == 'domains' else m       # points = rows of x
+    n = x.shape[0]
+    if n < 3:
+        return jsonify({"status": "error", "message": "Need at least 3 points to embed."})
+
+    xs = StandardScaler().fit_transform(x)
+    xs = np.nan_to_num(xs, nan=0.0, posinf=0.0, neginf=0.0)
+
+    try:
+        if method == 'tsne':
+            perplexity = max(5, min(30, (n - 1) // 3))
+            coords = TSNE(n_components=2, init='pca', perplexity=perplexity,
+                          learning_rate='auto', random_state=42).fit_transform(xs)
+        else:
+            coords = PCA(n_components=2).fit_transform(xs)
+        kk = max(2, min(k, n - 1))
+        labels = KMeans(n_clusters=kk, n_init=10, random_state=42).fit_predict(xs)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+    return jsonify({
+        "status": "success",
+        "coords": coords.tolist(),
+        "labels": [int(v) for v in labels],
+        "n_clusters": int(max(labels) + 1),
+    })
