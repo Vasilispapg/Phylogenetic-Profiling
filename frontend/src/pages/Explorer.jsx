@@ -77,21 +77,24 @@ export default function Explorer() {
     if (!net || !netRef.current) return;
     const nc = net.node_cluster || {}, deg = net.degree || {};
     const maxDeg = Math.max(1, ...net.nodes.map((n) => deg[n] || 0));
+    // Keep only the strongest links so the MCL network reads as structure, not a hairball.
+    const keep = Math.min(net.edges.length, 5 * net.nodes.length);
+    const edges = [...net.edges].sort((a, b) => (b.weight || 0) - (a.weight || 0)).slice(0, keep);
     const cy = cytoscape({
       container: netRef.current,
       elements: [
         ...net.nodes.map((n) => ({ data: { id: n, color: cc(nc[n]), deg: deg[n] || 1 } })),
-        ...net.edges.map((e) => ({ data: { source: e.source, target: e.target, weight: e.weight != null ? e.weight : 1 } })),
+        ...edges.map((e) => ({ data: { source: e.source, target: e.target, weight: e.weight != null ? e.weight : 1 } })),
       ],
       style: [
-        { selector: "node", style: { "background-color": "data(color)", width: `mapData(deg,1,${maxDeg},10,30)`, height: `mapData(deg,1,${maxDeg},10,30)` } },
+        { selector: "node", style: { "background-color": "data(color)", width: `mapData(deg,1,${maxDeg},8,24)`, height: `mapData(deg,1,${maxDeg},8,24)`, "border-width": 0 } },
         { selector: "node.faded", style: { "background-opacity": 0.1 } },
         { selector: "node.hl", style: { "border-width": 3, "border-color": "#0e1726" } },
-        { selector: "edge", style: { "line-color": "rgba(18,28,54,.12)", "curve-style": "haystack", width: `mapData(weight,0,1,.3,2.5)` } },
-        { selector: "edge.faded", style: { "line-opacity": 0.03 } },
+        { selector: "edge", style: { "line-color": "rgba(18,28,54,.07)", "curve-style": "haystack", width: `mapData(weight,0,1,.25,1.6)` } },
+        { selector: "edge.faded", style: { "line-opacity": 0.02 } },
         { selector: "edge.hl", style: { "line-color": "#e11d48", "line-opacity": 0.9, width: 2 } },
       ],
-      layout: { name: "fcose", quality: "proof", animate: true, packComponents: true, nodeSeparation: 130, nodeRepulsion: 7000, idealEdgeLength: 60, padding: 40 },
+      layout: { name: "fcose", quality: "proof", animate: true, packComponents: true, nodeSeparation: 170, nodeRepulsion: 14000, idealEdgeLength: 75, gravity: 0.15, padding: 40 },
       minZoom: 0.1, maxZoom: 3, wheelSensitivity: 0.3,
     });
     cyRef.current = cy;
