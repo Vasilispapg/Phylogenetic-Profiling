@@ -32,12 +32,14 @@ export default function Layout() {
                 Tools <i className="fa-solid fa-chevron-down" style={{ fontSize: ".62em", opacity: 0.7 }} />
               </button>
               {openTools && <div className="nav-dd-panel">
-                {TOOLS.map((t) => (
-                  <NavLink key={t.to} to={t.to} className={({ isActive }) => "nav-dd-item" + (isActive ? " active" : "")}>
-                    <span className="nav-dd-ic"><i className={"fa-solid " + t.icon} /></span>
-                    <span><span className="nav-dd-label">{t.label}</span><span className="nav-dd-desc">{t.desc}</span></span>
-                  </NavLink>
-                ))}
+                <div className="nav-dd-card">
+                  {TOOLS.map((t) => (
+                    <NavLink key={t.to} to={t.to} className={({ isActive }) => "nav-dd-item" + (isActive ? " active" : "")}>
+                      <span className="nav-dd-ic"><i className={"fa-solid " + t.icon} /></span>
+                      <span><span className="nav-dd-label">{t.label}</span><span className="nav-dd-desc">{t.desc}</span></span>
+                    </NavLink>
+                  ))}
+                </div>
               </div>}
             </div>
             <NavLink to="/how-to" className={({ isActive }) => (isActive ? "active" : "")}>How to use</NavLink>

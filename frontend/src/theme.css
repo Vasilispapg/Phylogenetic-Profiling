@@ -146,10 +146,11 @@ strong, b { font-weight: 700; color: var(--text); }
   transition: background .15s, color .15s; }
 .nav-dd-trigger:hover { color: var(--text); background: var(--surface-2); }
 .nav-dd-trigger.active { color: var(--accent); background: var(--accent-soft); }
-.nav-dd-panel { position: absolute; top: 100%; left: 0; margin-top: 8px; z-index: 60; width: min(92vw, 520px);
-  background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-hover);
-  padding: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; transform-origin: top left;
-  animation: ddIn .16s var(--ease-out); }
+/* Transparent bridge so moving cursor from trigger to card never leaves .nav-dd */
+.nav-dd-panel { position: absolute; top: 100%; left: 0; padding-top: 8px; z-index: 60; }
+.nav-dd-card { width: min(92vw, 520px); background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: var(--shadow-hover); padding: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+  transform-origin: top left; animation: ddIn .16s var(--ease-out); }
 @keyframes ddIn { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
 .nav-dd-item { display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 11px; text-decoration: none; color: var(--text); }
 .nav-dd-item:hover { background: var(--surface-2); }
@@ -160,7 +161,7 @@ strong, b { font-weight: 700; color: var(--text); }
 .nav-dd-desc { display: block; color: var(--text-3); font-size: .76rem; margin-top: 1px; }
 .nav-burger { display: none; background: none; border: none; cursor: pointer; color: var(--text); font-size: 1.2rem; padding: 6px 10px; }
 .mobile-menu { display: none; }
-@media (prefers-reduced-motion: reduce) { .nav-dd-panel { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .nav-dd-card { animation: none; } }
 .footer { background: var(--surface); border-top: 1px solid var(--line); margin-top: 24px; }
 .footer .cols { max-width: 1180px; margin: 0 auto; padding: 40px 22px 22px; display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 30px; }
 .footer h4 { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); margin: 0 0 12px; }
