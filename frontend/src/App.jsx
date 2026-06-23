@@ -14,6 +14,7 @@ const AllVsAll = lazy(() => import("./pages/AllVsAll.jsx"));
 const Heatmap = lazy(() => import("./pages/Heatmap.jsx"));
 const Clustergram = lazy(() => import("./pages/Clustergram.jsx"));
 const Explorer = lazy(() => import("./pages/Explorer.jsx"));
+const Embedding = lazy(() => import("./pages/Embedding.jsx"));
 
 const Fallback = () => (
   <div className="main"><div className="loader"><div className="spin" /><div>Loading…</div></div></div>
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/heatmap" element={L(<Heatmap />)} />
         <Route path="/clustergram" element={L(<Clustergram />)} />
         <Route path="/explorer" element={L(<Explorer />)} />
+        <Route path="/embedding" element={L(<Embedding />)} />
         <Route path="/how-to" element={<HowTo />} />
         <Route path="/faq" element={<Faq />} />
         <Route path="/styleguide" element={<StyleGuide />} />
