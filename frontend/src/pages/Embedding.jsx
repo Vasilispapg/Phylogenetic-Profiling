@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Plotly from "plotly.js-dist-min";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
@@ -18,24 +18,27 @@ export default function Embedding() {
   const [k, setK] = useState(8);
   const [emb, setEmb] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [sel, setSel] = useState(null);
+  const [query, setQuery] = useState("");
+  const [group, setGroup] = useState(null);   // active cluster filter (null = all)
+  const [selIdx, setSelIdx] = useState(null); // highlighted point
   const ref = useRef(null);
+
+  const names = data ? (axis === "domains" ? data.cols : data.rows) : [];
 
   const onFile = (f) => {
     setFile(f); setStatus({ kind: "info", msg: "Reading CSV…", progress: true }); setEmb(null);
     const reader = new FileReader();
     reader.onload = () => {
-      try { const d = parseMatrix(String(reader.result)); setData(d); setFeat(d.features[0]); setSel(null); setStatus(null); }
+      try { const d = parseMatrix(String(reader.result)); setData(d); setFeat(d.features[0]); setSelIdx(null); setGroup(null); setQuery(""); setStatus(null); }
       catch { setStatus({ kind: "error", msg: "Could not parse the CSV." }); }
     };
     reader.readAsText(f);
   };
 
-  // Compute the embedding on the backend (PCA / t-SNE + KMeans) on any param change.
   useEffect(() => {
     if (!data || !feat) return;
     let alive = true;
-    setBusy(true); setEmb(null); setSel(null);
+    setBusy(true); setEmb(null); setSelIdx(null); setGroup(null);
     setStatus({ kind: "info", msg: `Projecting ${axis} with ${method.toUpperCase()}…`, progress: true });
     postJSON("/embedding", { z: data.data[feat], axis, method, k })
       .then((r) => {
@@ -47,43 +50,71 @@ export default function Embedding() {
     return () => { alive = false; };
   }, [data, feat, axis, method, k]);
 
-  // Scatter, one trace per cluster (discrete colours + legend).
+  const counts = useMemo(() => {
+    const c = {}; if (emb) emb.labels.forEach((l) => (c[l] = (c[l] || 0) + 1)); return c;
+  }, [emb]);
+
+  const members = useMemo(() => {
+    if (!emb) return [];
+    const q = query.trim().toLowerCase();
+    const out = [];
+    for (let i = 0; i < emb.labels.length; i++) {
+      if (group != null && emb.labels[i] !== group) continue;
+      if (q && !names[i].toLowerCase().includes(q)) continue;
+      out.push({ i, name: names[i], label: emb.labels[i] });
+    }
+    return out;
+  }, [emb, query, group, names]);
+
+  // Scatter (one trace per cluster) + highlight ring; dim non-active groups.
   useEffect(() => {
     if (!data || !emb || !ref.current) return;
-    const names = axis === "domains" ? data.cols : data.rows;
     const groups = {};
     emb.labels.forEach((l, i) => { (groups[l] = groups[l] || []).push(i); });
     const traces = Object.entries(groups).map(([l, idxs]) => ({
       x: idxs.map((i) => emb.coords[i][0]), y: idxs.map((i) => emb.coords[i][1]),
-      text: idxs.map((i) => names[i]), customdata: idxs.map((i) => i),
-      name: `cluster ${l}`, type: "scattergl", mode: "markers",
-      marker: { size: 8, color: cc(+l), line: { width: 0.5, color: "rgba(255,255,255,.7)" } },
+      text: idxs.map((i) => names[i]), customdata: idxs,
+      name: `cluster ${l} (${counts[l] || 0})`, type: "scattergl", mode: "markers",
+      marker: { size: 8, color: cc(+l), opacity: group == null || +l === group ? 0.9 : 0.08, line: { width: 0.5, color: "rgba(255,255,255,.7)" } },
       hovertemplate: `%{text}<extra>cluster ${l}</extra>`,
     }));
+    if (selIdx != null && emb.coords[selIdx]) {
+      traces.push({
+        x: [emb.coords[selIdx][0]], y: [emb.coords[selIdx][1]], type: "scattergl", mode: "markers",
+        marker: { size: 20, color: "rgba(0,0,0,0)", line: { width: 3, color: "#0e1726" } },
+        hoverinfo: "skip", showlegend: false,
+      });
+    }
     Plotly.react(ref.current, traces, {
-      autosize: true, height: 660, margin: { l: 36, r: 10, t: 10, b: 36 },
+      autosize: true, height: 640, margin: { l: 36, r: 10, t: 10, b: 36 },
       xaxis: { zeroline: false, showgrid: true, gridcolor: "rgba(18,28,54,.06)", title: { text: method === "pca" ? "PC1" : "dim 1" } },
-      yaxis: { zeroline: false, showgrid: true, gridcolor: "rgba(18,28,54,.06)", title: { text: method === "pca" ? "PC2" : "dim 2" }, scaleanchor: "x", scaleratio: 1 },
+      yaxis: { zeroline: false, showgrid: true, gridcolor: "rgba(18,28,54,.06)", title: { text: method === "pca" ? "PC2" : "dim 2" } },
       legend: { orientation: "v", x: 1.01, y: 1, font: { size: 10 } },
       paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
     }, { responsive: true, displaylogo: false, toImageButtonOptions: { filename: "phyloflask-embedding", scale: 2 } });
+
+    // Zoom to the selected point so it's easy to find.
+    if (selIdx != null && emb.coords[selIdx]) {
+      const xs = emb.coords.map((c) => c[0]), ys = emb.coords.map((c) => c[1]);
+      const xs2 = (Math.max(...xs) - Math.min(...xs)) || 1, ys2 = (Math.max(...ys) - Math.min(...ys)) || 1;
+      const [cx, cy] = emb.coords[selIdx];
+      try { Plotly.relayout(ref.current, { "xaxis.range": [cx - xs2 * 0.18, cx + xs2 * 0.18], "yaxis.range": [cy - ys2 * 0.18, cy + ys2 * 0.18] }); } catch { /* noop */ }
+    }
+
     const div = ref.current;
     if (div.removeAllListeners) div.removeAllListeners("plotly_click");
-    div.on("plotly_click", (e) => {
-      const pt = e.points[0]; if (!pt) return;
-      setSel({ name: pt.text, cluster: pt.fullData.name.replace("cluster ", "") });
-    });
+    div.on("plotly_click", (e) => { const pt = e.points[0]; if (pt && pt.customdata != null) setSelIdx(pt.customdata); });
     return () => { try { Plotly.purge(div); } catch { /* noop */ } };
-  }, [data, emb, axis, method]);
+  }, [data, emb, axis, method, group, selIdx]);
 
-  const npoints = axis === "domains" ? (data ? data.cols.length : 0) : (data ? data.rows.length : 0);
+  const npoints = names.length;
 
   return (
-    <div className="fade-up" style={{ maxWidth: 1120, margin: "0 auto" }}>
+    <div className="fade-up" style={{ maxWidth: 1240, margin: "0 auto" }}>
       <h1>Embedding map</h1>
       <p className="muted">Project each <strong>domain</strong> (or species) into 2D by its <strong>co-occurrence profile</strong>:
-         points that appear in the same genomes land close together. Coloured by a <strong>KMeans</strong> grouping of the
-         profiles — a fast bird's-eye view of which domains travel together. PCA (linear) or t-SNE (non-linear).</p>
+         points in the same genomes land close together, coloured by a <strong>KMeans</strong> grouping. Search a point or pick a
+         group on the right to inspect members; click anything to zoom to it.</p>
 
       {!data && <>
         <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv / feature_matrix.csv" file={file} onFile={onFile} />
@@ -108,16 +139,45 @@ export default function Embedding() {
             <select className="select" style={{ width: "auto" }} value={feat} onChange={(e) => setFeat(e.target.value)}>
               {data.features.map((f) => <option key={f} value={f}>{lbl(f)}</option>)}
             </select></label>}
-          <button className="btn btn-secondary" onClick={() => { setData(null); setFile(null); setEmb(null); setSel(null); }}>Load another</button>
+          <button className="btn btn-secondary" onClick={() => { setData(null); setFile(null); setEmb(null); setSelIdx(null); }}>Load another</button>
         </div>
 
         <div style={{ fontSize: ".82rem", color: "var(--text-2)", marginBottom: 8 }}>
           <strong>{npoints}</strong> {axis} projected{emb ? ` · ${emb.n_clusters} groups` : ""}{busy ? " · computing…" : ""}
-          {sel && <> · selected <strong style={{ wordBreak: "break-all" }}>{sel.name}</strong> (cluster {sel.cluster})</>}
+          {selIdx != null && names[selIdx] && <> · selected <strong style={{ wordBreak: "break-all" }}>{names[selIdx]}</strong> (cluster {emb.labels[selIdx]})</>}
         </div>
 
         {busy && <Status s={status} />}
-        <div ref={ref} style={{ width: "100%", minHeight: 200, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
+
+        <div className="explorer-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 12 }}>
+          <div ref={ref} style={{ width: "100%", minHeight: 200, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
+          {emb && <div className="card" style={{ padding: 12, display: "flex", flexDirection: "column", height: 640 }}>
+            <input className="input" placeholder="Search a name…" value={query} onChange={(e) => setQuery(e.target.value)} style={{ marginBottom: 10 }} />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
+              <button className={"btn " + (group == null ? "btn-primary" : "btn-secondary")} style={{ padding: "3px 10px", fontSize: ".76rem" }} onClick={() => setGroup(null)}>All</button>
+              {Object.keys(counts).map((l) => (
+                <button key={l} className={"btn " + (group === +l ? "btn-primary" : "btn-secondary")} style={{ padding: "3px 9px", fontSize: ".76rem" }}
+                        onClick={() => setGroup(group === +l ? null : +l)}>
+                  <span style={{ width: 8, height: 8, borderRadius: 9, background: cc(+l), display: "inline-block", marginRight: 5 }} />{l} · {counts[l]}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: ".75rem", color: "var(--text-3)", marginBottom: 6 }}>{members.length} match{members.length === 1 ? "" : "es"}</div>
+            <div style={{ overflowY: "auto", flex: 1, marginRight: -6, paddingRight: 6 }}>
+              {members.slice(0, 200).map((m) => (
+                <button key={m.i} onClick={() => setSelIdx(m.i)}
+                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", border: "none",
+                                 background: selIdx === m.i ? "var(--accent-soft)" : "transparent", cursor: "pointer", padding: "6px 8px",
+                                 borderRadius: 8, fontSize: ".78rem", color: "var(--text)", wordBreak: "break-all" }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 9, background: cc(m.label), flex: "0 0 9px" }} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
+                </button>
+              ))}
+              {members.length > 200 && <div className="muted" style={{ fontSize: ".75rem", padding: "6px 8px" }}>+{members.length - 200} more — refine the search</div>}
+              {members.length === 0 && <div className="muted" style={{ fontSize: ".78rem", padding: "6px 8px" }}>No matches.</div>}
+            </div>
+          </div>}
+        </div>
       </>}
     </div>
   );
