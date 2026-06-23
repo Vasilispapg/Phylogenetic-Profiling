@@ -1,204 +1,267 @@
 <!DOCTYPE HTML>
-<html>
-	<head>
-		<title>Biological Computation & Computational Biology | Papagrigoriou</title>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}">
-		<noscript><link rel="stylesheet" href="{{ url_for('static', filename='assets/css/noscript.css') }}"></noscript>
-	</head>
-	<body class="is-preload">
+<html lang="en">
+<head>
+    <title>PhyloFlask — large-scale phylogenetic profile visualization</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/fontawesome-all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/tools.css') }}">
+    <style>
+        body { margin: 0; }
+        .lp { max-width: 1180px; margin: 0 auto; padding: 0 22px; }
+        .lp-nav { display: flex; align-items: center; gap: 26px; padding: 18px 0; }
+        .lp-logo { display: flex; align-items: center; gap: 9px; font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; color: var(--text); text-decoration: none; letter-spacing: -0.02em; }
+        .lp-logo i { color: var(--accent); }
+        .lp-links { display: flex; gap: 4px; margin-left: 18px; }
+        .lp-links a { color: var(--text-2); text-decoration: none; font-weight: 500; font-size: 0.95rem; padding: 8px 14px; border-radius: 999px; transition: background .15s, color .15s; }
+        .lp-links a:hover { color: var(--text); background: var(--surface); }
+        .lp-nav .spacer { flex: 1; }
+        .btn-pill { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 11px 22px; font-weight: 600; font-size: 0.95rem; text-decoration: none; transition: transform .12s, box-shadow .15s; }
+        .btn-dark { background: var(--ink); color: #fff; box-shadow: 0 8px 20px rgba(17,24,39,.22); }
+        .btn-dark:hover { transform: translateY(-1px); color: #fff; box-shadow: 0 14px 28px rgba(17,24,39,.3); }
+        .btn-ghost { background: var(--surface); color: var(--text); border: 1px solid var(--line-2); }
 
-		<!-- Sidebar -->
-		<section id="sidebar">
-			<div class="inner">
-				<nav>
-					<ul>
-						<li><a href="#intro">Welcome</a></li>
-						<li><a href="#one">Who we are</a></li>
-						<li><a href="#two">What we do</a></li>
-						<li><a href="#three">Get in touch</a></li>
-					</ul>
-				</nav>
-			</div>
-		</section>
+        .hero { display: grid; grid-template-columns: 1.04fr 0.96fr; gap: 22px; align-items: stretch; margin-top: 8px; }
+        .hero-left { display: flex; flex-direction: column; }
+        .stat-row { display: grid; grid-template-columns: 1fr 1fr 1.1fr; gap: 14px; margin-bottom: 26px; }
+        .stat { background: var(--ink); color: #fff; border-radius: 18px; padding: 18px; display: flex; flex-direction: column; justify-content: center; }
+        .stat .n { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; letter-spacing: -0.02em; }
+        .stat .l { font-size: 0.78rem; color: rgba(255,255,255,.66); margin-top: 2px; }
+        .stat.alt { background: var(--surface); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow); }
+        .stat.alt .l { color: var(--text-3); }
+        .feature { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: flex; gap: 12px; align-items: center; box-shadow: var(--shadow); }
+        .feature .play { width: 42px; height: 42px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; flex: 0 0 42px; }
+        .feature small { color: var(--text-3); }
 
-		<!-- Wrapper -->
-		<div id="wrapper">
+        h1.display { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.6rem, 6vw, 4.3rem); line-height: 0.98; letter-spacing: -0.03em; margin: 0; color: var(--text); }
+        .hero p.sub { color: var(--text-2); font-size: 1.05rem; max-width: 460px; margin: 18px 0 22px; line-height: 1.6; }
+        .hero .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 
-			<!-- Intro -->
-			<section id="intro" class="wrapper style1 fullscreen fade-up">
-				<div class="inner">
-					<h1>Biological Computation & Computational Biology | Papagrigoriou Thesis</h1>
-					<p>Welcome to the Biological Computation & Computational Biology | Papagrigoriou Thesis Tool - designed for researchers and startups to simplify analysis.</p>
-					<ul class="actions">
-						<li><a href="#one" class="button scrolly">Learn more</a></li>
-					</ul>
-				</div>
-			</section>
+        .hero-art { position: relative; border-radius: 22px; overflow: hidden; min-height: 460px;
+            background: radial-gradient(120% 120% at 70% 10%, #1b2440 0%, #0b1020 60%, #070a14 100%); border: 1px solid rgba(255,255,255,0.06); }
+        .hero-art svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .float { animation: floaty 7s ease-in-out infinite; transform-origin: center; }
+        @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .glass { position: absolute; left: 18px; right: 18px; bottom: 18px; display: flex; align-items: center; gap: 14px;
+            background: rgba(255,255,255,0.12); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255,255,255,0.18); border-radius: 16px; padding: 14px 16px; color: #fff; }
+        .glass .t { font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; line-height: 1.15; }
+        .glass small { color: rgba(255,255,255,0.7); }
+        .glass .go { margin-left: auto; width: 46px; height: 46px; border-radius: 50%; background: #fff; color: #0b1020; display: flex; align-items: center; justify-content: center; text-decoration: none; transition: transform .15s; }
+        .glass .go:hover { transform: translateY(-2px); }
 
-			<!-- One -->
-			<section id="one" class="wrapper style2 spotlights">
-				<section>
-					<a href="#" class="image"><img src="https://www.auth.gr/wp-content/uploads/cropped-LogoAUTHblack300ppi.jpg" alt="Image 1" /></a>
-					<div class="content">
-						<div class="inner">
-							<h2>Our Mission</h2>
-							<p>Our mission is to empower researchers with tools to extract insights efficiently.</p>
-							<ul class="actions">
-								<li><a href="#two" class="button">Learn more</a></li>
-							</ul>
-						</div>
-					</div>
-				</section>
-				<section>
-					<a href="#" class="image"><img src="https://yulab-smu.top/treedata-book/treedata_files/figure-html/mgheatmap-1.svg" alt="Image 2" /></a>
-					<div class="content">
-						<div class="inner">
-							<h2>Heatmap Analysis</h2>
-							<p>Generate correlation heatmaps with intuitive tools for better data understanding.</p>
-							<ul class="actions">
-								<li><a href="/tools/heatmap" class="button">Explore Heatmap</a></li>
-							</ul>
-						</div>
-					</div>
-				</section>
-				<section>
-					<a href="#" class="image"><img src="https://scitechdaily.com/images/Algorithm-Allows-Biologists-to-Harness-the-Capabilities-Supercomputers.jpg" alt="Image 2" /></a>
-					<div class="content">
-						<div class="inner">
-							<h2>All Vs All Graph Analysis</h2>
-							<p>Generate correlation All Vs Alls with intuitive tools for better data understanding.</p>
-							<ul class="actions">
-								<li><a href="/tools/allvsall" class="button">Explore All vs All Graph</a></li>
-							</ul>
-						</div>
-					</div>
-				</section>
-				<section>
-					<a href="#" class="image"><img src="https://blast.ncbi.nlm.nih.gov/images/protein-blast-cover.png" alt="Image 3" /></a>
-					<div class="content">
-						<div class="inner">
-							<h2>BLAST Analysis</h2>
-							<p>Efficiently process BLAST files and extract feature-rich correlation matrices.</p>
-							<ul class="actions">
-								<li><a href="/tools/blast" class="button">Try BLAST Tool</a></li>
-							</ul>
-						</div>
-					</div>
-				</section>
-				<section>
-					<a href="#" class="image"><img src="https://media.sciencephoto.com/c0/39/11/03/c0391103-800px-wm.jpg" alt="Image 3" /></a>
-					<div class="content">
-						<div class="inner">
-							<h2>Tree Viewer/Constructor</h2>
-							<p>Efficiently process BLAST files and extract feature-rich correlation matrices.</p>
-							<ul class="actions">
-								<li><a href="/tools/tree_viewer" class="button">Try Tree Viewer Tool</a></li>
-								<li><a href="/tools/tree_construct" class="button">Try Tree Constructor</a></li>
-							</ul>
-						</div>
-					</div>
-				</section>
-			</section>
+        .tags { display: flex; flex-wrap: wrap; gap: 10px; margin: 34px 0 10px; }
 
-			<!-- Two -->
-			<section id="two" class="wrapper style3 fade-up">
-				<div class="inner">
-					<h2>What we do</h2>
-					<p>Our tools simplify data processing for academic and industrial research purposes.</p>
-					<div class="features">
-						<section>
-							<span class="icon solid fa-code"></span>
-							<h3>Data Analysis</h3>
-							<p>Transform raw data into actionable insights for impactful decisions.</p>
-						</section>
-						<section>
-							<span class="icon solid fa-chart-bar"></span>
-							<h3>Interactive Tools</h3>
-							<p>Engage with your data through rich, interactive visualizations.</p>
-						</section>
-						<section>
-							<span class="icon solid fa-database"></span>
-							<h3>Secure Storage</h3>
-							<p>Store your research data securely and retrieve it with ease.</p>
-						</section>
-					</div>
-					<!-- <ul class="actions">
-						<li><a href="/features" class="button">Explore Features</a></li>
-					</ul> -->
-				</div>
-			</section>
+        .tools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 14px 0; }
+        .tool-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 1.3rem; box-shadow: var(--shadow); text-decoration: none; color: var(--text); transition: transform .15s, box-shadow .15s; display: block; }
+        .tool-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); color: var(--text); }
+        .tool-card .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 1.15rem; margin-bottom: 12px; }
+        .tool-card h3 { margin: 0 0 4px; font-size: 1.1rem; }
+        .tool-card p { margin: 0; color: var(--text-2); font-size: 0.92rem; line-height: 1.5; }
+        .tool-card .more { color: var(--accent); font-weight: 600; font-size: 0.88rem; margin-top: 10px; display: inline-flex; gap: 6px; align-items: center; }
 
-			<!-- Three -->
-			<section id="three" class="wrapper style1 fade-up">
-				<div class="inner">
-					<h2>Get in touch</h2>
-					<p>Contact us for collaboration or inquiries about our research tools.</p>
-					<div class="split style1">
-						<section>
-							<form method="post" action="/contact">
-								<div class="fields">
-									<div class="field half">
-										<label for="name">Name</label>
-										<input type="text" name="name" id="name" required />
-									</div>
-									<div class="field half">
-										<label for="email">Email</label>
-										<input type="email" name="email" id="email" required />
-									</div>
-									<div class="field">
-										<label for="message">Message</label>
-										<textarea name="message" id="message" rows="5" required></textarea>
-									</div>
-								</div>
-								<ul class="actions">
-									<li><button type="submit" class="button">Send Message</button></li>
-								</ul>
-							</form>
-						</section>
-						<section>
-							<ul class="contact">
-								<li>
-									<h3>Address</h3>
-									<span>Aristotle University of Thessaloniki, GR-54124 Greece</span>
-								</li>
-								<li>
-									<h3>Email</h3>
-									<a href="mailto:vasilispapg@outlook.com">vasilispapg@outlook.com</a>
-								</li>
-								<!-- <li>
-									<h3>Phone</h3>
-									<span>+1 (123) 456-7890</span>
-								</li> -->
-							</ul>
-						</section>
-					</div>
-				</div>
-			</section>
+        .section-head { margin: 48px 0 14px; }
+        .section-head .eyebrow { color: var(--accent); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; }
+        .section-head h2 { font-family: var(--font-display); font-size: 2rem; margin: 4px 0 0; letter-spacing: -0.02em; }
 
-		</div>
+        .about-lp { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 1.6rem 1.8rem; box-shadow: var(--shadow); margin: 16px 0 50px; }
+        .about-lp p { color: var(--text); line-height: 1.7; }
+        .about-lp .ref { color: var(--text-2); font-size: 0.92rem; }
+        .lp-footer { border-top: 1px solid var(--line); padding: 22px 0 40px; color: var(--text-2); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
 
-		<!-- Footer -->
-		<footer id="footer" class="wrapper style1-alt">
-			<div class="inner">
-				<ul class="menu">
-					<li>&copy;<span id="year" style="margin-left: 0.2em;"></span> <a href="https://websites.auth.gr/bccb/"> Biological Computation & Computational Biology</a>. All rights reserved.</li><li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
-				</ul>
-			</div>
-		</footer>
+        @media (max-width: 880px) {
+            .hero { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: 1fr 1fr; }
+            .feature { grid-column: span 2; }
+            .lp-links { display: none; }
+        }
+    </style>
+</head>
+<body>
+<div class="lp">
 
-		<script>
-			document.getElementById('year').innerHTML = new Date().getFullYear();
-		</script>
-		<!-- Scripts -->
-		<script src="{{ url_for('static', filename='assets/js/jquery.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/jquery.scrollex.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/jquery.scrolly.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/browser.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/breakpoints.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/util.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/main.js') }}"></script>
+    <!-- Nav -->
+    <nav class="lp-nav">
+        <a href="/" class="lp-logo"><i class="fas fa-dna"></i> PhyloFlask</a>
+        <div class="lp-links">
+            <a href="/tools/blast">Tools</a>
+            <a href="/how-to">How to use</a>
+            <a href="/faq">FAQ</a>
+        </div>
+        <span class="spacer"></span>
+        <a href="/faq" class="btn-pill btn-ghost">About</a>
+        <a href="/tools/blast" class="btn-pill btn-dark">Start now <i class="fas fa-arrow-right"></i></a>
+    </nav>
 
-	</body>
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-left">
+            <div class="stat-row">
+                <div class="stat"><span class="n">3,144</span><span class="l">reference species</span></div>
+                <div class="stat alt"><span class="n">218</span><span class="l">query proteins</span></div>
+                <div class="feature">
+                    <span class="play"><i class="fas fa-play"></i></span>
+                    <div><strong>Watch the idea</strong><br><small>How phylogenetic profiling works</small></div>
+                </div>
+            </div>
+
+            <h1 class="display">Large&#8209;scale<br>phylogenetic<br>profiling</h1>
+            <p class="sub">Turn a BLAST search into interactive species trees, domain clusters and
+                heatmaps — explore presence/absence patterns across whole proteomes and read gene
+                function straight from the data.</p>
+            <div class="cta">
+                <a href="/tools/blast" class="btn-pill btn-dark">Get started <i class="fas fa-arrow-right"></i></a>
+                <a href="/how-to" class="btn-pill btn-ghost">Learn more</a>
+            </div>
+        </div>
+
+        <!-- Hero art: a molecule / profile network -->
+        <div class="hero-art">
+            <svg viewBox="0 0 520 480" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                <defs>
+                    <radialGradient id="bg" cx="66%" cy="20%" r="80%">
+                        <stop offset="0%" stop-color="#27407f" stop-opacity="0.65"/>
+                        <stop offset="100%" stop-color="#27407f" stop-opacity="0"/>
+                    </radialGradient>
+                    <radialGradient id="sBlue" cx="35%" cy="30%" r="75%"><stop offset="0%" stop-color="#aeccff"/><stop offset="45%" stop-color="#3f7bff"/><stop offset="100%" stop-color="#1b3ea8"/></radialGradient>
+                    <radialGradient id="sTeal" cx="35%" cy="30%" r="75%"><stop offset="0%" stop-color="#7df0da"/><stop offset="45%" stop-color="#10c0a4"/><stop offset="100%" stop-color="#067160"/></radialGradient>
+                    <radialGradient id="sCoral" cx="35%" cy="30%" r="75%"><stop offset="0%" stop-color="#ffa9ba"/><stop offset="45%" stop-color="#e9526c"/><stop offset="100%" stop-color="#9c1c39"/></radialGradient>
+                    <radialGradient id="sAmber" cx="35%" cy="30%" r="75%"><stop offset="0%" stop-color="#ffe0a0"/><stop offset="45%" stop-color="#ffb528"/><stop offset="100%" stop-color="#bd7800"/></radialGradient>
+                    <radialGradient id="sViolet" cx="35%" cy="30%" r="75%"><stop offset="0%" stop-color="#cfc4ff"/><stop offset="45%" stop-color="#8466ff"/><stop offset="100%" stop-color="#4a31bf"/></radialGradient>
+                    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#000" flood-opacity="0.45"/></filter>
+                </defs>
+                <rect width="520" height="480" fill="url(#bg)"/>
+                <g stroke="rgba(255,255,255,0.22)" stroke-width="2" stroke-linecap="round" filter="url(#soft)">
+                    <line x1="150" y1="125" x2="250" y2="185"/><line x1="250" y1="185" x2="360" y2="130"/>
+                    <line x1="250" y1="185" x2="215" y2="305"/><line x1="215" y1="305" x2="335" y2="335"/>
+                    <line x1="360" y1="130" x2="425" y2="245"/><line x1="425" y1="245" x2="335" y2="335"/>
+                    <line x1="150" y1="125" x2="115" y2="255"/><line x1="115" y1="255" x2="215" y2="305"/>
+                    <line x1="360" y1="130" x2="335" y2="335"/><line x1="250" y1="185" x2="115" y2="255"/>
+                </g>
+                <g class="float" filter="url(#shadow)">
+                    <g><circle cx="115" cy="255" r="17" fill="url(#sViolet)"/><ellipse cx="109" cy="248" rx="6" ry="4" fill="#fff" opacity="0.55"/></g>
+                    <g><circle cx="425" cy="245" r="19" fill="url(#sAmber)"/><ellipse cx="418" cy="237" rx="7" ry="4.5" fill="#fff" opacity="0.55"/></g>
+                    <g><circle cx="150" cy="125" r="22" fill="url(#sBlue)"/><ellipse cx="142" cy="116" rx="8" ry="5" fill="#fff" opacity="0.6"/></g>
+                    <g><circle cx="360" cy="130" r="24" fill="url(#sCoral)"/><ellipse cx="351" cy="120" rx="8" ry="5" fill="#fff" opacity="0.6"/></g>
+                    <g><circle cx="335" cy="335" r="24" fill="url(#sTeal)"/><ellipse cx="326" cy="325" rx="8" ry="5" fill="#fff" opacity="0.6"/></g>
+                    <g><circle cx="215" cy="305" r="28" fill="url(#sBlue)"/><ellipse cx="205" cy="294" rx="9" ry="5.5" fill="#fff" opacity="0.6"/></g>
+                    <g><circle cx="250" cy="185" r="34" fill="url(#sTeal)"/><ellipse cx="238" cy="172" rx="11" ry="6.5" fill="#fff" opacity="0.6"/></g>
+                </g>
+            </svg>
+            <div class="glass">
+                <div><div class="t">Get started</div><small>upload a BLAST file &amp; explore</small></div>
+                <a href="/tools/blast" class="go"><i class="fas fa-arrow-right"></i></a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Keyword pills -->
+    <div class="tags">
+        <span class="pill-tag"><i class="fas fa-diagram-project"></i> phylogenetic profiling</span>
+        <span class="pill-tag"><i class="fas fa-magnifying-glass"></i> BLAST</span>
+        <span class="pill-tag"><i class="fas fa-sitemap"></i> Neighbour-Joining</span>
+        <span class="pill-tag"><i class="fas fa-share-nodes"></i> Markov clustering</span>
+        <span class="pill-tag"><i class="fas fa-fire"></i> heatmaps</span>
+        <span class="pill-tag"><i class="fas fa-dna"></i> bioinformatics</span>
+    </div>
+
+    <!-- Tools -->
+    <div class="section-head">
+        <div class="eyebrow">The toolkit</div>
+        <h2>Five tools, one pipeline</h2>
+    </div>
+    <div class="tools-grid">
+        <a class="tool-card" href="/tools/blast">
+            <div class="ic"><i class="fas fa-dna"></i></div>
+            <h3>BLAST Analysis</h3><p>Build the species × domain correlation or feature matrix from a BLAST file.</p>
+            <span class="more">Open <i class="fas fa-arrow-right"></i></span>
+        </a>
+        <a class="tool-card" href="/tools/tree_construct">
+            <div class="ic"><i class="fas fa-sitemap"></i></div>
+            <h3>Tree builder</h3><p>Neighbour-Joining species tree from Jaccard distances between profiles.</p>
+            <span class="more">Open <i class="fas fa-arrow-right"></i></span>
+        </a>
+        <a class="tool-card" href="/tools/tree_viewer">
+            <div class="ic"><i class="fas fa-tree"></i></div>
+            <h3>Tree viewer</h3><p>Collapsible radial tree — colour by genus, search a species, zoom.</p>
+            <span class="more">Open <i class="fas fa-arrow-right"></i></span>
+        </a>
+        <a class="tool-card" href="/tools/allvsall">
+            <div class="ic"><i class="fas fa-share-nodes"></i></div>
+            <h3>All-vs-all</h3><p>Cluster domains (MCL) into an interactive network linked to a co-cluster heatmap.</p>
+            <span class="more">Open <i class="fas fa-arrow-right"></i></span>
+        </a>
+        <a class="tool-card" href="/tools/heatmap">
+            <div class="ic"><i class="fas fa-fire"></i></div>
+            <h3>Heatmaps</h3><p>Feature/correlation heatmaps with ordering, log scale, zoom and cell details.</p>
+            <span class="more">Open <i class="fas fa-arrow-right"></i></span>
+        </a>
+        <a class="tool-card" href="/how-to">
+            <div class="ic"><i class="fas fa-book-open"></i></div>
+            <h3>How to use</h3><p>A plain-language guide for biologists and programmers alike.</p>
+            <span class="more">Read <i class="fas fa-arrow-right"></i></span>
+        </a>
+    </div>
+
+    <!-- About -->
+    <div class="section-head">
+        <div class="eyebrow">About</div>
+        <h2>Built at the BCCB Group, AUTH</h2>
+    </div>
+    <div class="about-lp">
+        <p><strong>PhyloFlask</strong> is a software framework for large-scale phylogenetic profile
+            visualization by <strong>A. Michailidis, V. S. Papagrigoriou &amp; C. A. Ouzounis</strong>
+            (Biological Computation &amp; Computational Biology Group, Artificial Intelligence &amp;
+            Information Analysis Laboratory, School of Informatics, Aristotle University of Thessaloniki).</p>
+        <p>It analyses presence/absence patterns of protein domains across thousands of reference
+            proteomes to enable rapid, scalable visual inference of gene function and evolutionary
+            relationships — facilitating hypothesis generation for experimental validation.</p>
+        <p>
+            <a href="https://f1000research-files.f1000.com/posters/compressed/f1000research-728675.pdf" class="btn-pill btn-ghost" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i> Read the poster</a>
+        </p>
+        <p class="ref"><strong>Reference:</strong> Cohen BA, Mitra RD, Hughes JD &amp; Church GM (2000).
+            A computational analysis of whole-genome expression data reveals chromosomal domains of gene
+            expression. <em>Nature Genetics</em> 26(2), 183–186.
+            <a href="https://doi.org/10.1038/79896" target="_blank" rel="noopener">doi:10.1038/79896</a></p>
+    </div>
+
+</div><!-- /.lp -->
+
+<footer class="site-footer">
+    <div class="cols">
+        <div>
+            <a href="/" class="brand"><i class="fas fa-dna"></i> PhyloFlask</a>
+            <p>Large-scale phylogenetic profile visualization — turn a BLAST search into interactive
+               species trees, domain clusters and heatmaps.</p>
+        </div>
+        <div>
+            <h4>Tools</h4>
+            <ul>
+                <li><a href="/tools/blast">BLAST Analysis</a></li>
+                <li><a href="/tools/tree_construct">Tree builder</a></li>
+                <li><a href="/tools/tree_viewer">Tree viewer</a></li>
+                <li><a href="/tools/allvsall">All-vs-all</a></li>
+                <li><a href="/tools/heatmap">Heatmaps</a></li>
+            </ul>
+        </div>
+        <div>
+            <h4>Resources</h4>
+            <ul>
+                <li><a href="/how-to">How to use</a></li>
+                <li><a href="/faq">FAQ &amp; concepts</a></li>
+                <li><a href="https://f1000research-files.f1000.com/posters/compressed/f1000research-728675.pdf" target="_blank" rel="noopener">Poster (F1000)</a></li>
+                <li><a href="https://doi.org/10.1038/79896" target="_blank" rel="noopener">Reference</a></li>
+            </ul>
+        </div>
+    </div>
+    <div class="bottom"><div>
+        <span>&copy; PhyloFlask &middot; BCCB Group, Aristotle University of Thessaloniki</span>
+        <span>A. Michailidis &middot; V. S. Papagrigoriou &middot; C. A. Ouzounis</span>
+    </div></div>
+</footer>
+</body>
 </html>

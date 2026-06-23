@@ -3,92 +3,80 @@
 {% block content %}
 <section id="tree-construct-tool" class="wrapper style1 fullscreen fade-up">
     <div class="inner">
-        <h1>Phylogenetic Tree Construction</h1>
-        <p>Upload a species data file to construct a phylogenetic tree.</p>
-        <form id="tree-construct-form" enctype="multipart/form-data">
-            <label for="tree-file" class="form-label">Upload Species Data File:</label>
-            <input type="file" id="tree-file" name="file" class="form-control futuristic-input" required>
-            <label for="max-depth" class="form-label mt-3">Maximum Tree Depth (Optional):</label>
-            <input type="number" id="max-depth" class="form-control futuristic-input text-warning" value="12" min="1">
-            <button type="button" id="construct-tree-button" class="button futuristic-btn mt-4">Start Construction</button>
-            <div id="upload-message" class="text-warning mt-2"></div>
-        </form>
-        <div id="download-container" class="mt-4"></div> <!-- For showing the download link -->
+        <div class="tool-stepper">
+            <div class="tool-step done"><span class="dot"><i class="fas fa-check"></i></span> Run BLAST</div>
+            <span class="bar"></span>
+            <div class="tool-step done"><span class="dot"><i class="fas fa-check"></i></span> Correlation matrix</div>
+            <span class="bar"></span>
+            <div class="tool-step active"><span class="dot">3</span> Build tree</div>
+        </div>
+
+        <h1>Build a phylogenetic tree</h1>
+        <p>Upload a <strong>correlation matrix CSV</strong> (rows = species, columns = domains,
+           from the BLAST &rarr; Correlation analysis). A Neighbour-Joining tree is built from the
+           Jaccard distances between species' domain presence/absence profiles.</p>
+
+        <div id="tree-dropzone" class="dropzone">
+            <input type="file" id="tree-file" accept=".csv,.tsv,.txt">
+            <div class="dz-icon"><i class="fas fa-upload"></i></div>
+            <p class="dz-title">Drop a correlation matrix CSV here</p>
+            <p class="dz-hint">or click to browse &middot; .csv (species &times; domains)</p>
+        </div>
+        <div id="tree-file-pill" class="file-pill" style="display:none"></div>
+
+        <div style="margin-top:1rem">
+            <button type="button" id="construct-tree-button" class="futuristic-btn"><i class="fas fa-play"></i> Start construction</button>
+        </div>
+
+        <div id="tree-status" class="tool-status"></div>
+        <div id="download-container" class="mt-3"></div>
     </div>
 </section>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    const treeFileInput = document.getElementById("tree-file");
-    const maxDepthInput = document.getElementById("max-depth");
-    const constructTreeButton = document.getElementById("construct-tree-button");
-    const uploadMessage = document.getElementById("upload-message");
-    const downloadContainer = document.getElementById("download-container");
+    const input = document.getElementById("tree-file");
+    const statusEl = document.getElementById("tree-status");
+    const dl = document.getElementById("download-container");
 
-    constructTreeButton.addEventListener("click", async () => {
-    const treeFile = treeFileInput.files[0];
-    const maxDepth = parseInt(maxDepthInput.value, 10) || 12;
+    Phylo.dropzone({
+        zone: document.getElementById("tree-dropzone"),
+        input: input,
+        pill: document.getElementById("tree-file-pill"),
+    });
 
-    if (!treeFile) {
-        uploadMessage.textContent = "Please upload a file.";
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", treeFile);
-    formData.append("max_depth", maxDepth);
-
-    uploadMessage.textContent = "Uploading and processing...";
-    downloadContainer.innerHTML = ""; // Clear previous download links
-
-    try {
-        const response = await fetch("/tools/tree_construct", {
-            method: "POST",
-            body: formData,
-        });
-
-        const result = await response.json();
-
-        if (response.ok && result.status === "success") {
-            uploadMessage.textContent = "Tree construction started. Please wait...";
-
-            // Poll for tree construction status
-            const inputFile = treeFile.name;
-            const pollInterval = setInterval(async () => {
-                try {
-                    const statusResponse = await fetch(`/tools/tree_status?input_file=${encodeURIComponent(inputFile)}`);
-                    const statusResult = await statusResponse.json();
-
-                    if (statusResult.status === "completed") {
-                        clearInterval(pollInterval);
-                        uploadMessage.textContent = "Tree construction completed!";
-
-                        // Create a download link for the constructed tree
-                        const downloadLink = document.createElement("a");
-                        downloadLink.href = statusResult.download_url;
-                        downloadLink.textContent = `Download ${statusResult.original_filename}`;
-                        downloadLink.className = "button futuristic-btn mt-4";
-                        downloadLink.target = "_blank"; // Open the link in a new tab
-                        downloadContainer.appendChild(downloadLink);
-                    } else if (statusResult.status === "failed") {
-                        clearInterval(pollInterval);
-                        uploadMessage.textContent = "Tree construction failed.";
-                    }
-                } catch (pollError) {
-                    clearInterval(pollInterval);
-                    uploadMessage.textContent = "An error occurred while checking the tree status.";
-                    console.error(pollError);
-                }
-            }, 3000); // Poll every 3 seconds
-        } else {
-            uploadMessage.textContent = result.message || "Failed to start tree construction.";
+    document.getElementById("construct-tree-button").addEventListener("click", async () => {
+        const file = input.files[0];
+        dl.innerHTML = "";
+        if (!file) {
+            Phylo.status(statusEl, "Please choose a correlation matrix CSV.", "error");
+            return;
         }
-    } catch (error) {
-        uploadMessage.textContent = "An error occurred.";
-        console.error(error);
-    }
-});
-});
 
+        Phylo.status(statusEl, "Uploading&hellip;", "info", true);
+        try {
+            const res = await Phylo.upload("/tools/tree_construct", file);
+            if (res.status !== "success" || !res.job_id) {
+                Phylo.status(statusEl, res.message || "Failed to start tree construction.", "error");
+                return;
+            }
+
+            Phylo.status(statusEl, "Building tree&hellip; this can take a couple of minutes for large inputs.", "info", true);
+            const done = await Phylo.poll({
+                url: () => `/tools/tree_status?job_id=${encodeURIComponent(res.job_id)}`,
+                interval: 3000,
+                isDone: (d) => d.status === "completed",
+                isFailed: (d) => d.status === "failed",
+            });
+
+            Phylo.status(statusEl, '<i class="fas fa-check"></i> Tree construction completed.', "success");
+            dl.innerHTML =
+                `<a href="${done.download_url}" class="futuristic-btn-secondary" target="_blank">` +
+                `<i class="fas fa-download"></i> Download ${done.original_filename}</a>`;
+        } catch (e) {
+            Phylo.status(statusEl, "Tree construction failed: " + (e.message || "unknown error"), "error");
+        }
+    });
+});
 </script>
 {% endblock %}

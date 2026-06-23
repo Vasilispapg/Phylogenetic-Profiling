@@ -38,11 +38,15 @@
 
   /* Tabs container styling */
   #heatmapTabs {
-    background: #312450; 
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 5px;
+    gap: 4px;
+    box-shadow: var(--shadow);
   }
-  .nav-link.active {
-    color: black !important;
-  }
+  #heatmapTabs .nav-link { color: var(--text-2); border-radius: 9px; border: none; }
+  #heatmapTabs .nav-link.active { color: #fff !important; background: var(--ink); }
 
   /* Wrapper for each heatmap/canvas with a light background and border */
   .heatmap-container {
@@ -173,14 +177,27 @@
               <input type="radio" name="sortOrder" value="desc" checked> Desc
               <input type="radio" name="sortOrder" value="asc"> Asc
             </div>
-    
+
+            <div>
+              <label>Order:</label>
+              <select id="orderSelect">
+                <option value="total">By total (group similar)</option>
+                <option value="alpha">Alphabetical</option>
+              </select>
+            </div>
+
+            <div>
+              <label><input type="checkbox" id="logToggle" checked> Log scale</label>
+            </div>
+
             <button class="btn btn-primary" id="updateFeatureBtn">Update Heatmap</button>
           </div>
-    
+
           <div class="heatmap-container">
             <div id="loading-spinner"></div>
             <div id="featureHeatmap"></div>
           </div>
+          <div id="cellDetail" class="mt-2" style="display:none;background:rgba(255,255,255,0.08);border-radius:8px;padding:10px 12px;font-size:0.9rem;"></div>
         </div>
     
         <!-- TAB 2: CLUSTERED HEATMAP (unchanged) -->
@@ -355,26 +372,28 @@
         filtered.push(rowArr);
       }
     
-      // 4) log-scaling
-      //    log1p(x)/log(20) if x>0 else 0
-      const logMatrix = filtered.map(row => 
-        row.map(val => val > 0 ? Math.log1p(val)/Math.log(20) : 0)
-      );
-    
-      // 5) sums => sort
-      const rowSums = logMatrix.map(r => d3.sum(r));
+      // 4) optional log-scaling: log1p(x)/log(20) if x>0 else 0
+      const useLog = document.getElementById("logToggle").checked;
+      const baseMatrix = useLog
+        ? filtered.map(row => row.map(val => val > 0 ? Math.log1p(val) / Math.log(20) : 0))
+        : filtered;
+
+      // 5) ordering: alphabetical, or grouped by row/column totals
+      const order = document.getElementById("orderSelect").value;
       let rowIndices = d3.range(species.length);
-      rowIndices.sort((a,b) => rowSums[a] - rowSums[b]);
-      const colSums = domains.map((_, c) => d3.sum(logMatrix.map(r => r[c])));
       let colIndices = d3.range(domains.length);
-      colIndices.sort((a,b) => colSums[a] - colSums[b]);
-    
-      if (sortOrder === "desc") {
-        rowIndices.reverse();
-        colIndices.reverse();
+      if (order === "alpha") {
+        rowIndices.sort((a, b) => species[a].localeCompare(species[b]));
+        colIndices.sort((a, b) => domains[a].localeCompare(domains[b]));
+      } else {
+        const rowSums = baseMatrix.map(r => d3.sum(r));
+        rowIndices.sort((a, b) => rowSums[a] - rowSums[b]);
+        const colSums = domains.map((_, c) => d3.sum(baseMatrix.map(r => r[c])));
+        colIndices.sort((a, b) => colSums[a] - colSums[b]);
+        if (sortOrder === "desc") { rowIndices.reverse(); colIndices.reverse(); }
       }
-    
-      const sortedMatrix = rowIndices.map(i => colIndices.map(j => logMatrix[i][j]));
+
+      const sortedMatrix = rowIndices.map(i => colIndices.map(j => baseMatrix[i][j]));
       const sortedSpecies = rowIndices.map(i => species[i]);
       const sortedDomains = colIndices.map(j => domains[j]);
     
@@ -408,14 +427,34 @@
       };
     
       const layout = {
-        title: `Feature: ${feature}, Filter: num_hits≥${minHits}, Sort: ${sortOrder}`,
+        title: `Feature: ${feature}, Filter: num_hits≥${minHits}` + (useLog ? " (log)" : ""),
         xaxis: { title: "Domains", automargin: true },
         yaxis: { title: "Species", automargin: true },
-        width: 1200,
-        height: 800
+        autosize: true,
+        height: 800,
       };
-    
-      Plotly.newPlot("featureHeatmap", [trace], layout);
+
+      const config = {
+        responsive: true,
+        scrollZoom: true,              // wheel to zoom; drag = box-zoom
+        displaylogo: false,
+        toImageButtonOptions: { filename: "feature_heatmap", scale: 2 },
+      };
+
+      Plotly.newPlot("featureHeatmap", [trace], layout, config).then((gd) => {
+        const detail = document.getElementById("cellDetail");
+        gd.on("plotly_click", (ev) => {
+          const pt = ev.points[0];
+          const i = species.indexOf(pt.y);
+          const j = domains.indexOf(pt.x);
+          const obj = (i >= 0 && j >= 0 && cellData[i] && cellData[i][j]) || {};
+          detail.innerHTML = `<strong>${species[i]} × ${domains[j]}</strong><br>` +
+            (Object.keys(obj).length
+              ? Object.entries(obj).map(([k, v]) => `${k}: ${v}`).join(" &middot; ")
+              : "no data");
+          detail.style.display = "block";
+        });
+      });
       console.log("Feature Heatmap updated.");
     }
     </script>

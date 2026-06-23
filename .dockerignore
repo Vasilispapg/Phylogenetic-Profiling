@@ -1,0 +1,21 @@
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+tests
+uploads
+downloads
+cache
+output
+.DS_Store
+.vercel
+*.bak
+*.swp
+# Large sample BLAST input is not needed for the web app (files are uploaded
+# at runtime). Keep the small species lists.
+data/*.blastp

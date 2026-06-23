@@ -1,5 +1,7 @@
 import pandas as pd
 
+from .utils import extract_species
+
 def load_blast_data(protein_domain_path):
     """
     Load and process BLAST output data.
@@ -28,10 +30,8 @@ def load_blast_data(protein_domain_path):
             names=column_names
         )
 
-        # Extract the species code from the SubjectID column
-        # Assumes SubjectID is formatted with a delimiter, e.g., "genome-id-speciesCode-extra"
-        # blast_df['SpeciesCode'] = blast_df['SubjectID'].str.split('-').str[2]
-        blast_df['SpeciesCode'] = blast_df['SubjectID'].str.extract(r'(.*?-\w+-\w+-\w+-[A-Z])')
+        # Extract the canonical species key (shared with the matrix builders).
+        blast_df['SpeciesCode'] = blast_df['SubjectID'].apply(extract_species)
         # Return the relevant columns
         return blast_df[['QueryID', 'SpeciesCode', 'PercentIdentity', 'EValue']]
 

@@ -1,48 +1,26 @@
+import os
 import time
+from collections import defaultdict
+
 import markov_clustering as mc
 import networkx as nx
 import numpy as np
-from scipy.sparse import csr_matrix
 import pandas as pd
+from scipy.sparse import csr_matrix
+from networkx.algorithms.community import modularity
 from dash import Dash, dcc, html, Input, Output
 import plotly.graph_objects as go
 import plotly.express as px
-import joblib
-import os
 import dash_bootstrap_components as dbc
 
+# Defaults for domain-profile clustering.
+DEFAULT_THRESHOLD = 0.5   # minimum Jaccard similarity to draw a domain-domain edge
+DEFAULT_INFLATION = 2.0   # MCL granularity
 
-def prepare_clustering(true_positives):
-    """
-    Prepares clustering and visualization data.
-    """
-    # Step 1: Create a graph
-    graph = nx.Graph()
-    graph.add_edges_from(true_positives)
 
-    # Convert graph to sparse adjacency matrix
-    adj_matrix = nx.to_scipy_sparse_array(graph, weight=None)
-    adj_matrix = csr_matrix(adj_matrix)
-
-    # Run MCL
-    mcl_start = time.time()
-    result = mc.run_mcl(adj_matrix, inflation=1.5)
-    clusters = mc.get_clusters(result)
-    print(f"MCL Execution Time: {time.time() - mcl_start:.2f} seconds")
-
-    # Rebuild all-vs-all matrix
-    nodes = list(graph.nodes())
-    all_vs_all_matrix = np.zeros((len(nodes), len(nodes)))
-    for cluster in clusters:
-        for i in cluster:
-            for j in cluster:
-                all_vs_all_matrix[i, j] = 1
-    all_vs_all_df = pd.DataFrame(all_vs_all_matrix, index=nodes, columns=nodes)
-
-    # Compute positions
-    pos = nx.spring_layout(graph)
-
-    return graph, nodes, all_vs_all_df, pos
+def _dash_debug():
+    """Dash debug mode is off unless explicitly enabled via env var."""
+    return os.environ.get("DASH_DEBUG", "").lower() in ("1", "true", "yes")
 
 def create_dash_component(graph, nodes, all_vs_all_df, pos):
     """
@@ -289,81 +267,137 @@ def create_dash_app(graph, nodes, all_vs_all_df, pos):
 
     return app
 
-def load_from_cache(file_path):
+# --------------------------------------------------------------------------- #
+# Domain-profile clustering (phylogenetic profiling)
+#
+# Phylogenetic profiling groups domains that share the same presence/absence
+# pattern across species. We therefore cluster a DOMAIN x DOMAIN similarity
+# graph (not the raw bipartite species-domain graph): an edge connects two
+# domains whose binary profiles are similar (Jaccard >= threshold), and MCL
+# finds the modules. validate_clusters() reports whether the result is
+# meaningful.
+# --------------------------------------------------------------------------- #
+def domain_jaccard(corr_df):
+    """Return (domains, JxJ Jaccard-similarity matrix) from a species x domain
+    correlation matrix (presence == value > 0)."""
+    B = (corr_df.to_numpy() > 0).astype(float)        # species x domains
+    domains = [str(c) for c in corr_df.columns]
+    inter = B.T @ B                                    # shared species per domain pair
+    pres = B.sum(axis=0)
+    union = pres[:, None] + pres[None, :] - inter
+    with np.errstate(divide="ignore", invalid="ignore"):
+        J = np.where(union > 0, inter / union, 0.0)
+    np.fill_diagonal(J, 0.0)
+    return domains, J
+
+
+def build_domain_graph(domains, J, threshold):
+    """Weighted domain graph: edge (a, b) with weight J[a,b] when J >= threshold."""
+    graph = nx.Graph()
+    graph.add_nodes_from(domains)
+    iu, ju = np.triu_indices(len(domains), k=1)
+    mask = J[iu, ju] >= threshold
+    for a, b in zip(iu[mask], ju[mask]):
+        graph.add_edge(domains[a], domains[b], weight=float(J[a, b]))
+    return graph
+
+
+def validate_clusters(graph, clusters, nodes):
+    """
+    Quality report for an MCL partition. MCL is unsupervised (there is no
+    training), so we report:
+      - cluster count / sizes,
+      - modularity Q of the partition on the similarity graph,
+      - same-protein co-clustering rate: an internal ground truth -- domains of
+        the same protein accession (prefix before the first '-') are physically
+        linked and should land in the same cluster,
+      - a warning when the partition collapses to one big group (no structure).
+    """
+    sizes = sorted((len(c) for c in clusters), reverse=True)
+    label = {}
+    for ci, c in enumerate(clusters):
+        for i in c:
+            label[nodes[i]] = ci
+
+    partition = [set(nodes[i] for i in c) for c in clusters]
     try:
-        data = joblib.load(file_path)
-        print(f"Data loaded from cache: {file_path}")
-        return None
-    except FileNotFoundError:
-        print(f"No cache found at {file_path}")
-        return None
+        q = float(modularity(graph, partition, weight="weight"))
+    except Exception:
+        q = float("nan")
 
-
-def save_to_cache(file_path, data):
-    joblib.dump(data, file_path)
-    print(f"Data cached at {file_path}")
-
-def utilize_mcl_onNxN(true_positives, cache_dir="cache/",create_dash_app=False):
-    print('Utilize MCL started')
-    os.makedirs(cache_dir, exist_ok=True)
-
-    # Cache file paths
-    graph_cache = os.path.join(cache_dir, "graph.pkl")
-    clusters_cache = os.path.join(cache_dir, "clusters.pkl")
-    positions_cache = os.path.join(cache_dir, "positions.pkl")
-    matrix_cache = os.path.join(cache_dir, "all_vs_all_matrix.pkl")
-
-    # Load cached data if available
-    graph = load_from_cache(graph_cache)
-    clusters = load_from_cache(clusters_cache)
-    pos = load_from_cache(positions_cache)
-    all_vs_all_df = load_from_cache(matrix_cache)
-
-    # Check if any required data is missing
-    if graph is None or clusters is None or pos is None or all_vs_all_df is None:
-        # Recompute data if cache is missing
-        graph = nx.Graph()
-        graph.add_edges_from(true_positives)
-        save_to_cache(graph_cache, graph)
-
-        # Markov Clustering
-        adj_matrix = nx.to_scipy_sparse_array(graph, weight=None)
-        adj_matrix = csr_matrix(adj_matrix)
-        result = mc.run_mcl(adj_matrix, inflation=1.5)
-        clusters = mc.get_clusters(result)
-        print("Clusters:", clusters)
-        save_to_cache(clusters_cache, clusters)
-
-        # All-vs-All Matrix
-        nodes = list(graph.nodes())
-        all_vs_all_matrix = np.zeros((len(nodes), len(nodes)))
-        for cluster in clusters:
-            for i in cluster:
-                for j in cluster:
-                    all_vs_all_matrix[i, j] = 1
-        all_vs_all_df = pd.DataFrame(all_vs_all_matrix, index=nodes, columns=nodes)
-        save_to_cache(matrix_cache, all_vs_all_df)
-
-        # Node Positions
-        pos = nx.spring_layout(graph)
-        save_to_cache(positions_cache, pos)
-
-    # Debug data before returning
-    # print("Graph Nodes:", len(graph.nodes()), "Edges:", len(graph.edges()))
-    # print("Position Data:", pos)
-    # print("Matrix Shape:", all_vs_all_df.shape)
-    missing_positions = set(graph.nodes()) - set(pos.keys())
-    if missing_positions:
-        print("Missing positions for nodes:", missing_positions)
-
-    # Ensure all required data is available before proceeding
-    if graph is None or clusters is None or pos is None or all_vs_all_df is None:
-        raise ValueError("Required data for visualization is missing or could not be computed.")
-    
-    # Create and run Dash app
-    if create_dash_app:
-        app = create_dash_app(graph, list(graph.nodes()), all_vs_all_df, pos)
-        app.run_server(debug=True, port=8051)
+    groups = defaultdict(list)
+    for node in nodes:
+        groups[str(node).split("-")[0]].append(node)
+    same_pairs = [
+        (a, b)
+        for members in groups.values() if len(members) > 1
+        for x, a in enumerate(members) for b in members[x + 1:]
+    ]
+    if same_pairs:
+        same_rate = float(np.mean([
+            1.0 if label.get(a) == label.get(b) else 0.0 for a, b in same_pairs
+        ]))
     else:
-        return graph, graph.nodes(), all_vs_all_df, pos
+        same_rate = float("nan")
+
+    largest = sizes[0] if sizes else 0
+    warning = None
+    if nodes and (largest >= 0.8 * len(nodes) or (q == q and q < 0.05)):
+        warning = (
+            "Little/no community structure (modularity ~0; one dominant cluster). "
+            "The domain profiles are too uniform to form meaningful modules. "
+            "Consider a stricter presence threshold (e-value/bitscore cutoff) when "
+            "building the correlation matrix, a higher Jaccard threshold, or richer data."
+        )
+
+    return {
+        "n_domains": len(nodes),
+        "n_clusters": len(clusters),
+        "n_nontrivial_clusters": sum(1 for s in sizes if s > 1),
+        "largest_cluster": largest,
+        "cluster_sizes_top": sizes[:10],
+        "modularity": round(q, 4) if q == q else None,
+        "same_protein_cocluster_rate": round(same_rate, 4) if same_rate == same_rate else None,
+        "warning": warning,
+    }
+
+
+def cluster_domains(corr_matrix_path, cache_dir="cache/", threshold=DEFAULT_THRESHOLD,
+                    inflation=DEFAULT_INFLATION, run_dash=False):
+    """
+    Cluster domains by shared phylogenetic profile and return data for the UI:
+    (graph, nodes, all_vs_all_df, pos). Also prints a validation report.
+    """
+    corr_df = pd.read_csv(corr_matrix_path, index_col=0)
+    domains, J = domain_jaccard(corr_df)
+
+    graph = build_domain_graph(domains, J, threshold)
+
+    mcl_start = time.time()
+    adj = csr_matrix(nx.to_scipy_sparse_array(graph, nodelist=domains, weight="weight"))
+    clusters = mc.get_clusters(mc.run_mcl(adj, inflation=inflation))
+    print(f"MCL on {len(domains)} domains: {len(clusters)} clusters "
+          f"in {time.time() - mcl_start:.2f}s")
+
+    # Domain x domain co-cluster (all-vs-all) matrix.
+    co = np.zeros((len(domains), len(domains)))
+    for cluster in clusters:
+        for i in cluster:
+            for j in cluster:
+                co[i, j] = 1
+    all_vs_all_df = pd.DataFrame(co, index=domains, columns=domains)
+
+    pos = nx.spring_layout(graph)
+
+    metrics = validate_clusters(graph, clusters, domains)
+    print("Cluster validation:", metrics)
+    if metrics["warning"]:
+        print("WARNING:", metrics["warning"])
+
+    if run_dash:
+        app = create_dash_app(graph, list(graph.nodes()), all_vs_all_df, pos)
+        app.run(debug=_dash_debug(), port=8051)
+        return
+
+    return graph, list(graph.nodes()), all_vs_all_df, pos, metrics
 

@@ -1,15 +1,13 @@
-from flask import Blueprint, jsonify, render_template, request
 import os
 import threading
-import sys
 from threading import Lock
 
-# Include project root for analysis scripts
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.append(project_root)
+from flask import Blueprint, jsonify, render_template, request
+from werkzeug.utils import secure_filename
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components
 
-from analysis.clustering_analysis import utilize_mcl_onNxN
-from analysis.matrix_operations import find_true_positives
+from analysis.clustering_analysis import cluster_domains
 
 # Blueprint for allvsall routes
 allvsall_bp = Blueprint('allvsall', __name__, template_folder='templates')
@@ -19,10 +17,22 @@ CACHE_FOLDER = './cache'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(CACHE_FOLDER, exist_ok=True)
 
-# Global variables
+ALLOWED_EXTENSIONS = {'.csv', '.tsv', '.txt'}
+
+# Shared state guarded by a single lock.
 precomputed_results = {}
 progress_status = {}
-precomputed_results_lock = Lock()
+_lock = Lock()
+
+
+def _allowed(filename):
+    return os.path.splitext(filename)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def _set_status(key, value):
+    with _lock:
+        progress_status[key] = value
+
 
 @allvsall_bp.route('/tools/allvsall', methods=['GET', 'POST'])
 def allvsall_tool():
@@ -30,60 +40,78 @@ def allvsall_tool():
     if request.method == 'POST':
         if 'file' not in request.files:
             return jsonify({"status": "error", "message": "No file part provided."})
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"status": "error", "message": "No file selected."})
 
-        # Save uploaded file
-        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+        file = request.files['file']
+        safe_name = secure_filename(file.filename or "")
+        if not safe_name:
+            return jsonify({"status": "error", "message": "No file selected."})
+        if not _allowed(safe_name):
+            return jsonify({"status": "error", "message": "Unsupported file type."})
+
+        file_path = os.path.join(UPLOAD_FOLDER, safe_name)
         file.save(file_path)
 
-        # Start computation in background
-        event = threading.Event()
-        thread = threading.Thread(target=compute_allvsalls, args=(file.filename, file_path, CACHE_FOLDER, event))
+        _set_status(safe_name, "Initializing computation...")
+        thread = threading.Thread(
+            target=compute_allvsalls, args=(safe_name, file_path, CACHE_FOLDER), daemon=True
+        )
         thread.start()
 
-        return jsonify({"status": "success", "message": "File uploaded and processing started.", "filename": file.filename})
+        return jsonify({
+            "status": "success",
+            "message": "File uploaded and processing started.",
+            "filename": safe_name,
+        })
 
     return render_template('allvsall.html', active_tool="allvsall")
 
 
-@allvsall_bp.route('/allvsall_status/<filename>', methods=['GET'])
+@allvsall_bp.route('/allvsall_status/<path:filename>', methods=['GET'])
 def allvsall_status(filename):
     """Get the status of the allvsall computation."""
-    if filename not in progress_status:
+    with _lock:
+        status = progress_status.get(filename)
+    if status is None:
         return jsonify({"status": "error", "message": "No process found for this file."})
+    return jsonify({"status": "success", "message": status})
 
-    return jsonify({"status": "success", "message": progress_status[filename]})
 
-
-@allvsall_bp.route('/allvsall_data/<filename>', methods=['GET'])
+@allvsall_bp.route('/allvsall_data/<path:filename>', methods=['GET'])
 def get_allvsall_data(filename):
     """Fetch precomputed allvsall and graph data."""
     try:
-        print(f"Request received for allvsall data: {filename}")
+        with _lock:
+            result = precomputed_results.get(filename)
 
-        if filename not in precomputed_results:
-            print(f"Error: Data not found for {filename}")
+        if result is None:
             return jsonify({"status": "error", "message": "Data not found for this file."})
-
-        result = precomputed_results[filename]
         if "error" in result:
-            print(f"Error in precomputed results: {result['error']}")
             return jsonify({"status": "error", "message": result["error"]})
 
         graph = result["graph"]
         graph_nodes = list(result["graph_nodes"])
-        all_vs_all_df = result["all_vs_all_df"].values.tolist()  # Convert DataFrame to list of lists
+        df = result["all_vs_all_df"]
         pos = {node: [float(x), float(y)] for node, (x, y) in result["pos"].items()}
+
+        # Cluster id per node = connected component of the co-cluster matrix.
+        _, labels = connected_components(csr_matrix(df.to_numpy() > 0), directed=False)
+        node_cluster = {node: int(labels[i]) for i, node in enumerate(graph_nodes)}
+        degree = {n: int(graph.degree(n)) for n in graph_nodes}
+
+        edges = [
+            {"source": u, "target": v, "weight": round(float(d.get("weight", 1.0)), 3)}
+            for u, v, d in graph.edges(data=True)
+        ]
 
         return jsonify({
             "status": "success",
             "nodes": graph_nodes,
-            "edges": [{"source": u, "target": v} for u, v in graph.edges()],
-            "matrix": all_vs_all_df,
-            "positions": pos
+            "node_cluster": node_cluster,
+            "degree": degree,
+            "edges": edges,
+            "matrix": df.values.tolist(),
+            "positions": pos,
+            "metrics": result.get("metrics"),
         })
 
     except Exception as e:
@@ -91,27 +119,23 @@ def get_allvsall_data(filename):
         return jsonify({"status": "error", "message": str(e)})
 
 
-def compute_allvsalls(filename, input_path, cache_dir, event):
+def compute_allvsalls(filename, input_path, cache_dir):
     """Compute allvsalls and graphs in a background thread."""
     try:
-        progress_status[filename] = "Initializing computation..."
-        true_positives = find_true_positives(input_path)
+        _set_status(filename, "Reading correlation matrix...")
+        _set_status(filename, "Building domain graph and running Markov clustering...")
+        graph, graph_nodes, all_vs_all_df, pos, metrics = cluster_domains(input_path, cache_dir=cache_dir)
 
-        progress_status[filename] = "Performing clustering..."
-        graph, graph_nodes, all_vs_all_df, pos = utilize_mcl_onNxN(true_positives, cache_dir=cache_dir)
-
-        with precomputed_results_lock:
+        with _lock:
             precomputed_results[filename] = {
                 "graph": graph,
                 "graph_nodes": graph_nodes,
                 "all_vs_all_df": all_vs_all_df,
                 "pos": pos,
+                "metrics": metrics,
             }
-
-        progress_status[filename] = "Completed."
+            progress_status[filename] = "Completed."
     except Exception as e:
-        with precomputed_results_lock:
+        with _lock:
             precomputed_results[filename] = {"error": str(e)}
-        progress_status[filename] = f"Error: {str(e)}"
-    finally:
-        event.set()
+            progress_status[filename] = f"Error: {str(e)}"

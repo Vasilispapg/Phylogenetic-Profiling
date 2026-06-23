@@ -8,8 +8,13 @@ def display_heatmap_speciesxspecies(correlation_data_path="correlation_matrix.cs
     # Load the domain correlation data
     domain_data = pd.read_csv(correlation_data_path, index_col=0)
 
-    # Calculate pairwise correlation or similarity matrix (NxN matrix)
-    species_correlation = domain_data.T.corr() * 100  # Scale correlations to 0-100 for display
+    # Calculate pairwise correlation or similarity matrix (NxN matrix).
+    # Species with a constant (e.g. all-zero) profile yield NaN correlations,
+    # which would break linkage; fill those with 0.
+    species_correlation = (domain_data.T.corr() * 100).fillna(0)
+
+    if species_correlation.shape[0] < 2:
+        raise ValueError("Need at least 2 species to build a dendrogram.")
 
     # Perform hierarchical clustering on the species correlation matrix
     species_linkage = linkage(species_correlation, method='average')
