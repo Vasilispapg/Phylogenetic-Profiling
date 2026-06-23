@@ -14,6 +14,7 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+#root { min-height: 100vh; display: flex; flex-direction: column; }  /* sticky footer: fill viewport height */
 body {
   font-family: var(--font); color: var(--text); background: var(--bg);
   background-image: radial-gradient(1200px 600px at 80% -10%, #dfe7fb 0%, rgba(223,231,251,0) 60%);
@@ -25,7 +26,7 @@ a { color: var(--accent); text-decoration: none; } a:hover { color: #1b4fd6; }
 code { background: var(--surface-2); color: #b4275e; padding: 1px 6px; border-radius: 6px; font-size: .9em; }
 strong, b { font-weight: 700; color: var(--text); }
 .container { max-width: 1180px; margin: 0 auto; padding: 0 22px; }
-.main { max-width: 1180px; margin: 0 auto; padding: 10px 22px 48px; }
+.main { max-width: 1180px; width: 100%; margin: 0 auto; padding: 10px 22px 48px; flex: 1 0 auto; }
 .muted { color: var(--text-2); }
 .eyebrow { color: var(--accent); font-weight: 700; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; }
 
@@ -39,7 +40,8 @@ strong, b { font-weight: 700; color: var(--text); }
 /* Button-in-button trailing icon (high-end nested CTA) */
 .btn .btn-ico { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
   background: rgba(255,255,255,.16); font-size: .8rem; transition: transform 200ms var(--ease-out); }
-.btn-secondary .btn-ico, .btn-accent .btn-ico { background: rgba(225,29,72,.14); color: var(--accent); }
+.btn-secondary .btn-ico { background: rgba(225,29,72,.14); color: var(--accent); }
+.btn-accent .btn-ico { background: rgba(255,255,255,.22); color: #fff; }
 @media (hover: hover) and (pointer: fine) {
   .btn-primary:hover { transform: translateY(-1px); color: #fff; box-shadow: 0 14px 28px rgba(17,24,39,.3); }
   .btn-secondary:hover { transform: translateY(-1px); border-color: var(--accent); }

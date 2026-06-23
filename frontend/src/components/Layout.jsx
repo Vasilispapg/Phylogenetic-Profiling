@@ -1,6 +1,7 @@
 import { NavLink, Link, Outlet } from "react-router-dom";
 
 const LINKS = [
+  ["/", "Home"],
   ["/blast", "BLAST"],
   ["/heatmap", "Heatmap"],
   ["/all-vs-all", "All-vs-all"],
@@ -20,7 +21,7 @@ export default function Layout() {
           <Link to="/" className="logo"><i className="fa-solid fa-dna" /> PhyloFlask</Link>
           <nav className="links">
             {LINKS.map(([to, label]) => (
-              <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")}>{label}</NavLink>
+              <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "active" : "")}>{label}</NavLink>
             ))}
           </nav>
           <span className="spacer" />
