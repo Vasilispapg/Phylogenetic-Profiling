@@ -101,6 +101,38 @@ JSON (the client slider prunes depth):
 ```
 `400` on missing/unparseable file.
 
+## Heatmap blueprint (clustering & embedding)
+The heatmap / clustergram / embedding **pages** parse CSVs client-side; these two
+endpoints do the heavy maths server-side (SciPy / scikit-learn). Both take the
+numeric matrix as JSON.
+
+### `POST /clustergram`
+JSON body `{"z": [[...], ...]}` — a numeric matrix (rows × cols). Hierarchically
+clusters both axes (**correlation distance, average linkage**) and returns leaf
+orders + dendrogram line coordinates (drawn client-side):
+```json
+{
+  "status": "success",
+  "row_order": [12, 0, 5, "..."],
+  "col_order": [3, 1, 8, "..."],
+  "row_dendro": {"icoord": [["..."]], "dcoord": [["..."]]},
+  "col_dendro": {"icoord": [["..."]], "dcoord": [["..."]]}
+}
+```
+Constant rows/cols (undefined correlation) are treated as maximally distant.
+
+### `POST /embedding`
+JSON body:
+```json
+{"z": [[...], ...], "axis": "domains" | "species", "method": "pca" | "tsne", "k": 8}
+```
+Projects the chosen axis to 2D (**PCA** or **t-SNE** on standardized profiles)
+and groups points with **KMeans**:
+```json
+{"status": "success", "coords": [[1.2, -0.4], "..."], "labels": [0, 3, "..."], "n_clusters": 8}
+```
+`axis="domains"` embeds columns, `"species"` embeds rows. Needs ≥ 3 points.
+
 ## Configuration
 Server behaviour is controlled by env vars: `PORT`, `HOST`, `FLASK_DEBUG`,
 `MAX_UPLOAD_MB`, `DASH_DEBUG`. See [`../README.md`](../README.md).

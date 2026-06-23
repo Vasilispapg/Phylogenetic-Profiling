@@ -34,6 +34,25 @@ species × domain matrix (counts; presence == value > 0).
   smaller clusters). Clusters are groups of co-occurring domains = candidate
   functional modules.
 
+## Clustergram (hierarchical clustering)
+A clustered heatmap reorders rows (species) and columns (domains) by profile
+similarity so co-evolving modules surface as contiguous **blocks**. Distances use
+**correlation distance** (1 − Pearson r between profiles), which groups by profile
+*shape* and is robust to scale; rows are linked with **average linkage** (UPGMA),
+and a dendrogram is drawn on each axis (`POST /clustergram`, SciPy). A constant
+profile has undefined correlation and is treated as maximally distant. Unlike MCL
+this is not a partition — it's a continuous ordering you read by eye.
+
+## 2D embedding (PCA / t-SNE)
+Each domain (or species) is a point in profile space; the embedding projects it to
+2D so points with similar co-occurrence land close together (`POST /embedding`,
+scikit-learn). **PCA** is linear, fast and deterministic — distances and axes are
+interpretable. **t-SNE** (van der Maaten & Hinton, 2008) is non-linear and
+separates tight clusters more sharply, but only *local* distances are meaningful
+(gaps between far-apart blobs are not). Points are coloured by a **KMeans** grouping
+of the standardized profiles. Treat this as an exploratory map that suggests
+hypotheses, not a statistical test.
+
 ## Validation — "are the results meaningful?"
 MCL is **unsupervised**; there is no training/test split. Instead
 `validate_clusters` reports:
@@ -71,3 +90,5 @@ property of the data, not a code defect.
   large-scale detection of protein families (MCL/TribeMCL).* NAR, 2002.
 - Newman M.E.J. *Modularity and community structure in networks.* PNAS, 2006.
 - Jaccard P. *The distribution of the flora in the alpine zone.* New Phytol., 1912.
+- van der Maaten L., Hinton G. *Visualizing data using t-SNE.* JMLR, 2008.
+- Lloyd S.P. *Least squares quantization in PCM.* IEEE Trans. Inf. Theory, 1982 (k-means).

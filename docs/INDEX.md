@@ -19,8 +19,10 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 - **`templates/blast.py`** (`blast_bp`) — `POST /upload` (secure_filename +
   extension allowlist), `POST /process` (→ `create_correlation_matrix` /
   `create_feature_matrix`, writes to `downloads/`), `GET /results`.
-- **`templates/heatmap.py`** (`heatmap_bp`) — `GET /tools/heatmap` only; the page
-  does all CSV parsing/plotting client-side (no data endpoint needed).
+- **`templates/heatmap.py`** (`heatmap_bp`) — `GET /tools/heatmap` (page) plus
+  `POST /clustergram` (SciPy hierarchical clustering → leaf orders + dendrogram
+  coords) and `POST /embedding` (scikit-learn PCA/t-SNE + KMeans → 2D coords +
+  labels). Heatmap/clustergram/embedding pages parse CSVs client-side.
 - **`templates/allvsall.py`** (`allvsall_bp`) — `GET/POST /tools/allvsall`
   (POST starts a background `cluster_domains` job), `GET /allvsall_status/<f>`,
   `GET /allvsall_data/<f>`. Shared `precomputed_results`/`progress_status` dicts
@@ -88,6 +90,25 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 - **`pages/heatmap.html`** — client-side heatmap tool (order/log toggles, cell-click).
 - **`public/assets/css/tools.css`** — shared themed components, responsive rules, polish.
 - **`public/assets/js/tools.js`** — `Phylo` helpers: dropzone, upload, poll, status.
+
+## React SPA (`frontend/`)
+
+Vite + React app consuming the same JSON API — the primary UI (the Jinja pages
+remain as a zero-build fallback). Run both servers with **`./dev.sh`**.
+
+- **`src/lib/matrix.js`** — shared CSV parse (PapaParse; handles JSON feature
+  cells with embedded commas), ordering, per-row/col normalize + log transforms.
+- **`src/lib/api.js`** — fetch helpers; surfaces a clear error when the backend is
+  unreachable instead of a cryptic `Unexpected end of JSON input`.
+- **`src/pages/`** — `Landing`, `Blast`, `Heatmap` (metric selector, compare-two,
+  cell inspector), **`Clustergram`** (heatmap + row/col dendrograms), **`Explorer`**
+  (linked clustered heatmap ↔ domain network), **`Embedding`** (PCA/t-SNE map +
+  searchable group panel), `AllVsAll` (fcose component layout), `TreeViewer`,
+  `TreeBuilder`, `HowTo`, `Faq`, `StyleGuide`.
+- **`src/components/Layout.jsx`** — header with a Tools mega-dropdown (hover-bridge
+  so it doesn't close on cursor move) + a mobile hamburger menu.
+- Extra deps: `cytoscape-fcose` (network layout), `papaparse` (CSV), `plotly.js`,
+  `d3`, `cytoscape`.
 
 ## Data & outputs
 

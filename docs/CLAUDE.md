@@ -18,6 +18,9 @@ browser heatmaps and an all-vs-all graph.
 - **Run web (dev):** `python app.py` → http://127.0.0.1:8000
   - Default port is **8000**, not 5000: macOS AirPlay Receiver owns 5000/7000
     (answers `Server: AirTunes`) and makes the app look broken. Override with `PORT`.
+- **Run both dev servers (React UI):** `./dev.sh` → Flask API :8000 + Vite React
+  :5173 (proxied). The React SPA in `frontend/` is the primary UI; `npm run dev`
+  alone starts only the frontend and its API calls fail — start the backend too.
 - **Run web (prod):** `gunicorn --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:8000 app:app`
 - **Docker:** `docker compose up --build` → http://localhost:8000
 - **Tests:** `pytest -q` (28 tests)
@@ -50,6 +53,11 @@ browser heatmaps and an all-vs-all graph.
 - New analysis → `analysis/`. New page/route → the matching `templates/*.py`
   blueprint + a `pages/*.html` that `{% extends "tools.html" %}`.
 - Nav links use **blueprint-qualified** `url_for` (e.g. `tree.tree_viewer_tool`).
+- **React tools** live in `frontend/src/pages/*.jsx` (Clustergram, Explorer,
+  Embedding, …); shared CSV/transform helpers in `frontend/src/lib/matrix.js`,
+  fetch helpers in `frontend/src/lib/api.js`. `heatmap_bp` also serves
+  `POST /clustergram` (SciPy hierarchical clustering) and `POST /embedding`
+  (scikit-learn PCA/t-SNE + KMeans) — both take the numeric matrix as JSON.
 - Add tests under `tests/` (pytest; `conftest.py` puts the repo root on `sys.path`).
 
 ## Git
