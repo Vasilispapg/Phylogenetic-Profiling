@@ -3,12 +3,14 @@ import DnaHero from "../components/DnaHero.jsx";
 import Reveal from "../components/Reveal.jsx";
 
 const TOOLS = [
-  ["/blast", "fa-dna", "BLAST Analysis", "Build the species × domain matrix from a BLAST file."],
-  ["/tree-builder", "fa-sitemap", "Tree builder", "Neighbour-Joining species tree from domain profiles."],
-  ["/tree-viewer", "fa-tree", "Tree viewer", "Collapsible radial tree — colour by genus, search, zoom."],
-  ["/all-vs-all", "fa-share-nodes", "All-vs-all", "Cluster domains (MCL) as an interactive linked network."],
-  ["/heatmap", "fa-fire", "Heatmaps", "Feature/correlation heatmaps with ordering, log scale, zoom."],
-  ["/how-to", "fa-book-open", "How to use", "A plain-language guide for biologists and programmers."],
+  ["/blast", "fa-dna", "BLAST analysis", "Build the species × domain matrix from a BLAST file."],
+  ["/heatmap", "fa-fire", "Heatmap", "Feature & correlation heatmaps — metric selector, compare two."],
+  ["/clustergram", "fa-border-all", "Clustergram", "Clustered heatmap with row & column dendrograms."],
+  ["/explorer", "fa-diagram-project", "Linked explorer", "Clustered heatmap ↔ domain network, synchronised."],
+  ["/embedding", "fa-braille", "Embedding map", "2D PCA / t-SNE projection of co-occurrence profiles."],
+  ["/all-vs-all", "fa-share-nodes", "All-vs-all", "Cluster domains (MCL) as an interactive network."],
+  ["/tree-viewer", "fa-tree", "Tree viewer", "Collapsible radial species tree — colour, search, zoom."],
+  ["/tree-builder", "fa-sitemap", "Tree builder", "Neighbour-Joining tree from domain profiles."],
 ];
 const POSTER = "https://f1000research-files.f1000.com/posters/compressed/f1000research-728675.pdf";
 
@@ -34,9 +36,9 @@ export default function Landing() {
         <div><DnaHero /></div>
       </section>
 
-      <div className="section-head"><h2>Five tools, one pipeline</h2>
-        <p className="section-sub">From a single BLAST file to species trees, domain clusters and heatmaps —
-           each step in the pipeline is its own focused, interactive tool.</p></div>
+      <div className="section-head"><h2>Eight tools, one pipeline</h2>
+        <p className="section-sub">From a single BLAST file to species trees, clustergrams, domain networks,
+           heatmaps and 2D embeddings — each step is its own focused, interactive tool.</p></div>
       <div className="tools-grid">
         {TOOLS.map(([to, ic, h, p], i) => (
           <Reveal key={to} delay={i * 60}>
