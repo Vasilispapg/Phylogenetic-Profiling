@@ -3,6 +3,7 @@ import Plotly from "plotly.js-dist-min";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
 import { computeOrder, transform, COLORSCALES, lbl } from "../lib/matrix.js";
+import { C, PLOT_CONFIG, plotLayout, scaleFor } from "../lib/theme.js";
 import { loadMatrix } from "../lib/api.js";
 
 const L = { display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" };
@@ -45,31 +46,28 @@ export default function Heatmap() {
       const t2 = transform(data.data[featB], cols, { norm, log });
       const zb = ri.map((i) => ci.map((j) => t2[i][j]));
       traces = [
-        { z: za, x, y, type: "heatmap", colorscale: scale, xaxis: "x", yaxis: "y",
-          colorbar: { x: 0.45, thickness: 10, len: 1 }, hovertemplate: `%{y} · %{x}<br>${lbl(feat)}: %{z}<extra></extra>` },
-        { z: zb, x, y, type: "heatmap", colorscale: scale, xaxis: "x2", yaxis: "y",
-          colorbar: { x: 1.0, thickness: 10, len: 1 }, hovertemplate: `%{y} · %{x}<br>${lbl(featB)}: %{z}<extra></extra>` },
+        { z: za, x, y, type: "heatmap", colorscale: scaleFor(scale), xaxis: "x", yaxis: "y",
+          colorbar: { x: 0.45, thickness: 8, len: 1, outlinewidth: 0, tickfont: { color: C.dim } }, hovertemplate: `%{y} · %{x}<br>${lbl(feat)}: %{z}<extra></extra>` },
+        { z: zb, x, y, type: "heatmap", colorscale: scaleFor(scale), xaxis: "x2", yaxis: "y",
+          colorbar: { x: 1.0, thickness: 8, len: 1, outlinewidth: 0, tickfont: { color: C.dim } }, hovertemplate: `%{y} · %{x}<br>${lbl(featB)}: %{z}<extra></extra>` },
       ];
-      layout = {
-        autosize: true, height: 780, margin: { l: 130, r: 50, t: 32, b: 90 },
-        xaxis: { domain: [0, 0.42], automargin: true, anchor: "y" },
-        xaxis2: { domain: [0.58, 0.95], automargin: true, anchor: "y" },
-        yaxis: { automargin: true },
+      layout = plotLayout({
+        autosize: true, height: 760, margin: { l: 130, r: 50, t: 34, b: 90 },
+        xaxis: { domain: [0, 0.42], automargin: true, anchor: "y", gridcolor: C.ruleSoft },
+        xaxis2: { domain: [0.58, 0.95], automargin: true, anchor: "y", gridcolor: C.ruleSoft },
+        yaxis: { automargin: true, gridcolor: C.ruleSoft },
         annotations: [
-          { text: lbl(feat), x: 0.21, y: 1.04, xref: "paper", yref: "paper", showarrow: false, font: { size: 13 } },
-          { text: lbl(featB), x: 0.76, y: 1.04, xref: "paper", yref: "paper", showarrow: false, font: { size: 13 } },
+          { text: lbl(feat), x: 0.21, y: 1.045, xref: "paper", yref: "paper", showarrow: false, font: { size: 11, color: C.dim } },
+          { text: lbl(featB), x: 0.76, y: 1.045, xref: "paper", yref: "paper", showarrow: false, font: { size: 11, color: C.dim } },
         ],
-        paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
-      };
+      });
     } else {
-      traces = [{ z: za, x, y, type: "heatmap", colorscale: scale, colorbar: { thickness: 12 },
+      traces = [{ z: za, x, y, type: "heatmap", colorscale: scaleFor(scale), colorbar: { thickness: 8, outlinewidth: 0, tickfont: { color: C.dim } },
                   hovertemplate: `%{y} · %{x}<br>${lbl(feat)}: %{z}<extra></extra>` }];
-      layout = { autosize: true, height: 780, margin: { l: 130, r: 10, t: 10, b: 90 },
-                 xaxis: { automargin: true }, yaxis: { automargin: true },
-                 paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)" };
+      layout = plotLayout({ autosize: true, height: 760, margin: { l: 130, r: 10, t: 12, b: 90 } });
     }
 
-    Plotly.react(ref.current, traces, layout, { responsive: true, displaylogo: false, toImageButtonOptions: { filename: "phyloflask-heatmap", scale: 2 } });
+    Plotly.react(ref.current, traces, layout, { ...PLOT_CONFIG, toImageButtonOptions: { filename: "phyloflask-heatmap", scale: 2 } });
 
     const div = ref.current;
     if (div.removeAllListeners) div.removeAllListeners("plotly_click");
@@ -122,12 +120,12 @@ export default function Heatmap() {
           <button className="btn btn-secondary" onClick={() => { setData(null); setFile(null); setSel(null); }}>Load another</button>
         </div>
 
-        <div style={{ fontSize: ".82rem", color: "var(--text-2)", marginBottom: 8 }}>
+        <div style={{ fontSize: ".82rem", color: "var(--dim)", marginBottom: 8 }}>
           <strong>{data.rows.length}</strong> species × <strong>{data.cols.length}</strong> domains
           {data.kind === "feature" && <> · <strong>{data.features.length}</strong> metrics per cell · <strong>click a cell</strong> to inspect all metrics</>}
         </div>
 
-        <div ref={ref} style={{ width: "100%", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
+        <div ref={ref} style={{ width: "100%", background: "var(--void)", border: "1px solid var(--rule)", borderRadius: 5 }} />
 
         {sel && <div className="card card-pad" style={{ marginTop: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -139,7 +137,7 @@ export default function Heatmap() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 8 }}>
             {Object.entries(sel.vals).map(([k, v]) => (
-              <div key={k} style={{ background: "var(--surface-2)", borderRadius: 8, padding: "8px 10px" }}>
+              <div key={k} style={{ background: "var(--panel-2)", borderRadius: 8, padding: "8px 10px" }}>
                 <div className="muted" style={{ fontSize: ".72rem" }}>{lbl(k)}</div>
                 <div style={{ fontWeight: 700 }}>{typeof v === "number" ? (Number.isInteger(v) ? v : v.toFixed(3)) : v}</div>
               </div>

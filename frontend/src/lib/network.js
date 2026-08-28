@@ -1,26 +1,27 @@
 // Shared network-view constants.
 //
-// AllVsAll and Explorer render the same MCL graph with cytoscape, but every
-// layout number was written twice with different values (nodeSeparation 140 vs
-// 170, nodeRepulsion 7000 vs 14000, gravity 0.25 vs 0.15...). One source now,
-// so the two views cannot drift apart again.
+// AllVsAll and Explorer render the same MCL graph with cytoscape; every layout
+// number used to be written twice with different values. One source now, all of
+// it derived from the palette in theme.js so the graphs sit in the same world as
+// the rest of the interface.
+import { C, clusterColor } from "./theme.js";
+
+export { clusterColor };
 
 export const TREE_DEPTH_DEFAULT = 6;
 export const TREE_DEPTH_MAX = 30;
 
 export const ZOOM = { minZoom: 0.1, maxZoom: 3.5, wheelSensitivity: 0.3 };
 
-export const NODE_SIZE = { min: 14, max: 42 };
-export const NODE_SIZE_COMPACT = { min: 8, max: 24 };
+export const NODE_SIZE = { min: 12, max: 38 };
+export const NODE_SIZE_COMPACT = { min: 7, max: 22 };
 
-export const INK = "#0e1726";
-export const MUTED = "#c2cad9";
-export const HIGHLIGHT = "#e11d48";
-
-// Distinct hues from a small integer, spaced so neighbouring clusters differ.
-export const HUE_STEP = 47;
-export const clusterColor = (c, { muted = "#94a3b8", saturation = 66 } = {}) =>
-  c == null ? muted : `hsl(${(c * HUE_STEP) % 360},${saturation}%,55%)`;
+export const INK = C.paper;          // labels drawn on the dark canvas
+export const MUTED = C.dim2 || "#635D91";
+export const HIGHLIGHT = C.signal;
+export const EDGE = "rgba(140,130,220,.18)";
+export const EDGE_FADED = "rgba(140,130,220,.04)";
+export const LABEL_BG = C.panel2;
 
 export const fcose = (overrides = {}) => ({
   name: "fcose",
@@ -30,7 +31,6 @@ export const fcose = (overrides = {}) => ({
   packComponents: true,
   nodeSeparation: 150,
   idealEdgeLength: 68,
-  nodeRepresentation: undefined,
   nodeRepulsion: 9000,
   gravity: 0.2,
   gravityRange: 3.8,

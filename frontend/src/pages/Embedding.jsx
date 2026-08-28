@@ -5,7 +5,7 @@ import Status from "../components/Status.jsx";
 import { lbl } from "../lib/matrix.js";
 import { API, loadMatrix, postJSON } from "../lib/api.js";
 
-import { INK, clusterColor as cc } from "../lib/network.js";
+import { C, PLOT_CONFIG, plotLayout, clusterColor as cc } from "../lib/theme.js";
 
 const L = { display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" };
 
@@ -83,23 +83,22 @@ export default function Embedding() {
       x: idxs.map((i) => emb.coords[i][0]), y: idxs.map((i) => emb.coords[i][1]),
       text: idxs.map((i) => names[i]), customdata: idxs,
       name: `cluster ${l} (${counts[l] || 0})`, type: "scattergl", mode: "markers",
-      marker: { size: 8, color: cc(+l), opacity: group == null || +l === group ? 0.9 : 0.08, line: { width: 0.5, color: "rgba(255,255,255,.7)" } },
+      marker: { size: 7, color: cc(+l), opacity: group == null || +l === group ? 0.92 : 0.07, line: { width: 0.5, color: "rgba(13,11,26,.8)" } },
       hovertemplate: `%{text}<extra>cluster ${l}</extra>`,
     }));
     if (selIdx != null && emb.coords[selIdx]) {
       traces.push({
         x: [emb.coords[selIdx][0]], y: [emb.coords[selIdx][1]], type: "scattergl", mode: "markers",
-        marker: { size: 20, color: "rgba(0,0,0,0)", line: { width: 3, color: INK } },
+        marker: { size: 20, color: "rgba(0,0,0,0)", line: { width: 2, color: C.signal } },
         hoverinfo: "skip", showlegend: false,
       });
     }
-    Plotly.react(ref.current, traces, {
-      autosize: true, height: 640, margin: { l: 36, r: 10, t: 10, b: 36 },
-      xaxis: { zeroline: false, showgrid: true, gridcolor: "rgba(18,28,54,.06)", title: { text: method === "pca" ? "PC1" : "dim 1" } },
-      yaxis: { zeroline: false, showgrid: true, gridcolor: "rgba(18,28,54,.06)", title: { text: method === "pca" ? "PC2" : "dim 2" } },
-      legend: { orientation: "v", x: 1.01, y: 1, font: { size: 10 } },
-      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
-    }, { responsive: true, displaylogo: false, toImageButtonOptions: { filename: "phyloflask-embedding", scale: 2 } });
+    Plotly.react(ref.current, traces, plotLayout({
+      autosize: true, height: 620, margin: { l: 42, r: 10, t: 12, b: 42 },
+      xaxis: { zeroline: false, showgrid: true, gridcolor: C.ruleSoft, title: { text: method === "pca" ? "PC1" : "dim 1" } },
+      yaxis: { zeroline: false, showgrid: true, gridcolor: C.ruleSoft, title: { text: method === "pca" ? "PC2" : "dim 2" } },
+      legend: { orientation: "v", x: 1.01, y: 1, font: { size: 10, color: C.dim } },
+    }), { ...PLOT_CONFIG, toImageButtonOptions: { filename: "phyloflask-embedding", scale: 2 } });
 
     // Zoom to the selected point so it's easy to find.
     if (selIdx != null && emb.coords[selIdx]) {
@@ -150,7 +149,7 @@ export default function Embedding() {
           <button className="btn btn-secondary" onClick={() => { setData(null); setFile(null); setEmb(null); setSelIdx(null); setFileId(null); }}>Load another</button>
         </div>
 
-        <div style={{ fontSize: ".82rem", color: "var(--text-2)", marginBottom: 8 }}>
+        <div style={{ fontSize: ".82rem", color: "var(--dim)", marginBottom: 8 }}>
           <strong>{npoints}</strong> {axis} projected{emb ? ` · ${emb.n_clusters} groups` : ""}{busy ? " · computing…" : ""}
           {selIdx != null && names[selIdx] && <> · selected <strong style={{ wordBreak: "break-all" }}>{names[selIdx]}</strong> (cluster {emb.labels[selIdx]})</>}
         </div>
@@ -158,7 +157,7 @@ export default function Embedding() {
         {busy && <Status s={status} />}
 
         <div className="explorer-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 12 }}>
-          <div ref={ref} style={{ width: "100%", minHeight: 200, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
+          <div ref={ref} style={{ width: "100%", minHeight: 200, background: "var(--void)", border: "1px solid var(--rule)", borderRadius: 5 }} />
           {emb && <div className="card" style={{ padding: 12, display: "flex", flexDirection: "column", height: 640 }}>
             <input className="input" placeholder="Search a name…" value={query} onChange={(e) => setQuery(e.target.value)} style={{ marginBottom: 10 }} />
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
@@ -170,13 +169,13 @@ export default function Embedding() {
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: ".75rem", color: "var(--text-3)", marginBottom: 6 }}>{members.length} match{members.length === 1 ? "" : "es"}</div>
+            <div style={{ fontSize: ".75rem", color: "var(--dim-2)", marginBottom: 6 }}>{members.length} match{members.length === 1 ? "" : "es"}</div>
             <div style={{ overflowY: "auto", flex: 1, marginRight: -6, paddingRight: 6 }}>
               {members.slice(0, 200).map((m) => (
                 <button key={m.i} onClick={() => setSelIdx(m.i)}
                         style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", border: "none",
-                                 background: selIdx === m.i ? "var(--accent-soft)" : "transparent", cursor: "pointer", padding: "6px 8px",
-                                 borderRadius: 8, fontSize: ".78rem", color: "var(--text)", wordBreak: "break-all" }}>
+                                 background: selIdx === m.i ? "var(--signal-soft)" : "transparent", cursor: "pointer", padding: "6px 8px",
+                                 borderRadius: 8, fontSize: ".78rem", color: "var(--paper)", wordBreak: "break-all" }}>
                   <span style={{ width: 9, height: 9, borderRadius: 9, background: cc(m.label), flex: "0 0 9px" }} />
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
                 </button>

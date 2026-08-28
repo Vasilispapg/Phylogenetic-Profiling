@@ -4,13 +4,17 @@ import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
 import { API, uploadFile } from "../lib/api.js";
 import { TREE_DEPTH_DEFAULT, TREE_DEPTH_MAX } from "../lib/network.js";
+import { C, clusterColor } from "../lib/theme.js";
 
 const genus = (name) => { const p = (name || "").split("-"); return p.length > 2 ? p[2].split("_")[0] : (name || ""); };
 const genusColor = (d) => {
-  if (d.children || d._children) return d._children ? "#2f6bff" : "#9aa3b5";
-  const g = genus(d.data.name); if (!g) return "#9aa3b5";
-  let h = 0; for (const c of g) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return `hsl(${h},60%,55%)`;
+  // Collapsed nodes are the ones you can still open, so they get the signal.
+  if (d.children || d._children) return d._children ? C.signal : C.dim;
+  const g = genus(d.data.name);
+  if (!g) return C.dim;
+  let h = 0;
+  for (const c of g) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${h},52%,64%)`;
 };
 const W = 1000, H = 900, R = W / 2 - 60;
 
@@ -43,16 +47,16 @@ export default function TreeViewer() {
     const update = () => {
       d3.tree().size([2 * Math.PI, R])(root);
       g.selectAll("path.lk").data(root.links(), (d) => d.target.id).join("path")
-        .attr("class", "lk").attr("fill", "none").attr("stroke", "rgba(18,28,54,.22)").attr("stroke-width", 1)
+        .attr("class", "lk").attr("fill", "none").attr("stroke", "rgba(140,130,220,.28)").attr("stroke-width", 1)
         .attr("d", d3.linkRadial().angle((d) => d.x).radius((d) => d.y));
       const node = g.selectAll("g.nd").data(root.descendants(), (d) => d.id).join((enter) => {
         const e = enter.append("g").attr("class", "nd");
-        e.append("circle").attr("stroke", "#fff").attr("stroke-width", 1.5).style("cursor", "pointer");
-        e.append("text").attr("dy", "0.32em").attr("font-size", 9).attr("fill", "#0e1726");
+        e.append("circle").attr("stroke", C.void).attr("stroke-width", 1.5).style("cursor", "pointer");
+        e.append("text").attr("dy", "0.32em").attr("font-size", 9).attr("font-family", "IBM Plex Mono, monospace").attr("fill", C.paper);
         return e;
       });
       node.attr("transform", (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`);
-      node.select("circle").attr("r", (d) => (d._children ? 6 : 4)).attr("fill", genusColor);
+      node.select("circle").attr("r", (d) => (d._children ? 5 : 3)).attr("fill", genusColor);
       node.select("text")
         .attr("x", (d) => ((d.x < Math.PI) === !d.children ? 8 : -8))
         .style("text-anchor", (d) => ((d.x < Math.PI) === !d.children ? "start" : "end"))
@@ -73,7 +77,7 @@ export default function TreeViewer() {
       t.ancestors().forEach((a) => { if (a._children) { a.children = a._children; a._children = null; } });
       update();
       const onPath = new Set(t.ancestors().map((a) => a.id));
-      g.selectAll("path.lk").attr("stroke", (d) => (onPath.has(d.target.id) ? "#e44c65" : "rgba(18,28,54,.22)"))
+      g.selectAll("path.lk").attr("stroke", (d) => (onPath.has(d.target.id) ? C.signal : "rgba(140,130,220,.28)"))
         .attr("stroke-width", (d) => (onPath.has(d.target.id) ? 2.5 : 1));
     };
     svg.call(d3.zoom().scaleExtent([0.4, 4]).on("zoom", (e) => g.attr("transform", e.transform)));
@@ -105,7 +109,7 @@ export default function TreeViewer() {
           <button className="btn btn-secondary" onClick={() => ctl.current.expandToDepth(1)}>Collapse</button>
         </div>
         <Status s={status} />
-        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 900, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
+        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", background: "var(--void)", border: "1px solid var(--rule)", borderRadius: 5 }} />
       </>}
     </div>
   );

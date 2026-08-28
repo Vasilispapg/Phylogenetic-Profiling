@@ -6,7 +6,8 @@ import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
 import { transform } from "../lib/matrix.js";
 import { API, postJSON, uploadFile, loadMatrix, poll, getJSON } from "../lib/api.js";
-import { HIGHLIGHT, INK, NODE_SIZE_COMPACT, ZOOM, clusterColor as cc, fcose as fcoseOpts } from "../lib/network.js";
+import { EDGE, EDGE_FADED, HIGHLIGHT, INK, NODE_SIZE_COMPACT, ZOOM, clusterColor as cc, fcose as fcoseOpts } from "../lib/network.js";
+import { C, PLOT_CONFIG, VIRIDIS, plotLayout } from "../lib/theme.js";
 
 cytoscape.use(fcose);
 
@@ -58,14 +59,13 @@ export default function Explorer() {
     const z = ro.map((i) => co.map((j) => t[i][j]));
     const text = ro.map((i) => co.map((j) => `${rows[i]}<br>${cols[j]}`));
     Plotly.react(hmRef.current, [{
-      z, x: co.map((_, j) => j), y: ro.map((_, i) => i), text, type: "heatmap", colorscale: "YlGnBu",
+      z, x: co.map((_, j) => j), y: ro.map((_, i) => i), text, type: "heatmap", colorscale: VIRIDIS,
       showscale: false, hovertemplate: "%{text}<extra></extra>",
-    }], {
-      autosize: true, height: 540, margin: { l: 6, r: 6, t: 6, b: 6 },
+    }], plotLayout({
+      autosize: true, height: 520, margin: { l: 6, r: 6, t: 6, b: 6 },
       xaxis: { showticklabels: false, showgrid: false, zeroline: false, ticks: "" },
       yaxis: { showticklabels: false, showgrid: false, zeroline: false, ticks: "" },
-      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
-    }, { responsive: true, displaylogo: false });
+    }), PLOT_CONFIG);
     const div = hmRef.current;
     if (div.removeAllListeners) div.removeAllListeners("plotly_click");
     div.on("plotly_click", (e) => { const pt = e.points[0]; if (pt) setSel(colNames[Math.round(pt.x)] ?? null); });
@@ -90,10 +90,10 @@ export default function Explorer() {
       style: [
         { selector: "node", style: { "background-color": "data(color)", width: `mapData(deg,1,${maxDeg},${NODE_SIZE_COMPACT.min},${NODE_SIZE_COMPACT.max})`,
             height: `mapData(deg,1,${maxDeg},${NODE_SIZE_COMPACT.min},${NODE_SIZE_COMPACT.max})`, "border-width": 0 } },
-        { selector: "node.faded", style: { "background-opacity": 0.1 } },
-        { selector: "node.hl", style: { "border-width": 3, "border-color": INK } },
-        { selector: "edge", style: { "line-color": "rgba(18,28,54,.07)", "curve-style": "haystack", width: `mapData(weight,0,1,.25,1.6)` } },
-        { selector: "edge.faded", style: { "line-opacity": 0.02 } },
+        { selector: "node.faded", style: { "background-opacity": 0.08 } },
+        { selector: "node.hl", style: { "border-width": 2, "border-color": C.signal } },
+        { selector: "edge", style: { "line-color": EDGE, "curve-style": "haystack", width: `mapData(weight,0,1,.25,1.6)` } },
+        { selector: "edge.faded", style: { "line-color": EDGE_FADED } },
         { selector: "edge.hl", style: { "line-color": HIGHLIGHT, "line-opacity": 0.9, width: 2 } },
       ],
       layout: fcoseOpts({ padding: 40 }),
@@ -175,16 +175,16 @@ export default function Explorer() {
         </div>
         <div className="explorer-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
-            <div style={{ fontSize: ".8rem", color: "var(--text-2)", marginBottom: 6 }}>Clustered heatmap · species × domains</div>
-            <div ref={hmRef} style={{ width: "100%", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
+            <div style={{ fontSize: ".8rem", color: "var(--dim)", marginBottom: 6 }}>Clustered heatmap · species × domains</div>
+            <div ref={hmRef} style={{ width: "100%", background: "var(--void)", border: "1px solid var(--rule)", borderRadius: 5 }} />
           </div>
           <div>
-            <div style={{ fontSize: ".8rem", color: "var(--text-2)", marginBottom: 6 }}>
+            <div style={{ fontSize: ".8rem", color: "var(--dim)", marginBottom: 6 }}>
               Domain network · MCL clusters
               {net.edges_total > net.edges.length &&
                 ` · strongest ${net.edges.length.toLocaleString()} of ${net.edges_total.toLocaleString()} links`}
             </div>
-            <div ref={netRef} style={{ width: "100%", height: 540, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
+            <div ref={netRef} style={{ width: "100%", height: 540, background: "var(--void)", border: "1px solid var(--rule)", borderRadius: 5 }} />
           </div>
         </div>
       </>}

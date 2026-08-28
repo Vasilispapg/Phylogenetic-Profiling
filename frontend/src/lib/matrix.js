@@ -12,7 +12,7 @@ export const FEATURE_LABELS = {
   min_evalue: "min e-value",
   value: "value",
 };
-export const COLORSCALES = ["Viridis", "Cividis", "Plasma", "YlGnBu", "Hot", "Blues", "RdBu", "Electric"];
+export const COLORSCALES = ["Viridis", "Cividis", "Plasma", "Magma", "Inferno", "Turbo", "YlGnBu", "RdBu"];
 export const lbl = (f) => FEATURE_LABELS[f] || f;
 
 // Order rows/cols by descending total (groups similar) or alphabetically.

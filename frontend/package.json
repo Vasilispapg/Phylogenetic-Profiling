@@ -10,8 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@fontsource/inter": "^5.3.0",
-    "@fontsource/space-grotesk": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
     "@fortawesome/fontawesome-free": "^7.3.1",
     "cytoscape": "^3.30.2",
     "cytoscape-fcose": "^2.2.0",
