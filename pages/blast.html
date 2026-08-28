@@ -60,13 +60,13 @@ document.addEventListener("DOMContentLoaded", () => {
             result.innerHTML = "";
             processButton.disabled = true;
             uploadedName = "";
-            Phylo.status(statusEl, "Uploading&hellip;", "info", true);
+            Phylo.status(statusEl, "Uploading…", "info", true);
             try {
                 const res = await Phylo.upload("/upload", file);
                 if (res.status === "success") {
                     uploadedName = res.filename;
                     processButton.disabled = false;
-                    Phylo.status(statusEl, '<i class="fas fa-check"></i> File uploaded. Choose an analysis type.', "success");
+                    Phylo.status(statusEl, "File uploaded. Choose an analysis type.", "success");
                 } else {
                     Phylo.status(statusEl, res.message || "Upload failed.", "error");
                 }
@@ -81,7 +81,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!uploadedName) { Phylo.status(statusEl, "Please upload a file first.", "error"); return; }
 
         result.innerHTML = "";
-        Phylo.status(statusEl, "Processing&hellip; please wait.", "info", true);
+        Phylo.status(statusEl, "Processing… please wait.", "info", true);
         try {
             const res = await fetch("/process", {
                 method: "POST",
@@ -90,7 +90,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }).then((r) => r.json());
 
             if (res.status === "success") {
-                Phylo.status(statusEl, '<i class="fas fa-check"></i> Analysis completed.', "success");
+                Phylo.status(statusEl, "Analysis completed.", "success");
                 const url = `/downloads/${encodeURIComponent(res.filename)}`;
                 result.innerHTML =
                     `<a href="${url}" class="futuristic-btn-secondary" target="_blank">` +

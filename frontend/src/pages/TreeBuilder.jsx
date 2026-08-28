@@ -20,7 +20,7 @@ export default function TreeBuilder() {
       const done = await poll(() => `/tools/tree_status?job_id=${encodeURIComponent(res.job_id)}`, {
         interval: 3000, isDone: (d) => d.status === "completed", isFailed: (d) => d.status === "failed",
       });
-      setStatus({ kind: "success", msg: '<i class="fa-solid fa-check"></i> Tree construction completed.' });
+      setStatus({ kind: "success", msg: "Tree construction completed." });
       setResult(done);
     } catch (e) { setStatus({ kind: "error", msg: "Tree construction failed: " + (e.message || "unknown error") }); }
   };

@@ -38,10 +38,32 @@ window.Phylo = (function () {
   }
 
   // Set a themed status banner. kind: info | error | success.
+  //
+  // `message` is plain text and is inserted with textContent: it often carries
+  // str(exception) straight from the API, which must never be parsed as HTML.
+  // The icon comes from `kind`, so callers do not hand-write markup.
+  const STATUS_ICON = { success: "fa-check", error: "fa-triangle-exclamation", info: "fa-info-circle" };
   function status(el, message, kind, withProgress) {
     if (!el) return;
-    el.className = `tool-status show is-${kind || "info"}`;
-    el.innerHTML = message + (withProgress ? '<div class="tool-progress"><span></span></div>' : "");
+    kind = kind || "info";
+    el.className = `tool-status show is-${kind}`;
+    el.replaceChildren();
+
+    const icon = document.createElement("i");
+    icon.className = `fas ${STATUS_ICON[kind] || STATUS_ICON.info}`;
+    icon.setAttribute("aria-hidden", "true");
+    el.appendChild(icon);
+
+    const text = document.createElement("span");
+    text.textContent = message;
+    el.appendChild(text);
+
+    if (withProgress) {
+      const bar = document.createElement("div");
+      bar.className = "tool-progress";
+      bar.appendChild(document.createElement("span"));
+      el.appendChild(bar);
+    }
   }
   function clearStatus(el) { if (el) el.className = "tool-status"; }
 

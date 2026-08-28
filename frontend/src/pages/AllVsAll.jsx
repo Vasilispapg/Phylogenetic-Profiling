@@ -34,8 +34,8 @@ export default function AllVsAll() {
       const fn = res.filename;
       await poll(() => `/allvsall_status/${encodeURIComponent(fn)}`, {
         interval: 2000,
-        isDone: (d) => d.status === "success" && d.message === "Completed.",
-        isFailed: (d) => d.status === "error" || (d.message || "").startsWith("Error"),
+        isDone: (d) => d.state === "done",
+        isFailed: (d) => d.state === "failed" || d.status === "error",
         onTick: (d) => d.message && setStatus({ kind: "info", msg: d.message, progress: true }),
       });
       const { body: d } = await getJSON(`/allvsall_data/${encodeURIComponent(fn)}`);
@@ -223,6 +223,8 @@ export default function AllVsAll() {
 
         <div style={{ fontSize: ".82rem", color: "var(--text-2)", margin: "0 0 8px" }}>
           <strong>{info.shown}</strong> domains shown · <strong>{info.iso}</strong> isolated · <strong>{info.links}</strong> links ≥ {minW.toFixed(2)}
+          {data.edges_total > data.edges.length &&
+            ` · server sent the strongest ${data.edges.length.toLocaleString()} of ${data.edges_total.toLocaleString()}`}
         </div>
 
         <div style={{ position: "relative" }}>

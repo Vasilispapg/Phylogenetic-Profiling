@@ -43,18 +43,43 @@ export async function getJSON(url) {
   return { status: r.status, body: await asJSON(r, "the server") };
 }
 
-// Generic poller. opts: { interval, isDone, isFailed, onTick }
-export function poll(urlFn, { interval = 2500, isDone, isFailed, onTick } = {}) {
+// Generic poller.
+//
+// setTimeout-chained rather than setInterval: a slow response must not stack up
+// overlapping requests. A single transient network error no longer kills a job
+// that is still running on the server -- it takes `maxErrors` in a row, with
+// backoff -- and the whole thing gives up after `timeout` instead of polling
+// forever when a job is stuck.
+export function poll(urlFn, {
+  interval = 2500,
+  timeout = 30 * 60 * 1000,
+  maxErrors = 3,
+  isDone,
+  isFailed,
+  onTick,
+} = {}) {
   return new Promise((resolve, reject) => {
-    const id = setInterval(async () => {
+    const startedAt = Date.now();
+    let errors = 0;
+
+    const tick = async () => {
+      if (Date.now() - startedAt > timeout) {
+        return reject(new Error("Timed out waiting for the job. It may still be running on the server."));
+      }
       try {
         const res = await fetch(typeof urlFn === "function" ? urlFn() : urlFn);
-        if (res.status === 404) { clearInterval(id); return reject(new Error("Job not found")); }
+        if (res.status === 404) return reject(new Error("Job not found"));
         const data = await asJSON(res, "status endpoint");
+        errors = 0;
         onTick && onTick(data);
-        if (isDone(data)) { clearInterval(id); resolve(data); }
-        else if (isFailed && isFailed(data)) { clearInterval(id); reject(new Error(data.message || "failed")); }
-      } catch (e) { clearInterval(id); reject(e); }
-    }, interval);
+        if (isDone(data)) return resolve(data);
+        if (isFailed && isFailed(data)) return reject(new Error(data.message || "failed"));
+      } catch (e) {
+        if (++errors >= maxErrors) return reject(e);
+      }
+      setTimeout(tick, interval * 2 ** errors);
+    };
+
+    setTimeout(tick, interval);
   });
 }

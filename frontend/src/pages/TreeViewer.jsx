@@ -26,7 +26,7 @@ export default function TreeViewer() {
     setStatus({ kind: "info", msg: "Processing tree…", progress: true });
     try {
       const res = await uploadFile("/tools/tree_viewer", file);
-      if (res.status === "success") { setTree(res.tree_data); setStatus({ kind: "success", msg: '<i class="fa-solid fa-check"></i> Tree loaded — click nodes to expand/collapse.' }); }
+      if (res.status === "success") { setTree(res.tree_data); setStatus({ kind: "success", msg: "Tree loaded — click nodes to expand/collapse." }); }
       else setStatus({ kind: "error", msg: res.message || "Failed to load tree." });
     } catch { setStatus({ kind: "error", msg: "An error occurred while processing the tree." }); }
   };

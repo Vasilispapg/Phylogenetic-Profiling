@@ -53,7 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        Phylo.status(statusEl, "Uploading&hellip;", "info", true);
+        Phylo.status(statusEl, "Uploading…", "info", true);
         try {
             const res = await Phylo.upload("/tools/tree_construct", file);
             if (res.status !== "success" || !res.job_id) {
@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            Phylo.status(statusEl, "Building tree&hellip; this can take a couple of minutes for large inputs.", "info", true);
+            Phylo.status(statusEl, "Building tree… this can take a couple of minutes for large inputs.", "info", true);
             const done = await Phylo.poll({
                 url: () => `/tools/tree_status?job_id=${encodeURIComponent(res.job_id)}`,
                 interval: 3000,
@@ -69,7 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 isFailed: (d) => d.status === "failed",
             });
 
-            Phylo.status(statusEl, '<i class="fas fa-check"></i> Tree construction completed.', "success");
+            Phylo.status(statusEl, "Tree construction completed.", "success");
             dl.innerHTML =
                 `<a href="${done.download_url}" class="futuristic-btn-secondary" target="_blank">` +
                 `<i class="fas fa-download"></i> Download ${done.original_filename}</a>`;

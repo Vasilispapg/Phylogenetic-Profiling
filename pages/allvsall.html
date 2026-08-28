@@ -231,13 +231,13 @@
     function pollForResults(filename) {
         const interval = setInterval(async () => {
             try {
-                const response = await fetch(`/allvsall_status/${filename}`);
+                const response = await fetch(`/allvsall_status/${encodeURIComponent(filename)}`);
                 const data = await response.json();
 
-                if (data.status === "success" && data.message === "Completed.") {
+                if (data.state === "done") {
                     clearInterval(interval);
                     fetchallvsallData(filename);
-                } else if (data.status === "error") {
+                } else if (data.state === "failed" || data.status === "error") {
                     clearInterval(interval);
                     hideLoader();
                     messageDiv.textContent = data.message;
@@ -256,7 +256,7 @@
     async function fetchallvsallData(filename) {
         try {
             setStep("Laying out the graph…");
-            const response = await fetch(`/allvsall_data/${filename}`);
+            const response = await fetch(`/allvsall_data/${filename}?include=matrix,positions`);
             const data = await response.json();
 
             if (data.status === "success") {

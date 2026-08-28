@@ -167,7 +167,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (res.status === "success") {
                 load(res.tree_data);
                 depthSlider.max = Math.max(4, res.max_depth_tree || 12);
-                Phylo.status(statusEl, '<i class="fas fa-check"></i> Tree loaded — click nodes to expand/collapse.', "success");
+                Phylo.status(statusEl, "Tree loaded — click nodes to expand/collapse.", "success");
             } else {
                 Phylo.status(statusEl, res.message || "Failed to load tree.", "error");
             }

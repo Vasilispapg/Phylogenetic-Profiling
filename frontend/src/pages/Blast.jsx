@@ -18,7 +18,7 @@ export default function Blast() {
       const res = await uploadFile("/upload", f);
       if (res.status === "success") {
         setUploaded(res.filename);
-        setStatus({ kind: "success", msg: '<i class="fa-solid fa-check"></i> File uploaded. Choose an analysis type.' });
+        setStatus({ kind: "success", msg: "File uploaded. Choose an analysis type." });
       } else setStatus({ kind: "error", msg: res.message || "Upload failed." });
     } catch { setStatus({ kind: "error", msg: "An error occurred during upload." }); }
   };
@@ -29,7 +29,7 @@ export default function Blast() {
     setResult(null); setStatus({ kind: "info", msg: "Processing… please wait.", progress: true });
     try {
       const res = await postJSON("/process", { filename: uploaded, analysis_type: type });
-      if (res.status === "success") { setStatus({ kind: "success", msg: '<i class="fa-solid fa-check"></i> Analysis completed.' }); setResult(res.filename); }
+      if (res.status === "success") { setStatus({ kind: "success", msg: "Analysis completed." }); setResult(res.filename); }
       else setStatus({ kind: "error", msg: res.message || "Processing failed." });
     } catch { setStatus({ kind: "error", msg: "An error occurred during processing." }); }
   };

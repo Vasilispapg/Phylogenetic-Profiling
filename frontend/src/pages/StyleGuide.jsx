@@ -40,7 +40,7 @@ export default function StyleGuide() {
       <Demo title="Status, loader & note">
         <div style={{ width: "100%", display: "grid", gap: 10 }}>
           <Status s={{ kind: "info", msg: "Processing…", progress: true }} />
-          <Status s={{ kind: "success", msg: '<i class="fa-solid fa-check"></i> Done.' }} />
+          <Status s={{ kind: "success", msg: "Done." }} />
           <Status s={{ kind: "error", msg: "Something went wrong." }} />
           <div className="loader"><div className="spin" /><div>Working…<br /><small className="muted">this can take a moment</small></div></div>
           <div className="note">7 domains → 3 clusters (modularity 0.71).</div>

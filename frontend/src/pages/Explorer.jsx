@@ -35,8 +35,8 @@ export default function Explorer() {
         const fn = up.filename;
         await poll(() => `/allvsall_status/${encodeURIComponent(fn)}`, {
           interval: 2000,
-          isDone: (s) => s.status === "success" && s.message === "Completed.",
-          isFailed: (s) => s.status === "error" || (s.message || "").startsWith("Error"),
+          isDone: (s) => s.state === "done",
+          isFailed: (s) => s.state === "failed" || s.status === "error",
         });
         const { body } = await getJSON(`/allvsall_data/${encodeURIComponent(fn)}`);
         if (body.status !== "success") throw new Error(body.message || "no network");
@@ -77,9 +77,10 @@ export default function Explorer() {
     if (!net || !netRef.current) return;
     const nc = net.node_cluster || {}, deg = net.degree || {};
     const maxDeg = Math.max(1, ...net.nodes.map((n) => deg[n] || 0));
-    // Keep only the strongest links so the MCL network reads as structure, not a hairball.
-    const keep = Math.min(net.edges.length, 5 * net.nodes.length);
-    const edges = [...net.edges].sort((a, b) => (b.weight || 0) - (a.weight || 0)).slice(0, keep);
+    // The API already sends only the strongest links (and reports edges_total),
+    // so the network reads as structure rather than a hairball without the client
+    // having to hide anything of its own.
+    const edges = net.edges;
     const cy = cytoscape({
       container: netRef.current,
       elements: [
@@ -177,7 +178,11 @@ export default function Explorer() {
             <div ref={hmRef} style={{ width: "100%", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
           </div>
           <div>
-            <div style={{ fontSize: ".8rem", color: "var(--text-2)", marginBottom: 6 }}>Domain network · MCL clusters</div>
+            <div style={{ fontSize: ".8rem", color: "var(--text-2)", marginBottom: 6 }}>
+              Domain network · MCL clusters
+              {net.edges_total > net.edges.length &&
+                ` · strongest ${net.edges.length.toLocaleString()} of ${net.edges_total.toLocaleString()} links`}
+            </div>
             <div ref={netRef} style={{ width: "100%", height: 540, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
           </div>
         </div>
