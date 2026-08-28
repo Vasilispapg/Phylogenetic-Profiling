@@ -46,6 +46,11 @@ These describe what the code does now, so you don't have to re-read it all.
 Every JSON endpoint lives under **`/api`**; everything else is a client-side
 route served by the SPA. See [`docs/API.md`](docs/API.md).
 
+Each tool page opens with a **how to read this tool** panel — the input format
+with a real excerpt, plus the judgements that decide whether the output means
+anything — and every drop zone offers **load an example file**, so any tool can
+be tried before you have data of your own.
+
 ## Frontend
 
 A single **Vite + React** SPA in [`frontend/`](frontend/), served by Flask at `/`

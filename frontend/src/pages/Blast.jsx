@@ -3,6 +3,8 @@ import Dropzone from "../components/Dropzone.jsx";
 import Stepper from "../components/Stepper.jsx";
 import Status from "../components/Status.jsx";
 import { API, uploadFile, postJSON } from "../lib/api.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 export default function Blast() {
   const [file, setFile] = useState(null);
@@ -41,8 +43,25 @@ export default function Blast() {
       <p className="muted">Upload a BLAST tabular file (<code>-outfmt 6</code>) to build a correlation matrix
          (species × domains) or a feature matrix.</p>
 
+      <Tips
+        format={"BLAST tabular (-outfmt 6) — 12 tab-separated columns, no header"}
+        sample={samplePreview("blast", 3)}
+        tips={[
+          <>The <b>species</b> is the first four dash-segments of the subject id:{" "}
+            <code>UP000005640-00009606-Homo_sapi-22-001536-E-013170</code> becomes{" "}
+            <code>UP000005640-00009606-Homo_sapi-22</code>.</>,
+          <>The <b>domain</b> is the whole query id. Everything before its first dash is the
+            protein accession, which the clustering later uses as an internal check.</>,
+          <>A hit counts as present only at <b>e-value ≤ 1e-5</b>. The example file includes one
+            weak hit that gets dropped, so you can see the cutoff do its work.</>,
+          <>Start with the <b>correlation matrix</b> — it is what every other tool takes. The
+            feature matrix carries five metrics per cell and feeds the heatmap's inspector.</>,
+        ]}
+      />
+
       <Dropzone accept=".blastp,.tsv,.tab,.txt,.out,.csv" hint="or click to browse · .blastp / .tsv / .txt"
-                file={file} onFile={onFile} />
+                file={file} onFile={onFile}
+                onSample={() => onFile(sampleFile("blast"))} />
 
       <div style={{ maxWidth: 420, marginTop: "1.25rem" }}>
         <label className="label" htmlFor="atype">Analysis type</label>

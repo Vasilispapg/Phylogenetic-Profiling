@@ -5,6 +5,8 @@ import Status from "../components/Status.jsx";
 import { transform, COLORSCALES, lbl } from "../lib/matrix.js";
 import { API, loadMatrix, postJSON } from "../lib/api.js";
 import { C, PLOT_CONFIG, plotLayout, scaleFor } from "../lib/theme.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 const L = { display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" };
 
@@ -109,7 +111,22 @@ export default function Clustergram() {
          and <strong>species groups</strong> emerge as blocks. Dendrograms top &amp; left; click a cell to inspect it.</p>
 
       {!data && <>
-        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv / feature_matrix.csv" file={file} onFile={onFile} />
+        <Tips
+          format={"A correlation matrix or a feature matrix"}
+          sample={samplePreview("matrix", 3)}
+          tips={[
+          <><b>Blocks</b> are the result: a set of domains present in the same set of species. That
+            is a candidate functional module.</>,
+          <>Distance is <b>correlation</b>, so rows group by the <i>shape</i> of a profile. A rare
+            domain and a common one can still land together if they rise and fall in step.</>,
+          <>A row or column with a constant profile has undefined correlation and is treated as
+            maximally distant, so it sits at the edge rather than joining a block.</>,
+          <>Dendrogram height is how late two branches merged — short joins are tight groups.</>,
+        ]}
+        />
+
+        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv / feature_matrix.csv" file={file} onFile={onFile}
+                  onSample={() => onFile(sampleFile("matrix"))} />
         <Status s={status} />
       </>}
 

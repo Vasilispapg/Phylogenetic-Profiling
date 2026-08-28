@@ -74,6 +74,21 @@ Buttons (`.btn` + `-primary` / `-secondary` / `-ghost`), inputs (`.input`,
 `.figure`, `.credit`. Tool pages use `.tool-head`, `.toolbar`, `.readout` and
 `.canvas`.
 
+### Guidance
+
+Every tool page carries a [`Tips`](../frontend/src/components/Tips.jsx) panel:
+the shape of the input file with a real excerpt, then the two to four judgements
+that decide whether the output means anything — which threshold matters, which
+distances are trustworthy, what to read before believing the picture. It is
+collapsed by default so it never competes with the work.
+
+Each drop zone also offers **load an example file**. The samples live in
+[`lib/samples.js`](../frontend/src/lib/samples.js) and are built to teach: the
+BLAST one straddles the e-value cutoff so the filter is visible in the result,
+and the matrix holds hit counts rather than booleans so the colour scale means
+something. A sample is handed over as a real `File`, so it travels the same
+upload path, the same validation and the same endpoints as your own data.
+
 Plot chrome comes from `plotLayout()` so every figure shares one grid colour,
 one hover style and one type stack. Network views take their constants from
 [`lib/network.js`](../frontend/src/lib/network.js).

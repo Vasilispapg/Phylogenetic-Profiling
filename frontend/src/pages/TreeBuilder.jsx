@@ -3,6 +3,8 @@ import Dropzone from "../components/Dropzone.jsx";
 import Stepper from "../components/Stepper.jsx";
 import Status from "../components/Status.jsx";
 import { API, uploadFile, poll } from "../lib/api.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 export default function TreeBuilder() {
   const [file, setFile] = useState(null);
@@ -32,7 +34,22 @@ export default function TreeBuilder() {
       <p className="muted">Upload a <strong>correlation matrix CSV</strong> (species × domains, from BLAST → Correlation).
          A Neighbour-Joining tree is built from the Jaccard distances between domain profiles.</p>
 
-      <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · .csv (species × domains)" file={file} onFile={setFile} />
+      <Tips
+        format={"A correlation matrix (species × domains) — not the BLAST file"}
+        sample={samplePreview("matrix", 3)}
+        tips={[
+          <>Distances are <b>Jaccard</b> between binary profiles, so branch lengths are in Jaccard
+            units: 0 means identical presence patterns, 1 means they share nothing.</>,
+          <>Species with an <b>empty profile</b> are dropped (Jaccard is undefined for two empty
+            sets) and duplicate labels are merged before the tree is built.</>,
+          <><b>Neighbour-Joining</b> is O(n³). Past the taxon limit the build refuses rather than
+            running for hours, and points you at UPGMA — much faster, but it assumes a constant rate.</>,
+          <>The result is a Newick file. Open it in the tree viewer to read it.</>,
+        ]}
+      />
+
+      <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · .csv (species × domains)" file={file} onFile={setFile}
+                onSample={() => setFile(sampleFile("matrix"))} />
 
       <div style={{ marginTop: "1rem" }}>
         <button className="btn btn-primary" onClick={start}><i className="fa-solid fa-play" /> Start construction</button>

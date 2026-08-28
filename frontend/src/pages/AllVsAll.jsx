@@ -6,6 +6,8 @@ import Stepper from "../components/Stepper.jsx";
 import Status from "../components/Status.jsx";
 import { API, uploadFile, poll, getJSON } from "../lib/api.js";
 import { EDGE, EDGE_FADED, HIGHLIGHT, INK, LABEL_BG, MUTED, NODE_SIZE, ZOOM, clusterColor, fcose as fcoseOpts } from "../lib/network.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 cytoscape.use(fcose);
 
@@ -188,7 +190,22 @@ export default function AllVsAll() {
          graph into tighter groups.</p>
 
       {!data && <>
-        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · .csv (species × domains)" file={file} onFile={setFile} />
+        <Tips
+          format={"A correlation matrix (species × domains)"}
+          sample={samplePreview("matrix", 3)}
+          tips={[
+          <>Read the <b>modularity</b> in the banner before you read the picture. Below about 0.05
+            there is no community structure and the layout is showing you nothing.</>,
+          <>Raise <b>min similarity</b> to break a hairball apart; the counts underneath say how many
+            domains and links survive the threshold.</>,
+          <>Edges are <b>Jaccard similarity</b> between presence profiles, 0.5 or higher by default.</>,
+          <>The <b>same-protein co-clustering rate</b> is the internal check: domains of one protein
+            are physically linked, so they ought to land in the same cluster.</>,
+        ]}
+        />
+
+        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · .csv (species × domains)" file={file} onFile={setFile}
+                  onSample={() => setFile(sampleFile("matrix"))} />
         <div style={{ marginTop: "1rem" }}>
           <button className="btn btn-primary" onClick={start}><i className="fa-solid fa-share-nodes" /> Generate graph</button>
         </div>

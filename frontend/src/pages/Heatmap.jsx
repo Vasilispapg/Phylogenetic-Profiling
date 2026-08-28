@@ -5,6 +5,8 @@ import Status from "../components/Status.jsx";
 import { computeOrder, transform, COLORSCALES, lbl } from "../lib/matrix.js";
 import { C, PLOT_CONFIG, plotLayout, scaleFor } from "../lib/theme.js";
 import { loadMatrix } from "../lib/api.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 const L = { display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" };
 
@@ -88,7 +90,22 @@ export default function Heatmap() {
          <strong> compare-two-metrics</strong> view, and a <strong>click-to-inspect</strong> cell panel. Box-zoom, hover, export PNG.</p>
 
       {!data && <>
-        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv / feature_matrix.csv" file={file} onFile={onFile} />
+        <Tips
+          format={"A correlation matrix (hit counts) or a feature matrix (JSON per cell)"}
+          sample={samplePreview("matrix", 3)}
+          tips={[
+          <>A <b>feature matrix</b> unlocks the metric selector, the compare-two view and the cell
+            inspector. A correlation matrix has one value per cell, so those controls stay hidden.</>,
+          <>Normalize <b>per domain</b> when domains differ wildly in abundance — otherwise one
+            common domain flattens the colour scale for everything else.</>,
+          <><b>Log</b> helps when a few cells dominate. It changes colour only; the inspector always
+            shows the raw numbers.</>,
+          <>Click any cell to read every metric for that species and domain at once.</>,
+        ]}
+        />
+
+        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv / feature_matrix.csv" file={file} onFile={onFile}
+                  onSample={() => onFile(sampleFile("matrix"))} />
         <Status s={status} />
       </>}
 

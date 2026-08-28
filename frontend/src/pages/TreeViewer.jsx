@@ -5,6 +5,8 @@ import Status from "../components/Status.jsx";
 import { API, uploadFile } from "../lib/api.js";
 import { TREE_DEPTH_DEFAULT, TREE_DEPTH_MAX } from "../lib/network.js";
 import { C, clusterColor } from "../lib/theme.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 const genus = (name) => { const p = (name || "").split("-"); return p.length > 2 ? p[2].split("_")[0] : (name || ""); };
 const genusColor = (d) => {
@@ -93,7 +95,22 @@ export default function TreeViewer() {
          and colour leaves by genus.</p>
 
       {!tree && <>
-        <Dropzone accept=".nw,.newick,.nwk,.txt" hint="or click to browse · .nw" file={file} onFile={setFile} />
+        <Tips
+          format={"Newick (.nw) — nested parentheses ending in a semicolon"}
+          sample={samplePreview("newick", 1)}
+          tips={[
+          <>Click any node to <b>collapse or expand</b> it; the depth slider sets how far everything
+            opens at once.</>,
+          <><b>Search</b> a species to highlight the path from the root down to it.</>,
+          <>Leaves are coloured by <b>genus</b> — the third dash-segment of the species key — so
+            related species share a colour.</>,
+          <>Branch lengths come from whatever built the tree; from the tree builder they are Jaccard
+            distances between domain profiles.</>,
+        ]}
+        />
+
+        <Dropzone accept=".nw,.newick,.nwk,.txt" hint="or click to browse · .nw" file={file} onFile={setFile}
+                  onSample={() => setFile(sampleFile("newick"))} />
         <div style={{ marginTop: "1rem" }}><button className="btn btn-primary" onClick={upload}><i className="fa-solid fa-sitemap" /> View tree</button></div>
         <Status s={status} />
       </>}

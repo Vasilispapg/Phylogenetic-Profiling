@@ -6,6 +6,8 @@ import { lbl } from "../lib/matrix.js";
 import { API, loadMatrix, postJSON } from "../lib/api.js";
 
 import { C, PLOT_CONFIG, plotLayout, clusterColor as cc } from "../lib/theme.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 const L = { display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" };
 
@@ -124,7 +126,22 @@ export default function Embedding() {
          group on the right to inspect members; click anything to zoom to it.</p>
 
       {!data && <>
-        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv / feature_matrix.csv" file={file} onFile={onFile} />
+        <Tips
+          format={"A correlation matrix or a feature matrix"}
+          sample={samplePreview("matrix", 3)}
+          tips={[
+          <><b>PCA</b> distances mean something globally. <b>t-SNE</b> distances mean something only
+            locally — the gap between two t-SNE blobs is not evidence of anything.</>,
+          <><b>k</b> changes the colouring, not the positions. If the colours disagree with what you
+            see, that is KMeans disagreeing with the projection, which is itself informative.</>,
+          <>Embed <b>domains</b> to look for functional modules; embed <b>species</b> to see which
+            genomes carry similar repertoires.</>,
+          <>Search a name on the right to filter the list and zoom the map to that point.</>,
+        ]}
+        />
+
+        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv / feature_matrix.csv" file={file} onFile={onFile}
+                  onSample={() => onFile(sampleFile("matrix"))} />
         <Status s={status} />
       </>}
 

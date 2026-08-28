@@ -8,6 +8,8 @@ import { transform } from "../lib/matrix.js";
 import { API, postJSON, uploadFile, loadMatrix, poll, getJSON } from "../lib/api.js";
 import { EDGE, EDGE_FADED, HIGHLIGHT, INK, NODE_SIZE_COMPACT, ZOOM, clusterColor as cc, fcose as fcoseOpts } from "../lib/network.js";
 import { C, PLOT_CONFIG, VIRIDIS, plotLayout } from "../lib/theme.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 cytoscape.use(fcose);
 
@@ -148,7 +150,21 @@ export default function Explorer() {
          other view lights up the match and its neighbours. Upload a correlation matrix to begin.</p>
 
       {!net && <>
-        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv" file={file} onFile={setFile} />
+        <Tips
+          format={"A correlation matrix (species × domains)"}
+          sample={samplePreview("matrix", 3)}
+          tips={[
+          <>Click a <b>heatmap column</b> or a <b>network node</b>: both views follow the same
+            selection, which is the point of having them side by side.</>,
+          <>The network carries only the <b>strongest links</b> — the caption says how many of how
+            many. It is a view of the graph, not the whole graph.</>,
+          <>“Present in N species” is counted from the matrix you uploaded, not from the network,
+            so it does not change when links are hidden.</>,
+        ]}
+        />
+
+        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv" file={file} onFile={setFile}
+                  onSample={() => setFile(sampleFile("matrix"))} />
         <div style={{ marginTop: "1rem" }}>
           <button className="btn btn-primary" onClick={run}><i className="fa-solid fa-diagram-project" /> Build explorer</button>
         </div>
