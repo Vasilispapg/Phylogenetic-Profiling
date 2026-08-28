@@ -115,6 +115,12 @@ curl -s localhost:8000/api/health
 
 The image is public on GHCR, so the server needs no registry login.
 
+**Where the app listens.** The compose file binds to `${BIND:-127.0.0.1}`, never
+to `0.0.0.0` — nginx should be the only way in. If nginx itself runs in a
+container and reaches the host through `host.docker.internal`, loopback is not
+reachable from it: put `BIND=172.17.0.1` (the docker bridge gateway) in a `.env`
+beside the compose file. That is the arrangement on the current server.
+
 ### 3. nginx
 
 The app listens on `127.0.0.1:8000` only. Everything below matters:

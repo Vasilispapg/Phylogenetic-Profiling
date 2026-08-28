@@ -1,14 +1,17 @@
 # Production: run the published image, behind nginx.
 #
-# The container listens on loopback only — nginx terminates TLS, applies the
-# rate limits and proxies to it. See docs/DEPLOY.md.
+# BIND is where the app listens. Never 0.0.0.0: nginx should be the only way in.
+#   127.0.0.1  nginx runs on the host
+#   172.17.0.1 nginx runs in a container and reaches the host over the docker
+#              bridge (host.docker.internal), which is the case on this server
+# See docs/DEPLOY.md.
 services:
   web:
     image: ghcr.io/vasilispapg/phyloflask:latest
     pull_policy: always
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8000:8000"
+      - "${BIND:-127.0.0.1}:8000:8000"
     environment:
       - FLASK_DEBUG=0
       # Smaller than the code default: this instance is open to the internet,
