@@ -21,27 +21,61 @@ to GHCR and restarts the container over SSH
 
 #### `DEPLOY_KEY`
 
-A dedicated key, not your own: it can be revoked without touching your access.
+A dedicated key, not the one you log in with: GitHub gets exactly this and
+nothing else, and you can revoke it without touching your own access.
+
+You already have access to the server, so no password is involved anywhere here.
+`ssh-copy-id` is deliberately *not* used — it cannot add the forced command
+below, and there is no `deploy` account to copy into yet.
+
+**1. Make the key, on your machine:**
 
 ```bash
 ssh-keygen -t ed25519 -f ~/phyloflask-deploy -C "phyloflask deploy" -N ""
-ssh-copy-id -i ~/phyloflask-deploy.pub deployuser@your-host
-pbcopy < ~/phyloflask-deploy && rm ~/phyloflask-deploy   # paste into the secret
+cat ~/phyloflask-deploy.pub          # you will paste this onto the server
 ```
 
-Paste the whole private file, `BEGIN` and `END` lines included.
+**2. Create the account, on the server** (drop `sudo` if you log in as root):
 
-**Restrict what it can do.** A deploy key that can only deploy is worth much more
-than one that can log in. On the server, put the forced command in front of the
-key in `~/.ssh/authorized_keys` — all on one line:
-
-```
-command="cd /srv/phyloflask && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d --remove-orphans && docker image prune -f",no-agent-forwarding,no-port-forwarding,no-pty,no-X11-forwarding ssh-ed25519 AAAA... phyloflask deploy
+```bash
+sudo adduser --disabled-password --gecos "" deploy
+sudo usermod -aG docker deploy
+sudo install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 ```
 
-SSH then ignores whatever the client asks for and runs that, so if the key ever
-leaks the holder can restart the container and nothing else. The workflow still
-sends its own command; it is discarded, and the exit status is the forced one's.
+The account has no password on purpose: it is reachable only by the key.
+
+**3. Install the key with a forced command.** A deploy key that can only deploy
+is worth far more than one that can log in — SSH runs this and discards whatever
+the client asks for, so a leaked key can restart the container and nothing else.
+All on one line, with your own public key in place of `ssh-ed25519 AAAA...`:
+
+```bash
+sudo tee /home/deploy/.ssh/authorized_keys >/dev/null <<'EOF'
+command="cd /srv/phyloflask && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d --remove-orphans && docker image prune -f",no-agent-forwarding,no-port-forwarding,no-pty,no-X11-forwarding ssh-ed25519 AAAA...your key here... phyloflask deploy
+EOF
+sudo chown deploy:deploy /home/deploy/.ssh/authorized_keys
+sudo chmod 600 /home/deploy/.ssh/authorized_keys
+```
+
+**4. Check it, from your machine:**
+
+```bash
+ssh -i ~/phyloflask-deploy deploy@your-host
+```
+
+It should run the deploy and disconnect rather than give you a shell — that is
+the forced command working. Until step 2 below has created `/srv/phyloflask` it
+will fail on the `cd`, which still proves the key and the restriction are right.
+
+**5. Then hand the private half over and delete your copy:**
+
+```bash
+pbcopy < ~/phyloflask-deploy && rm ~/phyloflask-deploy
+```
+
+Paste it into the secret whole, `BEGIN` and `END` lines included. Set
+`DEPLOY_USER` to `deploy`.
 
 #### `DEPLOY_KNOWN_HOSTS`
 
