@@ -42,7 +42,9 @@ def _get_pool():
                 log.warning("JOB_BACKEND=thread: heavy jobs will contend for the GIL")
                 _pool = ThreadPoolExecutor(max_workers=config.JOB_WORKERS)
             else:
-                _pool = ProcessPoolExecutor(max_workers=config.JOB_WORKERS)
+                from workers import warm_up
+                _pool = ProcessPoolExecutor(max_workers=config.JOB_WORKERS,
+                                            initializer=warm_up)
             atexit.register(_pool.shutdown, wait=False)
         return _pool
 

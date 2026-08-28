@@ -125,10 +125,16 @@ def store_blob(payload):
 
 
 def load_blob(blob_id):
-    path = RESULT_DIR / f"{blob_id}.json.gz"
-    if not path.exists():
+    raw = read_blob_bytes(blob_id)
+    return None if raw is None else json.loads(gzip.decompress(raw).decode("utf-8"))
+
+
+def read_blob_bytes(blob_id):
+    """The blob exactly as stored: still gzipped, ready to stream to a client."""
+    if not blob_id:
         return None
-    return json.loads(gzip.decompress(path.read_bytes()).decode("utf-8"))
+    path = RESULT_DIR / f"{blob_id}.json.gz"
+    return path.read_bytes() if path.exists() else None
 
 
 # --- housekeeping ----------------------------------------------------------

@@ -1,16 +1,51 @@
 """Server-side clustering and embedding for the heatmap family of tools."""
+import gzip
+import hashlib
+import json
 import logging
 
 from flask import Blueprint, request
 
 from analysis import matrix_io
-from blueprints._api import fail, ok
+from blueprints._api import fail, gzipped_bytes, ok
 from blueprints.matrices import resolve
+from config import CACHE_DIR
 
 heatmap_bp = Blueprint("heatmap", __name__)
 log = logging.getLogger(__name__)
 
 MIN_POINTS = 3   # fewer than this and clustering/embedding are meaningless
+
+# Both endpoints are deterministic (t-SNE and KMeans are seeded), and the UI
+# re-requests them on every metric / axis / method / k change. Caching on the
+# inputs turns those repeats into a file read.
+CACHE_VERSION = 1
+
+
+def _cached(kind, key_parts, compute):
+    """Return a cached response for these inputs, computing it on a miss."""
+    digest = hashlib.sha256(
+        json.dumps([kind, CACHE_VERSION, key_parts], sort_keys=True, default=str).encode()
+    ).hexdigest()
+    path = CACHE_DIR / f"{kind}-{digest}.json.gz"
+    if path.exists():
+        log.debug("%s cache hit", kind)
+        return gzipped_bytes(path.read_bytes(), already_compressed=True)
+
+    payload, err = compute()
+    if err:
+        return err
+    body = json.dumps({"status": "success", **payload}, separators=(",", ":")).encode()
+    path.write_bytes(gzip.compress(body, 6))
+    return gzipped_bytes(body)
+
+
+def _fingerprint(payload):
+    """Identify the input: a matrix id + metric, or a hash of an inline matrix."""
+    if payload.get("file_id"):
+        return {"file_id": payload["file_id"], "metric": payload.get("metric")}
+    return {"z": hashlib.sha256(
+        json.dumps(payload.get("z"), separators=(",", ":")).encode()).hexdigest()}
 
 
 def _matrix(payload):
@@ -58,9 +93,16 @@ def clustergram():
     from scipy.cluster.hierarchy import dendrogram, linkage
     from scipy.spatial.distance import pdist
 
-    m, err = _matrix(request.get_json(silent=True) or {})
-    if err:
-        return err
+    payload = request.get_json(silent=True) or {}
+
+    def compute():
+        m, err = _matrix(payload)
+        if err:
+            return None, err
+        row_order, row_dendro = cluster(m)
+        col_order, col_dendro = cluster(m.T)
+        return {"row_order": row_order, "col_order": col_order,
+                "row_dendro": row_dendro, "col_dendro": col_dendro}, None
 
     def cluster(a):
         n = a.shape[0]
@@ -73,10 +115,7 @@ def clustergram():
         dn = dendrogram(linkage(d, method="average"), no_plot=True)
         return [int(i) for i in dn["leaves"]], {"icoord": dn["icoord"], "dcoord": dn["dcoord"]}
 
-    row_order, row_dendro = cluster(m)
-    col_order, col_dendro = cluster(m.T)
-    return ok(row_order=row_order, col_order=col_order,
-              row_dendro=row_dendro, col_dendro=col_dendro)
+    return _cached("clustergram", _fingerprint(payload), compute)
 
 
 @heatmap_bp.post("/embedding")
@@ -90,10 +129,6 @@ def embedding():
     from sklearn.preprocessing import StandardScaler
 
     payload = request.get_json(silent=True) or {}
-    m, err = _matrix(payload)
-    if err:
-        return err
-
     axis = payload.get("axis", "domains")
     method = payload.get("method", "pca")
     if method not in ("pca", "tsne"):
@@ -103,25 +138,33 @@ def embedding():
     except (TypeError, ValueError):
         return fail("k must be an integer.", 400)
 
-    x = m.T if axis == "domains" else m       # points = rows of x
-    n = x.shape[0]
-    if n < MIN_POINTS:
-        return fail(f"Need at least {MIN_POINTS} points to embed, got {n}.", 400)
+    def compute():
+        m, err = _matrix(payload)
+        if err:
+            return None, err
 
-    xs = StandardScaler().fit_transform(x)
-    xs = np.nan_to_num(xs, nan=0.0, posinf=0.0, neginf=0.0)
+        x = m.T if axis == "domains" else m       # points = rows of x
+        n = x.shape[0]
+        if n < MIN_POINTS:
+            return None, fail(f"Need at least {MIN_POINTS} points to embed, got {n}.", 400)
 
-    try:
-        if method == "tsne":
-            perplexity = max(5, min(30, (n - 1) // 3))
-            coords = TSNE(n_components=2, init="pca", perplexity=perplexity,
-                          learning_rate="auto", random_state=42).fit_transform(xs)
-        else:
-            coords = PCA(n_components=2).fit_transform(xs)
-        labels = KMeans(n_clusters=max(2, min(k, n - 1)), n_init=10,
-                        random_state=42).fit_predict(xs)
-    except ValueError as exc:
-        return fail(str(exc), 400)
+        xs = StandardScaler().fit_transform(x)
+        xs = np.nan_to_num(xs, nan=0.0, posinf=0.0, neginf=0.0)
 
-    return ok(coords=coords.tolist(), labels=[int(v) for v in labels],
-              n_clusters=int(max(labels) + 1))
+        try:
+            if method == "tsne":
+                perplexity = max(5, min(30, (n - 1) // 3))
+                coords = TSNE(n_components=2, init="pca", perplexity=perplexity,
+                              learning_rate="auto", random_state=42).fit_transform(xs)
+            else:
+                coords = PCA(n_components=2).fit_transform(xs)
+            labels = KMeans(n_clusters=max(2, min(k, n - 1)), n_init=10,
+                            random_state=42).fit_predict(xs)
+        except ValueError as exc:
+            return None, fail(str(exc), 400)
+
+        return {"coords": coords.tolist(), "labels": [int(v) for v in labels],
+                "n_clusters": int(max(labels) + 1)}, None
+
+    return _cached("embedding", {**_fingerprint(payload), "axis": axis,
+                                 "method": method, "k": k}, compute)

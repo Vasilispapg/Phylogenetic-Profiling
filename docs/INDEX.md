@@ -26,8 +26,9 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 
 - **`blueprints/_api.py`** — `fail()` / `ok()` (real HTTP status codes) and
   `safe_upload_name()`, the single upload validator every endpoint goes through.
-- **`blueprints/matrices.py`** — `POST /api/matrices`: store a matrix once and
-  return an id, so clustergram/embedding calls need not carry the values.
+- **`blueprints/matrices.py`** — `POST /api/matrices` (store once, return an id
+  plus labels) and `GET /api/matrices/<id>/plane` (the matrix as numbers, gzipped),
+  so no client ever parses a CSV.
 - **`blueprints/blast.py`** (`blast_bp`) — `POST /upload` (uuid-prefixed storage),
   `POST /process` (→ `create_correlation_matrix` / `create_feature_matrix`, writes
   a uuid-prefixed file to `downloads/`), `GET /results`.
@@ -49,11 +50,15 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 
 - **`utils.py`** — `extract_species(subject_id)`: canonical species key = first 4
   dash-segments, the single source of truth for both matrix builders.
+- **`matrix_io.py`** — reading matrices server-side: `describe` (labels and
+  metrics, no values), `planes` (numeric planes for chosen metrics), with a
+  vectorised regex extractor for JSON feature cells and a `json.loads` fallback.
 - **`matrix_operations.py`** — core matrices:
   - `_load_blast` — read BLAST tabular, **apply the E-value cutoff**, add
     `Domain`/`Species` columns. Both builders go through it, so they agree.
   - `create_correlation_matrix` — species × domain presence/count matrix.
-  - `create_feature_matrix` — species × domain JSON feature vectors.
+  - `create_feature_matrix` / `_feature_vectors` — species × domain JSON feature
+    vectors, serialised from numpy arrays rather than row-wise `apply`.
   - `find_true_positives(corr_path)` — vectorized list of (species, domain) pairs > 0.
 - **`clustering_analysis.py`** — domain-profile MCL clustering, UI-framework free:
   - `domain_jaccard(corr_df)` → (domains, Jaccard matrix).
@@ -103,6 +108,8 @@ Run both dev servers with **`./dev.sh`**.
   Surfaces a clear error when the backend is unreachable.
 - **`src/lib/network.js`** — shared cytoscape/fcose constants and cluster colours,
   so the two network views cannot drift apart again.
+- **`src/lib/matrix.js`** — ordering and normalise/log transforms only; parsing
+  moved to the server.
 - **`src/lib/links.js`** — external links used by more than one page.
 - **`src/pages/`** — `Landing`, `Blast`, `Heatmap` (metric selector, compare-two,
   cell inspector), **`Clustergram`** (heatmap + row/col dendrograms), **`Explorer`**

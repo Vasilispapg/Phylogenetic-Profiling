@@ -13,6 +13,7 @@ a feature matrix whose cells are JSON objects.
 """
 import json
 import logging
+import re
 
 import numpy as np
 import pandas as pd
@@ -38,12 +39,23 @@ def _parse_cell(cell):
     return parsed if isinstance(parsed, dict) else {}
 
 
+# Enough cells to recognise the format without materialising the whole matrix:
+# df.to_numpy().ravel() on the bundled feature matrix builds 183k objects just to
+# answer "is this JSON?", which cost more than the parse it was preparing for.
+_SNIFF_CELLS = 512
+
+
 def _first_feature_cell(df):
     """The first cell that looks like a JSON feature vector, or None."""
-    for value in df.to_numpy().ravel():
-        parsed = _parse_cell(value)
-        if parsed:
-            return parsed
+    seen = 0
+    for column in df.columns:
+        for value in df[column].to_numpy()[:_SNIFF_CELLS]:
+            parsed = _parse_cell(value)
+            if parsed:
+                return parsed
+            seen += 1
+            if seen >= _SNIFF_CELLS:
+                return None
     return None
 
 
@@ -65,11 +77,18 @@ def describe(path):
 
 
 def plane(path, metric=None):
-    """
-    Return ``(rows, cols, values)`` for one metric of the matrix.
+    """Return ``(rows, cols, values)`` for one metric of the matrix."""
+    rows, cols, features, data = planes(path, [metric] if metric else None)
+    return rows, cols, data[metric if metric in data else features[0]]
 
-    ``metric`` is ignored for a numeric matrix and defaults to the first
-    available feature otherwise.
+
+def planes(path, metrics=None):
+    """
+    Return ``(rows, cols, features, {metric: 2-D array})``.
+
+    Reading every metric in one pass matters for the cell inspector, which needs
+    all of them: doing it per metric would re-read and re-parse the file each
+    time.
     """
     df = _read(path)
     rows = [str(i) for i in df.index]
@@ -78,13 +97,67 @@ def plane(path, metric=None):
     sample = _first_feature_cell(df)
     if sample is None:
         values = df.apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
-    else:
-        if metric is None or metric not in sample:
-            metric = next(iter(sample))
-        values = df.map(lambda cell: _parse_cell(cell).get(metric, 0) or 0) \
-                   .to_numpy(dtype=float)
+        return rows, cols, ["value"], {"value": _clean(values)}
 
-    return rows, cols, np.nan_to_num(values, nan=0.0, posinf=0.0, neginf=0.0)
+    features = list(sample.keys())
+    wanted = [m for m in (metrics or features) if m in features] or features[:1]
+    extracted = _extract_many(df, wanted)
+    return rows, cols, features, {m: _clean(v) for m, v in extracted.items()}
+
+
+def _clean(values):
+    return np.nan_to_num(values, nan=0.0, posinf=0.0, neginf=0.0)
+
+
+# Measured crossover on the bundled 848 x 216 feature matrix: a vectorised regex
+# costs ~0.09 s per metric, while one json.loads pass costs ~0.22 s and then
+# serves every metric almost free. Below the threshold the regex wins; at or
+# above it, parsing once wins.
+_REGEX_METRIC_LIMIT = 3
+_NUMBER = r"(-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)"
+
+
+def _extract_many(df, metrics):
+    """
+    Pull numeric metrics out of a matrix of JSON cells.
+
+    ``df.map(json.loads)`` costs one Python call per cell, and it sits on the
+    path of every clustergram and embedding request. For one or two metrics --
+    the common case -- a vectorised regex running in C is ~2.5x faster.
+
+    Whichever path is taken, a cell that clearly holds the metric but yields no
+    number sends us to the reference implementation, so correctness never
+    depends on the shortcut.
+    """
+    if len(metrics) < _REGEX_METRIC_LIMIT:
+        extracted = {}
+        for metric in metrics:
+            values = _extract_regex(df, metric)
+            if values is None:
+                return _extract_json(df, metrics)
+            extracted[metric] = values
+        return extracted
+    return _extract_json(df, metrics)
+
+
+def _extract_regex(df, metric):
+    """One metric, vectorised. Returns None when the pattern does not fit."""
+    pattern = rf'"{re.escape(metric)}"\s*:\s*{_NUMBER}'
+    out = np.zeros(df.shape, dtype=float)
+    for j, column in enumerate(df.columns):
+        text = df[column].astype(str)
+        found = text.str.extract(pattern, expand=False)
+        if (found.isna() & text.str.contains(metric, regex=False)).any():
+            return None
+        out[:, j] = pd.to_numeric(found, errors="coerce").fillna(0.0).to_numpy()
+    return out
+
+
+def _extract_json(df, metrics):
+    """Reference implementation: parse every cell once, then read each metric."""
+    parsed = df.map(_parse_cell)
+    return {m: parsed.map(lambda d, key=m: d.get(key, 0) or 0).to_numpy(dtype=float)
+            for m in metrics}
 
 
 def _read(path):

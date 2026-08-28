@@ -5,7 +5,7 @@ import uuid
 import jobs
 from flask import Blueprint, current_app, request
 
-from blueprints._api import fail, ok, safe_upload_name
+from blueprints._api import fail, gzipped_bytes, gzipped_json, ok, safe_upload_name
 from config import UPLOAD_DIR
 
 allvsall_bp = Blueprint("allvsall", __name__)
@@ -15,10 +15,9 @@ log = logging.getLogger(__name__)
 # field; this is kept only so old cached front-ends still show sensible text.
 LEGACY_DONE = "Completed."
 
-# Fields that are O(n^2) on the wire and fully derivable client-side. They are
-# held in the result blob but only serialised when a client explicitly asks, so
-# the default payload stays O(n).
-OPTIONAL_FIELDS = ("matrix", "positions")
+# The co-cluster matrix is O(n^2) and is exactly `node_cluster[i] ==
+# node_cluster[j]`, so it is derived on request rather than stored or sent.
+OPTIONAL_FIELDS = ("matrix",)
 
 
 @allvsall_bp.post("/allvsall")
@@ -63,9 +62,11 @@ def get_allvsall_data(job_id):
     """
     Fetch the finished clustering payload.
 
-    Add ``?include=matrix,positions`` for the O(n^2) extras (the co-cluster
-    matrix and a spring layout). New clients derive the matrix from
-    ``node_cluster`` and run their own layout, so they never need them.
+    The result is stored gzipped, and the default response is that blob sent
+    verbatim: no decompress, no re-serialise, no copy.
+
+    ``?include=matrix`` adds the O(n^2) co-cluster matrix, derived from
+    ``node_cluster`` on the way out.
     """
     job = jobs.get(job_id)
     if job is None or job["kind"] != "allvsall":
@@ -75,11 +76,26 @@ def get_allvsall_data(job_id):
     if job["state"] != "done":
         return fail("Clustering is still running.", 409)
 
-    payload = jobs.load_blob((job["result"] or {}).get("blob"))
+    blob_id = (job["result"] or {}).get("blob")
+    wanted = {f.strip() for f in (request.args.get("include") or "").split(",")}
+
+    if not (wanted & set(OPTIONAL_FIELDS)):
+        raw = jobs.read_blob_bytes(blob_id)
+        if raw is None:
+            return fail("The result has expired. Please upload the matrix again.", 410)
+        return gzipped_bytes(raw, already_compressed=True)
+
+    payload = jobs.load_blob(blob_id)
     if payload is None:
         return fail("The result has expired. Please upload the matrix again.", 410)
+    if "matrix" in wanted:
+        payload["matrix"] = _co_cluster(payload)
+    return gzipped_json(payload)
 
-    wanted = {f.strip() for f in (request.args.get("include") or "").split(",")}
-    lean = {k: v for k, v in payload.items()
-            if k not in OPTIONAL_FIELDS or k in wanted}
-    return ok(**lean)
+
+def _co_cluster(payload):
+    """Rebuild the domain x domain co-cluster matrix from the cluster labels."""
+    import numpy as np
+
+    labels = np.array([payload["node_cluster"][n] for n in payload["nodes"]])
+    return (labels[:, None] == labels[None, :]).astype(int).tolist()

@@ -212,13 +212,39 @@ def test_allvsall_job_completes_with_a_lean_payload(client):
     assert body["metrics"]["n_clusters"] == 2
     assert body["node_cluster"]["P1-a"] == body["node_cluster"]["P1-b"]
     assert body["node_cluster"]["P1-a"] != body["node_cluster"]["P2-a"]
-    # The O(n^2) fields are not on the wire unless asked for.
+    # The O(n^2) co-cluster matrix is never stored or sent by default.
     assert "matrix" not in body and "positions" not in body
     assert body["edges_total"] >= len(body["edges"])
 
-    extra = client.get(f"/api/allvsall/{job_id}/data?include=matrix,positions").get_json()
-    assert len(extra["matrix"]) == len(extra["nodes"])
-    assert set(extra["positions"]) == set(extra["nodes"])
+
+def test_allvsall_matrix_is_derived_on_request(client):
+    started = upload(client, "/api/allvsall", MATRIX_CSV, "corr.csv").get_json()
+    job_id = started["job_id"]
+    wait_for(lambda: client.get(f"/api/allvsall/{job_id}/status").get_json(),
+             lambda d: d["state"] in ("done", "failed"))
+
+    body = client.get(f"/api/allvsall/{job_id}/data?include=matrix").get_json()
+    nodes, matrix = body["nodes"], body["matrix"]
+    assert len(matrix) == len(nodes)
+    clusters = body["node_cluster"]
+    for i, a in enumerate(nodes):
+        for j, b in enumerate(nodes):
+            assert matrix[i][j] == int(clusters[a] == clusters[b])
+
+
+def test_allvsall_data_is_served_gzipped(client):
+    """The blob is stored compressed and streamed without a round trip."""
+    started = upload(client, "/api/allvsall", MATRIX_CSV, "corr.csv").get_json()
+    job_id = started["job_id"]
+    wait_for(lambda: client.get(f"/api/allvsall/{job_id}/status").get_json(),
+             lambda d: d["state"] in ("done", "failed"))
+
+    resp = client.get(f"/api/allvsall/{job_id}/data", headers={"Accept-Encoding": "gzip"})
+    assert resp.headers.get("Content-Encoding") == "gzip"
+
+    plain = client.get(f"/api/allvsall/{job_id}/data", headers={"Accept-Encoding": "identity"})
+    assert plain.headers.get("Content-Encoding") is None
+    assert plain.get_json()["status"] == "success"
 
 
 def test_allvsall_status_unknown_job(client):

@@ -1,5 +1,8 @@
-// Shared matrix parsing / transforms for the heatmap, clustergram and explorer.
-import Papa from "papaparse";
+// Shared matrix transforms for the heatmap, clustergram and explorer.
+//
+// Parsing lives on the server now (GET /api/matrices/<id>/plane): a feature
+// matrix is 25 MB of CSV with a JSON object per cell, and pulling it apart in
+// the browser cost far more than fetching the same numbers already parsed.
 
 export const FEATURE_LABELS = {
   mean_percent_identity: "% identity",
@@ -11,36 +14,6 @@ export const FEATURE_LABELS = {
 };
 export const COLORSCALES = ["Viridis", "Cividis", "Plasma", "YlGnBu", "Hot", "Blues", "RdBu", "Electric"];
 export const lbl = (f) => FEATURE_LABELS[f] || f;
-
-// Handles plain numeric matrices AND feature matrices whose cells are JSON
-// objects (which contain commas + quotes, so a naive split breaks).
-export function parseMatrix(text) {
-  const grid = Papa.parse(text.trim(), { skipEmptyLines: true }).data;
-  if (!grid.length || grid[0].length < 2) throw new Error("empty");
-  const cols = grid[0].slice(1);
-  const rows = [], cells = [];
-  for (let i = 1; i < grid.length; i++) { rows.push(grid[i][0]); cells.push(grid[i].slice(1)); }
-
-  let firstDict = null;
-  outer: for (const r of cells) for (const c of r) {
-    if (typeof c === "string" && c.trim().startsWith("{")) { try { firstDict = JSON.parse(c); break outer; } catch { /* keep looking */ } }
-  }
-  if (firstDict) {
-    const features = Object.keys(firstDict);
-    const data = {}; features.forEach((f) => (data[f] = []));
-    for (const r of cells) {
-      const per = {}; features.forEach((f) => (per[f] = []));
-      for (const c of r) {
-        let o = {}; try { o = JSON.parse(c); } catch { /* blank cell */ }
-        features.forEach((f) => per[f].push(Number(o[f]) || 0));
-      }
-      features.forEach((f) => data[f].push(per[f]));
-    }
-    return { rows, cols, features, data, kind: "feature" };
-  }
-  const z = cells.map((r) => r.map((v) => Number(v) || 0));
-  return { rows, cols, features: ["value"], data: { value: z }, kind: "numeric" };
-}
 
 // Order rows/cols by descending total (groups similar) or alphabetically.
 export function computeOrder(z2d, rows, cols, order) {

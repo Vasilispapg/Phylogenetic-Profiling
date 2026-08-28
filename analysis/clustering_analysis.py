@@ -34,7 +34,7 @@ DEFAULT_THRESHOLD = JACCARD_THRESHOLD   # minimum Jaccard similarity for an edge
 DEFAULT_INFLATION = MCL_INFLATION       # MCL granularity
 
 # Bump when the payload shape or the algorithm changes, to invalidate the cache.
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
 
 def _noop(fraction, message):
@@ -217,8 +217,8 @@ def cluster_payload(corr_matrix_path, threshold=DEFAULT_THRESHOLD,
     """
     The API-shaped clustering result: O(n) instead of O(n^2) on the wire.
 
-    Drops the dense co-cluster matrix (fully derivable from ``node_cluster``) and
-    the spring layout (every client runs its own), and returns only the strongest
+    Never materialises the dense co-cluster matrix or a spring layout, and
+    returns only the strongest
     ``edge_budget_per_node * n`` edges -- reporting ``edges_total`` so the UI can
     say what it is hiding instead of truncating silently.
     """
@@ -243,7 +243,10 @@ def cluster_payload(corr_matrix_path, threshold=DEFAULT_THRESHOLD,
         key=lambda e: -e["weight"],
     )
     budget = max(1, edge_budget_per_node) * max(1, len(domains))
-    positions = nx.spring_layout(graph, seed=0)
+    # No spring layout: it is O(n^2) per iteration and every client runs its own
+    # layout. No co-cluster matrix either -- it is exactly
+    # node_cluster[i] == node_cluster[j], so storing n^2 numbers to say that is
+    # waste. /api/allvsall/<id>/data derives it on request instead.
     payload = {
         "nodes": domains,
         "node_cluster": {d: int(labels[i]) for i, d in enumerate(domains)},
@@ -251,9 +254,6 @@ def cluster_payload(corr_matrix_path, threshold=DEFAULT_THRESHOLD,
         "edges": edges[:budget],
         "edges_total": len(edges),
         "metrics": metrics,
-        # O(n^2) extras: stored on disk, served only on ?include=
-        "matrix": co_cluster_matrix(labels).tolist(),
-        "positions": {n: [float(x), float(y)] for n, (x, y) in positions.items()},
     }
     cached.write_bytes(gzip.compress(json.dumps(payload).encode("utf-8")))
     return payload

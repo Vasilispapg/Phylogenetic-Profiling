@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import Plotly from "plotly.js-dist-min";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
-import { parseMatrix, transform, COLORSCALES, lbl } from "../lib/matrix.js";
-import { API, postJSON, uploadMatrix } from "../lib/api.js";
+import { transform, COLORSCALES, lbl } from "../lib/matrix.js";
+import { API, loadMatrix, postJSON } from "../lib/api.js";
 
 const L = { display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" };
 
@@ -21,19 +21,16 @@ export default function Clustergram() {
   const [fileId, setFileId] = useState(null);
   const ref = useRef(null);
 
-  // The values are parsed locally to draw the heatmap; the file is also uploaded
-  // once so the clustering call can reference it by id rather than shipping the
-  // whole matrix in a request body.
+  // One upload; the values come back as numeric planes and the id drives the
+  // clustering call, so the matrix is never carried in a request body.
   const onFile = async (f) => {
-    setFile(f); setStatus({ kind: "info", msg: "Reading CSV…", progress: true });
+    setFile(f); setStatus({ kind: "info", msg: "Reading matrix…", progress: true });
     setClu(null); setFileId(null);
     try {
-      const text = await f.text();
-      const d = parseMatrix(text);
-      const meta = await uploadMatrix(f);
-      setData(d); setFeat(d.features[0]); setFileId(meta.file_id); setSel(null); setStatus(null);
+      const d = await loadMatrix(f);
+      setData(d); setFeat(d.features[0]); setFileId(d.file_id); setSel(null); setStatus(null);
     } catch (e) {
-      setStatus({ kind: "error", msg: e.message || "Could not parse the CSV." });
+      setStatus({ kind: "error", msg: e.message || "Could not read the matrix." });
     }
   };
 

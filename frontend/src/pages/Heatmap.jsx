@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import Plotly from "plotly.js-dist-min";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
-import { parseMatrix, computeOrder, transform, COLORSCALES, lbl } from "../lib/matrix.js";
+import { computeOrder, transform, COLORSCALES, lbl } from "../lib/matrix.js";
+import { loadMatrix } from "../lib/api.js";
 
 const L = { display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" };
 
@@ -20,17 +21,15 @@ export default function Heatmap() {
   const [sel, setSel] = useState(null);
   const ref = useRef(null);
 
-  const onFile = (f) => {
-    setFile(f); setStatus({ kind: "info", msg: "Reading CSV…", progress: true });
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const d = parseMatrix(String(reader.result));
-        setData(d); setFeat(d.features[0]); setFeatB(d.features[1] || d.features[0]);
-        setCompare(false); setSel(null); setStatus(null);
-      } catch { setStatus({ kind: "error", msg: "Could not parse the CSV." }); }
-    };
-    reader.readAsText(f);
+  const onFile = async (f) => {
+    setFile(f); setStatus({ kind: "info", msg: "Reading matrix…", progress: true });
+    try {
+      const d = await loadMatrix(f);
+      setData(d); setFeat(d.features[0]); setFeatB(d.features[1] || d.features[0]);
+      setCompare(false); setSel(null); setStatus(null);
+    } catch (e) {
+      setStatus({ kind: "error", msg: e.message || "Could not read the matrix." });
+    }
   };
 
   useEffect(() => {

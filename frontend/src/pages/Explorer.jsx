@@ -4,8 +4,8 @@ import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
-import { parseMatrix, transform } from "../lib/matrix.js";
-import { API, postJSON, uploadFile, uploadMatrix, poll, getJSON } from "../lib/api.js";
+import { transform } from "../lib/matrix.js";
+import { API, postJSON, uploadFile, loadMatrix, poll, getJSON } from "../lib/api.js";
 import { HIGHLIGHT, INK, NODE_SIZE_COMPACT, ZOOM, clusterColor as cc, fcose as fcoseOpts } from "../lib/network.js";
 
 cytoscape.use(fcose);
@@ -24,12 +24,11 @@ export default function Explorer() {
     if (!file) return setStatus({ kind: "error", msg: "Choose a correlation matrix CSV." });
     setData(null); setClu(null); setNet(null); setSel(null);
     let d;
-    try { setStatus({ kind: "info", msg: "Reading CSV…", progress: true }); d = parseMatrix(await file.text()); setData(d); }
-    catch { return setStatus({ kind: "error", msg: "Could not parse the CSV." }); }
+    try { setStatus({ kind: "info", msg: "Reading matrix…", progress: true }); d = await loadMatrix(file, "first"); setData(d); }
+    catch (e) { return setStatus({ kind: "error", msg: e.message || "Could not read the matrix." }); }
     try {
       setStatus({ kind: "info", msg: "Clustering rows/cols + building the domain network…", progress: true });
-      const cluP = uploadMatrix(file).then((meta) =>
-        postJSON(API.clustergram, { file_id: meta.file_id, metric: d.features[0] }));
+      const cluP = postJSON(API.clustergram, { file_id: d.file_id, metric: d.features[0] });
       const netP = (async () => {
         const up = await uploadFile(API.allvsall, file);
         if (up.status !== "success") throw new Error(up.message || "upload failed");
@@ -52,7 +51,7 @@ export default function Explorer() {
   // Heatmap (clustered, columns = domains). x is a numeric index so we can mark a column.
   useEffect(() => {
     if (!data || !clu || !hmRef.current) return;
-    const { rows, cols } = data, feat = data.features[0];
+    const { rows, cols } = data, feat = Object.keys(data.data)[0];
     const ro = clu.row_order, co = clu.col_order;
     const colNames = co.map((j) => cols[j]); colNamesRef.current = colNames;
     const t = transform(data.data[feat], cols, { norm: "none", log: false });
@@ -136,7 +135,7 @@ export default function Explorer() {
     const deg = net.degree ? net.degree[sel] : undefined;
     const cl = net.node_cluster ? net.node_cluster[sel] : undefined;
     let present = null;
-    if (data) { const j = data.cols.indexOf(sel); if (j >= 0) present = data.data[data.features[0]].reduce((s, r) => s + (r[j] > 0 ? 1 : 0), 0); }
+    if (data) { const j = data.cols.indexOf(sel); if (j >= 0) present = data.data[Object.keys(data.data)[0]].reduce((s, r) => s + (r[j] > 0 ? 1 : 0), 0); }
     const nbrs = (net.edges || []).filter((e) => e.source === sel || e.target === sel).map((e) => (e.source === sel ? e.target : e.source));
     return { deg, cl, present, nbrs };
   })();

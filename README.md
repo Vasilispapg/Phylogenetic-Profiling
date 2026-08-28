@@ -144,14 +144,21 @@ All of these are read in [`config.py`](config.py).
 
 ```bash
 pip install pytest
-pytest -q                      # 83 tests
-npm run test --prefix frontend # 11 tests
+pytest -q                      # 97 tests
+npm run test --prefix frontend # 6 tests
 ```
 Covers species-key extraction, the E-value cutoff, matrix building, Jaccard
 distance, **equivalence of the fast Neighbour-Joining to Bio.Phylo**
 (Robinson-Foulds 0), the job store, domain clustering + validation, every HTTP
 endpoint including both async jobs end to end, and the SPA's CSV parser.
 CI runs all of it plus a Docker build: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+## Performance
+
+Measured on the bundled dataset; see [`docs/CODE_ANALYSIS.md`](docs/CODE_ANALYSIS.md) §7.
+The tree build went from 119.9 s to 0.76 s with an identical topology, the
+feature matrix reaches the browser as 0.87 MB of numbers instead of 25.5 MB of
+CSV, and repeated clusterings and projections are served from a cache.
 
 ## Project layout
 

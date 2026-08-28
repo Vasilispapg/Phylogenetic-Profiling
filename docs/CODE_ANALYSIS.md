@@ -167,7 +167,27 @@ Run via `python main.py --validate_clusters`.
 - **The bundled dataset still has weak structure** (see the first bullet); that is
   the data, not the code.
 
-## 7. Retention
+## 7. Performance
+
+Every figure below was measured on the bundled dataset (848 species x 216
+domains; the feature matrix is 25.5 MB) and is regression-tested where the
+optimisation could change a result.
+
+| Step | Before | After | How |
+|------|--------|-------|-----|
+| Neighbour-Joining tree | 119.9 s | **0.76 s** | `nj_newick` vectorises each iteration with numpy instead of Bio.Phylo's pure-Python O(n^3) loop. Identical topology (Robinson-Foulds 0). |
+| Feature matrix build | 1.02 s | **0.41 s** | `_feature_vectors` formats from zipped numpy arrays; `DataFrame.apply(axis=1)` was building a Series per row. Byte-identical output. |
+| Feature matrix read (1 metric) | 0.19 s parse | **0.09 s** | Vectorised regex extraction, with the `json.loads` reference as a fallback the moment a cell does not fit. |
+| Feature matrix to the browser | 25.5 MB CSV, parsed cell by cell in JS | **0.87 MB** gzipped (all metrics), **0.06 MB** (one) | `GET /api/matrices/<id>/plane` returns numbers; pandas parses the file once, server-side. |
+| all-vs-all payload | 2.18 MB | **6 KB** gzipped | Strongest edges only, no stored co-cluster matrix, no spring layout, and the compressed blob is streamed verbatim. |
+| Repeat clustergram / embedding | full recompute | **~0 s** | Content-addressed cache; both endpoints are deterministic. |
+| First job after a restart | +0.97 s | ~0 s | The process pool imports `markov_clustering` in its initialiser rather than inside the first job. |
+
+What was measured and left alone: `domain_jaccard` (one matmul), MCL itself
+(0.10 s), the clustergram's `pdist`/`linkage` (0.07 s), PCA and KMeans (0.09 s).
+None of them are the bottleneck at this scale.
+
+## 8. Retention
 
 Nothing used to clean up: uploads, generated matrices, trees and in-memory job
 results all accumulated forever, in bind-mounted volumes. `jobs.reap()` now runs
@@ -175,7 +195,7 @@ at startup and hourly, and it (a) deletes job rows older than `JOB_TTL_SECONDS`
 along with their result blobs, (b) fails jobs whose worker vanished, and
 (c) sweeps `uploads/` and `downloads/` for files past the same window.
 
-## 8. Extension points
+## 9. Extension points
 
 - Stricter presence calls: tune `create_correlation_matrix(evalue_threshold=...)`.
 - Clustering granularity: `cluster_domains(threshold=..., inflation=...)`.

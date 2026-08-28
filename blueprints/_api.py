@@ -1,10 +1,17 @@
 """Shared helpers for the JSON API blueprints."""
+import gzip
+import json
 import os
 
-from flask import jsonify
+from flask import Response, jsonify, request
 from werkzeug.utils import secure_filename
 
 from config import UPLOAD_KINDS
+
+# Numeric payloads compress extremely well: the bundled feature matrix as a
+# numeric plane is 1.0 MB of JSON but 0.06 MB gzipped.
+GZIP_MIN_BYTES = 8192
+GZIP_LEVEL = 6
 
 
 def fail(message, code=400):
@@ -15,6 +22,31 @@ def fail(message, code=400):
 def ok(**payload):
     """A JSON success response."""
     return jsonify({"status": "success", **payload})
+
+
+def _wants_gzip():
+    return "gzip" in (request.headers.get("Accept-Encoding") or "")
+
+
+def gzipped_json(payload):
+    """A JSON response, compressed when it is worth it and the client accepts."""
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return gzipped_bytes(body)
+
+
+def gzipped_bytes(body, already_compressed=False):
+    """Send pre-serialised JSON, compressing (or passing through) as appropriate."""
+    if already_compressed:
+        if _wants_gzip():
+            response = Response(body, mimetype="application/json")
+            response.headers["Content-Encoding"] = "gzip"
+            return response
+        body = gzip.decompress(body)
+    elif _wants_gzip() and len(body) >= GZIP_MIN_BYTES:
+        response = Response(gzip.compress(body, GZIP_LEVEL), mimetype="application/json")
+        response.headers["Content-Encoding"] = "gzip"
+        return response
+    return Response(body, mimetype="application/json")
 
 
 def allowed(filename, kind):

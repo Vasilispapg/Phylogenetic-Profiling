@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Plotly from "plotly.js-dist-min";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
-import { parseMatrix, lbl } from "../lib/matrix.js";
-import { API, postJSON, uploadMatrix } from "../lib/api.js";
+import { lbl } from "../lib/matrix.js";
+import { API, loadMatrix, postJSON } from "../lib/api.js";
 
 import { INK, clusterColor as cc } from "../lib/network.js";
 
@@ -27,18 +27,19 @@ export default function Embedding() {
 
   const names = data ? (axis === "domains" ? data.cols : data.rows) : [];
 
-  // Parsed locally for the point labels; uploaded once so the projection call
-  // references it by id instead of posting every value back.
+  // One upload: the labels come from the server with the numbers, and the id
+  // drives the projection call.
   const onFile = async (f) => {
-    setFile(f); setStatus({ kind: "info", msg: "Reading CSV…", progress: true });
+    setFile(f); setStatus({ kind: "info", msg: "Reading matrix…", progress: true });
     setEmb(null); setFileId(null);
     try {
-      const d = parseMatrix(await f.text());
-      const meta = await uploadMatrix(f);
-      setData(d); setFeat(d.features[0]); setFileId(meta.file_id);
+      // Labels only: the projection happens server-side from the file_id, so the
+      // cell values are never needed here.
+      const d = await loadMatrix(f, "none");
+      setData(d); setFeat(d.features[0]); setFileId(d.file_id);
       setSelIdx(null); setGroup(null); setQuery(""); setStatus(null);
     } catch (e) {
-      setStatus({ kind: "error", msg: e.message || "Could not parse the CSV." });
+      setStatus({ kind: "error", msg: e.message || "Could not read the matrix." });
     }
   };
 

@@ -6,6 +6,9 @@ export const API = {
   upload: "/api/upload",
   process: "/api/process",
   matrices: "/api/matrices",
+  plane: (id, metrics) =>
+    `/api/matrices/${encodeURIComponent(id)}/plane` +
+    (metrics && metrics.length ? `?metrics=${metrics.map(encodeURIComponent).join(",")}` : ""),
   clustergram: "/api/clustergram",
   embedding: "/api/embedding",
   allvsall: "/api/allvsall",
@@ -52,6 +55,34 @@ export async function uploadMatrix(file) {
   const res = await uploadFile(API.matrices, file);
   if (res.status !== "success") throw new Error(res.message || "Could not read the matrix.");
   return res;
+}
+
+// Upload a matrix and get it back as numbers.
+//
+// The browser used to parse the CSV itself. For a feature matrix that means
+// downloading 25 MB and running a JSON.parse per cell; the same data as numeric
+// planes is ~0.9 MB gzipped, and pandas parses the file far faster than
+// PapaParse can. Returns the shape every matrix page expects, plus the file_id
+// that /api/clustergram and /api/embedding take.
+// `want` picks how much of the matrix to pull down:
+//   "all"   every metric  - needed by the cell inspectors
+//   "first" one metric    - enough to draw a heatmap
+//   "none"  labels only   - the embedding map projects server-side and only
+//                           needs the point names
+export async function loadMatrix(file, want = "all") {
+  const meta = await uploadMatrix(file);
+  const base = {
+    file_id: meta.file_id, name: meta.name, kind: meta.kind,
+    rows: meta.rows, cols: meta.cols, features: meta.features, data: {},
+  };
+  if (want === "none") return base;
+
+  const metrics = want === "first" ? [meta.features[0]] : undefined;
+  const res = await fetch(API.plane(meta.file_id, metrics));
+  const body = await asJSON(res, "the matrix");
+  if (body.status !== "success") throw new Error(body.message || "Could not read the matrix.");
+  return { ...base, kind: body.kind, rows: body.rows, cols: body.cols,
+           features: body.features, data: body.data };
 }
 
 export async function postJSON(url, body) {

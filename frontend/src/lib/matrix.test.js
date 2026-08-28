@@ -1,42 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeOrder, parseMatrix, transform } from "./matrix.js";
-
-// parseMatrix is the most fragile code in the frontend: it has to cope with
-// feature-matrix cells that are JSON objects containing commas and quotes, and
-// it had no coverage at all.
-describe("parseMatrix", () => {
-  it("reads a plain numeric matrix", () => {
-    const d = parseMatrix("Species,D1,D2\ns1,1,0\ns2,2,3\n");
-    expect(d.kind).toBe("numeric");
-    expect(d.rows).toEqual(["s1", "s2"]);
-    expect(d.cols).toEqual(["D1", "D2"]);
-    expect(d.data.value).toEqual([[1, 0], [2, 3]]);
-  });
-
-  it("reads a feature matrix whose cells are JSON with embedded commas", () => {
-    const cell = (n) => `"{""num_hits"": ${n}, ""mean_bitscore"": ${n * 10}}"`;
-    const csv = `Species,D1,D2\ns1,${cell(1)},${cell(2)}\n`;
-    const d = parseMatrix(csv);
-    expect(d.kind).toBe("feature");
-    expect(d.features).toEqual(["num_hits", "mean_bitscore"]);
-    expect(d.data.num_hits).toEqual([[1, 2]]);
-    expect(d.data.mean_bitscore).toEqual([[10, 20]]);
-  });
-
-  it("treats blank and non-numeric cells as zero rather than NaN", () => {
-    const d = parseMatrix("Species,D1,D2\ns1,,x\n");
-    expect(d.data.value).toEqual([[0, 0]]);
-  });
-
-  it("does not produce NaN for ragged rows", () => {
-    const d = parseMatrix("Species,D1,D2\ns1,1\n");
-    expect(d.data.value[0].every((v) => Number.isFinite(v))).toBe(true);
-  });
-
-  it("rejects input with no columns", () => {
-    expect(() => parseMatrix("Species\n")).toThrow();
-  });
-});
+import { computeOrder, transform } from "./matrix.js";
 
 describe("computeOrder", () => {
   const rows = ["b", "a"];

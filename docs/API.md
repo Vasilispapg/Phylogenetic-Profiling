@@ -90,11 +90,15 @@ Nodes are **domains**. `node_cluster` colours them, `degree` sizes them, edge
 Only the strongest `EDGE_BUDGET_PER_NODE * n` edges are returned; `edges_total`
 says how many there were, so a client can show what it is hiding.
 
-`?include=matrix,positions` adds the two **O(n²)** fields — the domain × domain
-co-cluster matrix and a spring layout. They are omitted by default because
-`matrix[i][j]` is just `node_cluster[i] == node_cluster[j]` and every current
-client computes its own layout. Measured on the bundled data (216 domains) the
-default payload is **0.15 MB** against 2.18 MB with everything included.
+`?include=matrix` adds the **O(n²)** domain × domain co-cluster matrix, derived
+from `node_cluster` on the way out. It is neither stored nor sent by default
+because `matrix[i][j]` is exactly `node_cluster[i] == node_cluster[j]`. The
+spring layout that used to ship with it is gone entirely: every client runs its
+own layout, and computing one is O(n²) per iteration.
+
+The default response is the stored blob streamed verbatim -- already gzipped, so
+there is no decompress-and-re-serialise step. Measured on the bundled data (216
+domains): **6 KB gzipped**, against a 2.18 MB uncompressed payload before.
 
 Other codes: 404 unknown job, 409 still running, 410 result expired, 422 the job
 failed.
@@ -150,9 +154,24 @@ labels, so later calls can reference the matrix instead of carrying it:
 ```
 No cell values come back -- the response is O(rows + cols).
 
+### `GET /api/matrices/<file_id>/plane[?metrics=a,b]`
+The matrix as numbers, so the browser never parses the CSV:
+```json
+{"status":"success","kind":"feature","rows":["s1","..."],"cols":["D1","..."],
+ "features":["num_hits","..."],"data":{"num_hits":[[3,0],[1,2]]}}
+```
+`metrics` selects columns of a feature matrix; the default is all of them.
+Responses are gzipped when the client accepts it. Measured on the bundled
+feature matrix: **0.87 MB gzipped for all five metrics, 0.06 MB for one**,
+against a 25.5 MB CSV that the client used to download and parse cell by cell.
+
 Both maths endpoints below accept **either** `{"file_id": "...", "metric": "..."}`
 (preferred: the values never travel in a request body) **or** `{"z": [[...]]}` for
 small ad-hoc matrices. They refuse matrices above `MAX_CELLS` (20M) with a 413.
+
+Both are deterministic (t-SNE and KMeans are seeded), so results are cached on
+their inputs under `cache/`. Re-requesting the same clustering or projection --
+which the UI does on every metric, axis, method or k change -- is a file read.
 
 ### `POST /api/clustergram`
 JSON body `{"file_id": "..."}` (or `{"z": [[...]]}`). Hierarchically
