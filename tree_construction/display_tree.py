@@ -1,7 +1,11 @@
 # display_tree.py
+import logging
+
 from Bio import Phylo
 import plotly.graph_objects as go
 import numpy as np
+
+log = logging.getLogger(__name__)
 
 def convert_tree_to_circular_plotly(tree, max_depth=4):
     """
@@ -42,7 +46,7 @@ def display_tree(tree_filename="species_tree_approx.nw", max_depth=12):
                 try:
                     x1, y1 = next((subcl_x, subcl_y) for subcl, subcl_x, subcl_y in coords if subcl == subclade)
                 except StopIteration:
-                    print(f"Warning: Coordinates not found for clade '{subclade.name}'")
+                    log.warning("coordinates not found for clade %s", subclade.name)
                     continue  # Skip if coordinates are missing
                 lines.append(((x, x1), (y, y1)))
 
