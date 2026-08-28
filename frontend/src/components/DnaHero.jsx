@@ -8,7 +8,7 @@ const STATS = [
 export default function DnaHero() {
   return (
     <div className="dna-hero">
-      <img src="/dna.jpg" alt="DNA double helix" loading="eager" />
+      <img src={`${import.meta.env.BASE_URL}dna.jpg`} alt="DNA double helix" loading="eager" />
       {STATS.map((s) => (
         <span key={s.n} className="chip" style={s.style}>
           <b>{s.n}</b><small>{s.l}</small>
