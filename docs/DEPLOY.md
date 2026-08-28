@@ -17,7 +17,7 @@ to GHCR and restarts the container over SSH
 | `DEPLOY_USER` | the SSH user that can run `docker compose` |
 | `DEPLOY_KEY` | the **private** half of a key made only for this |
 | `DEPLOY_KNOWN_HOSTS` | the server's public host key. Not a secret, but the workflow needs it |
-| `DEPLOY_PATH` | optional, defaults to `/srv/phyloflask` |
+| `DEPLOY_PATH` | optional, defaults to `/srv/phyloflask`; on the current server it is `/opt/phyloflask` |
 
 #### `DEPLOY_KEY`
 
