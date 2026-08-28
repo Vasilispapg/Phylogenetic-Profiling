@@ -15,18 +15,55 @@ to GHCR and restarts the container over SSH
 |---|---|
 | `DEPLOY_HOST` | the server's hostname or IP |
 | `DEPLOY_USER` | the SSH user that can run `docker compose` |
-| `DEPLOY_KEY` | the **private** half of a key whose public half is in that user's `~/.ssh/authorized_keys` |
-| `DEPLOY_KNOWN_HOSTS` | optional but recommended: `ssh-keyscan -H <host>` output, so the workflow does not trust whatever key answers |
+| `DEPLOY_KEY` | the **private** half of a key made only for this |
+| `DEPLOY_KNOWN_HOSTS` | the server's public host key. Not a secret, but the workflow needs it |
 | `DEPLOY_PATH` | optional, defaults to `/srv/phyloflask` |
 
-Make a key that is only for this:
+#### `DEPLOY_KEY`
+
+A dedicated key, not your own: it can be revoked without touching your access.
 
 ```bash
-ssh-keygen -t ed25519 -f phyloflask-deploy -C "phyloflask deploy" -N ""
-# public half onto the server:
-ssh-copy-id -i phyloflask-deploy.pub deployuser@your-host
-# private half into DEPLOY_KEY, then delete your local copy
+ssh-keygen -t ed25519 -f ~/phyloflask-deploy -C "phyloflask deploy" -N ""
+ssh-copy-id -i ~/phyloflask-deploy.pub deployuser@your-host
+pbcopy < ~/phyloflask-deploy && rm ~/phyloflask-deploy   # paste into the secret
 ```
+
+Paste the whole private file, `BEGIN` and `END` lines included.
+
+**Restrict what it can do.** A deploy key that can only deploy is worth much more
+than one that can log in. On the server, put the forced command in front of the
+key in `~/.ssh/authorized_keys` — all on one line:
+
+```
+command="cd /srv/phyloflask && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d --remove-orphans && docker image prune -f",no-agent-forwarding,no-port-forwarding,no-pty,no-X11-forwarding ssh-ed25519 AAAA... phyloflask deploy
+```
+
+SSH then ignores whatever the client asks for and runs that, so if the key ever
+leaks the holder can restart the container and nothing else. The workflow still
+sends its own command; it is discarded, and the exit status is the forced one's.
+
+#### `DEPLOY_KNOWN_HOSTS`
+
+The server's public host key, so the deploy talks to *your* machine and not to
+whatever answers on the day. Get it with:
+
+```bash
+ssh-keyscan -H your-host
+```
+
+Then **verify it out of band** — copying a fingerprint from an untrusted channel
+defeats the point. On the server:
+
+```bash
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+The `SHA256:...` it prints has to match what `ssh-keyscan | ssh-keygen -lf -`
+gave you. If they differ, do not proceed.
+
+Without this secret the workflow falls back to trusting the key presented at
+deploy time and says so in the log.
 
 There is also an optional repository **variable** `DEPLOY_URL` (defaults to
 `https://phyloflask.vspapg.gr`), used for the post-deploy health check.
