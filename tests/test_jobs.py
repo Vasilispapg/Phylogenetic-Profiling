@@ -85,3 +85,38 @@ def test_reap_sweeps_stale_uploads_and_downloads(monkeypatch):
     assert removed == 1
     assert not old.exists()
     assert fresh.exists()                       # inside the retention window
+
+
+def test_store_survives_sustained_use():
+    """
+    Connections must be closed, not merely committed.
+
+    `with sqlite3.connect(...)` commits but leaves the handle open; leaking one
+    per operation eventually turned writes into "disk I/O error" under CI's
+    process pool. This drives enough operations that a leak would show.
+    """
+    ids = [jobs.create("tree", f"job {i}") for i in range(150)]
+    for i, job_id in enumerate(ids):
+        jobs.progress(job_id, i / len(ids), "working")
+        jobs.finish(job_id, {"n": i})
+    assert jobs.get(ids[-1])["state"] == "done"
+    assert jobs.get(ids[0])["result"] == {"n": 0}
+
+
+def test_writes_retry_a_busy_database(monkeypatch):
+    """A contended write must not lose a job's state."""
+    calls = {"n": 0}
+    real = jobs.sqlite3.connect
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise jobs.sqlite3.OperationalError("database is locked")
+        return real(*args, **kwargs)
+
+    job_id = jobs.create("tree")
+    monkeypatch.setattr(jobs.sqlite3, "connect", flaky)
+    monkeypatch.setattr(jobs, "_WRITE_BACKOFF", 0)
+    jobs.finish(job_id, {"ok": True})       # first attempt fails, second lands
+    assert calls["n"] >= 2
+    assert jobs.get(job_id)["state"] == "done"

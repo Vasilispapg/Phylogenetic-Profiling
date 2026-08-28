@@ -16,6 +16,7 @@ import logging
 import sqlite3
 import time
 import uuid
+from contextlib import contextmanager
 
 from config import DB_PATH, DOWNLOAD_DIR, JOB_TTL_SECONDS, RESULT_DIR, UPLOAD_DIR
 
@@ -46,27 +47,70 @@ CREATE INDEX IF NOT EXISTS jobs_created ON jobs (created);
 _FIELDS = ("id", "kind", "state", "progress", "message", "result", "error", "created", "updated")
 
 
+# A write may briefly lose a race with another process; a job's recorded state
+# must not be lost to that, so writes retry a bounded number of times.
+_WRITE_ATTEMPTS = 5
+_WRITE_BACKOFF = 0.15
+
+
+@contextmanager
 def _connect():
+    """
+    A connection that is actually closed afterwards.
+
+    ``with sqlite3.connect(...)`` commits, but it does *not* close: every call
+    leaked an open handle, and once enough of them accumulated across processes
+    SQLite started returning "disk I/O error" instead of doing the write.
+    """
     con = sqlite3.connect(DB_PATH, timeout=15, isolation_level=None)
-    con.execute("PRAGMA journal_mode=WAL")
-    con.execute("PRAGMA busy_timeout=15000")
-    return con
+    try:
+        # journal_mode is persistent, so it is set once in init() rather than on
+        # every connection, where it would need a brief exclusive lock each time.
+        con.execute("PRAGMA busy_timeout=15000")
+        yield con
+    finally:
+        con.close()
+
+
+def _write(sql, params=()):
+    """Run a statement, tolerating a contended database."""
+    for attempt in range(_WRITE_ATTEMPTS):
+        try:
+            with _connect() as con:
+                return con.execute(sql, params)
+        except sqlite3.OperationalError:
+            if attempt == _WRITE_ATTEMPTS - 1:
+                raise
+            log.warning("job store busy, retrying (%d/%d)", attempt + 1, _WRITE_ATTEMPTS)
+            time.sleep(_WRITE_BACKOFF * (attempt + 1))
 
 
 def init():
     """Create the schema. Idempotent; safe to call from every worker process."""
-    with _connect() as con:
-        con.executescript(_SCHEMA)
+    for attempt in range(_WRITE_ATTEMPTS):
+        try:
+            with _connect() as con:
+                # WAL lets status polls read while a worker writes. If the
+                # filesystem cannot support it, carry on with the default
+                # journal rather than refusing to run.
+                mode = con.execute("PRAGMA journal_mode=WAL").fetchone()
+                if mode and mode[0].lower() != "wal":
+                    log.warning("job store journal mode is %s, not WAL", mode[0])
+                con.executescript(_SCHEMA)
+            return
+        except sqlite3.OperationalError:
+            if attempt == _WRITE_ATTEMPTS - 1:
+                raise
+            time.sleep(_WRITE_BACKOFF * (attempt + 1))
 
 
 def create(kind, message=None):
     job_id, now = uuid.uuid4().hex, time.time()
-    with _connect() as con:
-        con.execute(
-            "INSERT INTO jobs (id, kind, state, progress, message, created, updated) "
-            "VALUES (?, ?, 'queued', 0, ?, ?, ?)",
-            (job_id, kind, message, now, now),
-        )
+    _write(
+        "INSERT INTO jobs (id, kind, state, progress, message, created, updated) "
+        "VALUES (?, ?, 'queued', 0, ?, ?, ?)",
+        (job_id, kind, message, now, now),
+    )
     return job_id
 
 
@@ -81,8 +125,7 @@ def update(job_id, **fields):
         fields["result"] = json.dumps(fields["result"])
     fields["updated"] = time.time()
     assignments = ", ".join(f"{k} = ?" for k in fields)
-    with _connect() as con:
-        con.execute(f"UPDATE jobs SET {assignments} WHERE id = ?", (*fields.values(), job_id))
+    _write(f"UPDATE jobs SET {assignments} WHERE id = ?", (*fields.values(), job_id))
 
 
 def get(job_id):
@@ -151,13 +194,13 @@ def reap(now=None):
         rows = con.execute(
             "SELECT id, result FROM jobs WHERE created < ?", (cutoff,)
         ).fetchall()
-        con.execute("DELETE FROM jobs WHERE created < ?", (cutoff,))
-        stranded = con.execute(
-            "UPDATE jobs SET state='failed', error='Worker process disappeared.', "
-            "message='Worker process disappeared.', updated=? "
-            "WHERE state IN ('queued','running') AND updated < ?",
-            (now, stale),
-        ).rowcount
+    _write("DELETE FROM jobs WHERE created < ?", (cutoff,))
+    stranded = _write(
+        "UPDATE jobs SET state='failed', error='Worker process disappeared.', "
+        "message='Worker process disappeared.', updated=? "
+        "WHERE state IN ('queued','running') AND updated < ?",
+        (now, stale),
+    ).rowcount
     for _, result in rows:
         _delete_blobs(result)
 
