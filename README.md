@@ -38,7 +38,7 @@ These describe what the code does now, so you don't have to re-read it all.
 | Linked explorer | `/explorer` (React) | Clustered heatmap ↔ domain network, synchronised selection |
 | Embedding map | `/embedding` (React) | 2D PCA / t-SNE projection of profiles, KMeans groups, searchable |
 | All vs All | `/tools/allvsall` | Upload a correlation matrix → MCL clusters: network coloured by cluster + linked co-cluster heatmap |
-| Tree builder | `/tools/tree_construct` | Upload a correlation matrix → NJ tree (Newick), async job + polling |
+| Tree builder | `/tools/tree_construct` | Upload a correlation matrix → NJ (or UPGMA) tree, async job + polling |
 | Tree viewer | `/tools/tree_viewer` | Upload a `.nw` file → collapsible radial tree (genus colours, search) |
 | How to use | `/how-to` | Per-tool walkthrough |
 | FAQ | `/faq` | Concepts, methods, troubleshooting, credits |
@@ -46,12 +46,16 @@ These describe what the code does now, so you don't have to re-read it all.
 ## Frontend
 
 Two UIs share the same Flask JSON API:
-- **Classic** — server-rendered Jinja pages (light, zero build), served by Flask.
-- **React SPA** — a modern Vite + React app in [`frontend/`](frontend/) that consumes
-  the API. Dev: **`./dev.sh`** starts both (Flask :8000 + Vite :5173, proxied) — or run
-  them separately (`python app.py` and `cd frontend && npm install && npm run dev`).
+- **Classic** — server-rendered Jinja pages (light, zero build), served by Flask at `/`.
+- **React SPA** — a Vite + React app in [`frontend/`](frontend/) that consumes the API,
+  served by Flask at **`/app`** once built (the Docker image builds it for you).
+  Dev: **`./dev.sh`** starts both (Flask :8000 + Vite :5173, proxied) — or run them
+  separately (`python app.py` and `cd frontend && npm install && npm run dev`).
   Build: `npm run build` → `frontend/dist/`. See [`frontend/README.md`](frontend/README.md).
   Design system: [`docs/DESIGN.md`](docs/DESIGN.md) (live gallery at `/styleguide`).
+
+> Which UI is canonical has not been decided; both are served, and the API is the
+> contract between them.
 
 ## Quick start
 
@@ -68,15 +72,15 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python app.py                 # dev server on http://127.0.0.1:8000
 # production:
-gunicorn --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:8000 app:app
+gunicorn --workers 4 --threads 4 --timeout 60 --bind 0.0.0.0:8000 app:app
 ```
 
 > **macOS note:** the default port is **8000**, not 5000 — on macOS the AirPlay
 > Receiver (System Settings → General → AirDrop & Handoff) occupies ports 5000
 > and 7000 and will silently answer with `Server: AirTunes`, making the app look
 > broken. Use 8000, or disable the AirPlay Receiver.
-Run **1 worker** (threads for concurrency): job state is in-memory, so multiple
-workers would not share it. See [`docs/CODE_ANALYSIS.md`](docs/CODE_ANALYSIS.md).
+Job state lives in SQLite (WAL) and heavy work runs in a separate process pool, so
+multiple gunicorn workers are fine. See [`docs/CODE_ANALYSIS.md`](docs/CODE_ANALYSIS.md).
 
 ## CLI
 
@@ -87,7 +91,7 @@ python main.py <command>
 | Command | Action |
 |---------|--------|
 | `--analyze` | Build `output/correlation_matrix.csv` and `output/feature_matrix.csv` from the bundled BLAST file |
-| `--construct_tree` | Build a NJ tree from the correlation matrix → `output/species_tree_approx.nw` |
+| `--construct_tree [nj\|upgma]` | Build a tree from the correlation matrix → `output/species_tree_approx.nw` |
 | `--display_tree [depth]` | Open an interactive circular tree (Plotly) |
 | `--all_vs_all` | Domain MCL clustering + Dash app (port 8051) |
 | `--validate_clusters` | Print a clustering-quality report (clusters, modularity, same-protein co-clustering) |
@@ -105,37 +109,58 @@ SubjectStart, SubjectEnd, EValue, BitScore`.
   protein accession is the part before the first `-`).
 - **Species** = first 4 dash-segments of `SubjectID` (e.g.
   `UP000005640-00009606-Homo_sapi-22`).
-- A hit counts as **present** only when `EValue <= 1e-5` (configurable).
+- A hit counts as **present** only when `EValue <= 1e-5` (configurable via
+  `EVALUE_THRESHOLD`). The cutoff is applied in one place, so the correlation
+  matrix and the feature matrix always agree on what "present" means.
 
 ## Configuration (env vars)
+
+All of these are read in [`config.py`](config.py).
 
 | Var | Default | Meaning |
 |-----|---------|---------|
 | `PORT` / `HOST` | `8000` / `127.0.0.1` | Dev server bind (5000 clashes with macOS AirPlay) |
 | `FLASK_DEBUG` | `0` (off) | Enable Flask debugger (never in production) |
+| `LOG_LEVEL` | `INFO` | Root logging level |
 | `MAX_UPLOAD_MB` | `200` | Max upload size |
+| `JOB_WORKERS` | `2` | Concurrent background jobs |
+| `JOB_BACKEND` | `process` | `process` (off the GIL) or `thread` (escape hatch) |
+| `JOB_TTL_SECONDS` | `86400` | How long finished jobs and their results are kept |
+| `EVALUE_THRESHOLD` | `1e-5` | A BLAST hit counts as present at or below this |
+| `JACCARD_THRESHOLD` | `0.5` | Minimum similarity for a domain–domain edge |
+| `MCL_INFLATION` | `2.0` | MCL granularity |
+| `MAX_TAXA` | `5000` | Refuse NJ above this many species (use `upgma` instead) |
+| `EDGE_BUDGET_PER_NODE` | `5` | Strongest edges per node returned by `/allvsall_data` |
+| `UPLOAD_DIR` / `DOWNLOAD_DIR` / `CACHE_DIR` / `RESULT_DIR` / `DB_PATH` | under the repo | Runtime paths |
 | `DASH_DEBUG` | off | Debug mode for standalone Dash apps |
 
 ## Testing
 
 ```bash
 pip install pytest
-pytest -q
+pytest -q                      # 74 tests
+npm run test --prefix frontend # 11 tests
 ```
-Covers species-key extraction, matrix building, true-positive extraction,
-Jaccard distance/tree, domain clustering + validation, and Flask route/security
-smoke tests.
+Covers species-key extraction, the E-value cutoff, matrix building, Jaccard
+distance, **equivalence of the fast Neighbour-Joining to Bio.Phylo**
+(Robinson-Foulds 0), the job store, domain clustering + validation, every HTTP
+endpoint including both async jobs end to end, and the SPA's CSV parser.
+CI runs all of it plus a Docker build: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Project layout
 
 ```
-app.py                  Flask app factory, page routes, shared download endpoint
+app.py                  Flask app, page routes, SPA mount, error handlers, job pool
+config.py               Paths and every tunable knob (all env-overridable)
+jobs.py                 SQLite job store (state, progress, result blobs, TTL)
+workers.py              Background job entry points (run in a separate process)
 main.py                 CLI entry point
-templates/*.py          Flask blueprints (blast, heatmap, allvsall, tree)
+blueprints/*.py         Flask blueprints (blast, heatmap, allvsall, tree)
 analysis/               BLAST parsing, matrices, MCL clustering + validation
-tree_construction/      Distance matrix + NJ tree + circular tree display
-visualization/          Plotly/Dash heatmaps
+tree_construction/      Distance matrix + fast NJ/UPGMA (nj.py)
+visualization/          Plotly heatmaps + the CLI-only Dash explorer
 pages/*.html            Jinja templates (tools.html is the base layout)
+frontend/               React SPA (served at /app once built)
 public/                 Static assets (CSS/JS/images)
 data/                   Sample inputs (species lists + BLAST file)
 tests/                  pytest suite

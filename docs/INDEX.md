@@ -6,68 +6,85 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 ## Entry points
 
 - **`app.py`** — Flask app (`app`). Page routes `/`, `/tools`, `/tools/blast`,
-  `/how-to`, `/faq`; single shared download endpoint `GET /downloads/<path:filename>`
-  (`send_from_directory`, traversal-safe). Registers all blueprints. Reads
-  `PORT/HOST/FLASK_DEBUG/MAX_UPLOAD_MB` from env. WSGI callable for gunicorn = `app:app`.
+  `/how-to`, `/faq`, `/styleguide`, `/health`; the built React SPA at `/app`;
+  single shared download endpoint `GET /downloads/<path:filename>`
+  (`send_from_directory`, traversal-safe). Owns the job process pool
+  (`app.submit_job`), the reaper timer and the JSON error handlers. WSGI callable
+  for gunicorn = `app:app`.
+- **`config.py`** — every path and knob, all env-overridable (`EVALUE_THRESHOLD`,
+  `JACCARD_THRESHOLD`, `MCL_INFLATION`, `MAX_TAXA`, `JOB_*`, directories).
+  Creates the runtime directories and configures logging.
+- **`jobs.py`** — SQLite/WAL job store: `create/update/get/progress/finish/fail`,
+  gzipped result blobs under `results/`, and `reap()` for TTL expiry plus
+  stranded-job sweeping.
+- **`workers.py`** — `run_tree_job` / `run_allvsall_job`. These run in a separate
+  process, so they import no Flask.
 - **`main.py`** — CLI dispatcher. `COMMANDS` dict maps `--analyze`,
   `--construct_tree`, `--display_tree`, `--all_vs_all`, `--validate_clusters`,
   `--display_*` to functions. Constants: `BLAST_FILE_PATH`, `CORRELATION_MATRIX_PATH`,
   `FEATURE_MATRIX_PATH`.
 
-## Flask blueprints (`templates/*.py` — these are Python, not HTML)
+## Flask blueprints (`blueprints/*.py` — these are Python, not HTML)
 
-- **`templates/blast.py`** (`blast_bp`) — `POST /upload` (secure_filename +
-  extension allowlist), `POST /process` (→ `create_correlation_matrix` /
-  `create_feature_matrix`, writes to `downloads/`), `GET /results`.
-- **`templates/heatmap.py`** (`heatmap_bp`) — `GET /tools/heatmap` (page) plus
+- **`blueprints/_api.py`** — `fail()` / `ok()` (real HTTP status codes) and
+  `safe_upload_name()`, the single upload validator every endpoint goes through.
+- **`blueprints/blast.py`** (`blast_bp`) — `POST /upload` (uuid-prefixed storage),
+  `POST /process` (→ `create_correlation_matrix` / `create_feature_matrix`, writes
+  a uuid-prefixed file to `downloads/`), `GET /results`.
+- **`blueprints/heatmap.py`** (`heatmap_bp`) — `GET /tools/heatmap` (page) plus
   `POST /clustergram` (SciPy hierarchical clustering → leaf orders + dendrogram
   coords) and `POST /embedding` (scikit-learn PCA/t-SNE + KMeans → 2D coords +
   labels). Heatmap/clustergram/embedding pages parse CSVs client-side.
-- **`templates/allvsall.py`** (`allvsall_bp`) — `GET/POST /tools/allvsall`
-  (POST starts a background `cluster_domains` job), `GET /allvsall_status/<f>`,
-  `GET /allvsall_data/<f>`. Shared `precomputed_results`/`progress_status` dicts
-  guarded by one `Lock`.
-- **`templates/tree.py`** (`tree_bp`) — tree pages + endpoints. Key pieces:
-  - `GET/POST /tools/tree_construct` — POST starts a background NJ build, returns `job_id`.
-  - `GET /tools/tree_status?job_id=` — job status (`in_progress|completed|failed`, or 404).
+- **`blueprints/allvsall.py`** (`allvsall_bp`) — `GET/POST /tools/allvsall`
+  (POST starts a background clustering job and returns its id),
+  `GET /allvsall_status/<job_id>` (poll `state`),
+  `GET /allvsall_data/<job_id>[?include=matrix,positions]`.
+- **`blueprints/tree.py`** (`tree_bp`) — tree pages + endpoints. Key pieces:
+  - `GET/POST /tools/tree_construct` — POST starts a background build (`method=nj|upgma`),
+    returns `job_id` with 202.
+  - `GET /tools/tree_status?job_id=` — `status` (legacy) plus `state`/`progress`, or 404.
   - `POST /tools/tree_viewer` — parse uploaded Newick → D3 JSON (`convert_tree_to_d3`,
     `get_max_depth`, both iterative/stack-based).
-  - `_jobs` dict + `_jobs_lock`; jobs keyed by uuid `job_id`.
 
 ## Analysis pipeline (`analysis/`)
 
-- **`utils.py`** — `extract_species(subject_id)` (canonical species key = first 4
-  dash-segments; the single source of truth) and `extract_partial_species`.
+- **`utils.py`** — `extract_species(subject_id)`: canonical species key = first 4
+  dash-segments, the single source of truth for both matrix builders.
 - **`matrix_operations.py`** — core matrices:
-  - `_load_blast` — read BLAST tabular, add `Domain`/`Species` columns.
-  - `create_correlation_matrix(...evalue_threshold=1e-5)` — species × domain
-    presence/count matrix (presence requires `EValue <= threshold`).
+  - `_load_blast` — read BLAST tabular, **apply the E-value cutoff**, add
+    `Domain`/`Species` columns. Both builders go through it, so they agree.
+  - `create_correlation_matrix` — species × domain presence/count matrix.
   - `create_feature_matrix` — species × domain JSON feature vectors.
   - `find_true_positives(corr_path)` — vectorized list of (species, domain) pairs > 0.
-- **`clustering_analysis.py`** — domain-profile MCL clustering:
+- **`clustering_analysis.py`** — domain-profile MCL clustering, UI-framework free:
   - `domain_jaccard(corr_df)` → (domains, Jaccard matrix).
   - `build_domain_graph(domains, J, threshold)` → weighted nx graph.
-  - `cluster_domains(corr_path, threshold=0.5, inflation=2.0, run_dash=False)` →
-    `(graph, nodes, all_vs_all_df, pos)`; prints validation.
+  - `cluster_labels` / `co_cluster_matrix` — the partition, and its dense form.
+  - `cluster_payload(...)` → the API-shaped, content-addressed cached dict used by
+    the web (O(n) on the wire).
+  - `cluster_domains(...)` → the legacy `(graph, nodes, all_vs_all_df, pos, metrics)`
+    tuple used by the CLI.
   - `validate_clusters(graph, clusters, nodes)` → metrics dict (n_clusters,
     modularity, same_protein_cocluster_rate, warning).
-  - `create_dash_app` / `create_dash_component` — Dash UI for the graph + heatmap.
-- **`blast_processing.py`** — `load_blast_data` (lightweight loader; uses
-  `extract_species`). Currently not on the main paths.
 
 ## Tree construction (`tree_construction/`)
 
+- **`nj.py`** — `nj_newick` (Neighbour-Joining vectorised with numpy; 158× faster
+  than Bio.Phylo with an identical topology, asserted in `tests/test_nj.py`),
+  `upgma_newick` (explicit O(n²) alternative), `check_size` (the `MAX_TAXA` guard).
 - **`construct_tree.py`** —
   - `load_profile_matrix(path)` — presence/absence profile (drops empty rows,
     aggregates duplicate species).
-  - `compute_distance_matrix(path, metric="jaccard")` → (species, lower-triangle).
-  - `construct_tree(species, lower_triangle, output_path)` — Bio.Phylo NJ → Newick.
-  - `load_species_data` — parse a bare `TaxID-SpeciesCode` list (legacy helper).
+  - `compute_square_distances(path, metric="jaccard")` → (species, square array).
+    Preferred; `compute_distance_matrix` is the lower-triangle form kept for the CLI.
+  - `construct_tree(species, distances, output_path, method="nj")` → Newick.
 - **`display_tree.py`** — `display_tree` / `convert_tree_to_circular_plotly`
   (interactive circular tree, CLI only).
 
 ## Visualization (`visualization/`)
 
+- **`dash_allvsall.py`** — `create_dash_app`, the CLI-only Dash explorer. Lives
+  here so no web blueprint transitively imports Dash/Plotly.
 - **`display_correlation.py`** — `display_species_domain_heatmap` and
   `display_species_domain_heatmap_with_features` (Dash; JSON cells parsed with
   `json.loads`, never `eval`).
@@ -89,12 +106,14 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
   linked to a Plotly co-cluster heatmap.
 - **`pages/heatmap.html`** — client-side heatmap tool (order/log toggles, cell-click).
 - **`public/assets/css/tools.css`** — shared themed components, responsive rules, polish.
-- **`public/assets/js/tools.js`** — `Phylo` helpers: dropzone, upload, poll, status.
+- **`public/assets/js/tools.js`** — `Phylo` helpers: dropzone, upload, poll, status
+  (status text is inserted with `textContent`, never as markup).
 
 ## React SPA (`frontend/`)
 
-Vite + React app consuming the same JSON API — the primary UI (the Jinja pages
-remain as a zero-build fallback). Run both servers with **`./dev.sh`**.
+Vite + React app consuming the same JSON API, served by Flask at **`/app`** once
+built (the Docker image builds it). The Jinja pages are still served at `/`; which
+one is canonical is an open decision. Run both dev servers with **`./dev.sh`**.
 
 - **`src/lib/matrix.js`** — shared CSV parse (PapaParse; handles JSON feature
   cells with embedded commas), ordering, per-row/col normalize + log transforms.
@@ -119,8 +138,16 @@ remain as a zero-build fallback). Run both servers with **`./dev.sh`**.
 
 ## Tests & ops
 
-- **`tests/test_pipeline.py`** — species keys, matrices, true positives, Jaccard
-  tree, domain clustering + validation.
-- **`tests/test_web.py`** — route smoke tests, 404s, path-traversal block, upload validation.
-- **`tests/conftest.py`** — adds repo root to `sys.path`.
-- **`Dockerfile`**, **`docker-compose.yml`**, **`.dockerignore`** — containerized run.
+- **`tests/test_pipeline.py`** — species keys, the E-value cutoff, matrices, true
+  positives, Jaccard distances, both tree methods.
+- **`tests/test_nj.py`** — equivalence of the fast NJ to Bio.Phylo (Robinson-Foulds 0),
+  Newick quoting, the `MAX_TAXA` guard.
+- **`tests/test_jobs.py`** — job store transitions, blobs, TTL reaping, stranded jobs.
+- **`tests/test_web.py`** — every endpoint including both async jobs end to end,
+  status codes, path-traversal block, upload validation, upload isolation.
+- **`tests/conftest.py`** — adds repo root to `sys.path` and redirects all runtime
+  directories to a scratch dir.
+- **`frontend/src/lib/matrix.test.js`** — the SPA's CSV parser (vitest).
+- **`.github/workflows/ci.yml`** — pytest, vitest, SPA build, Docker build.
+- **`Dockerfile`** (multi-stage: builds the SPA, then the app),
+  **`docker-compose.yml`**, **`.dockerignore`** — containerized run.

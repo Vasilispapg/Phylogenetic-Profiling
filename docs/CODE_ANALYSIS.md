@@ -6,14 +6,23 @@ File map is in [`INDEX.md`](INDEX.md).
 
 ## 1. Architecture
 
-- **Flask app** (`app.py`) with four **blueprints** (`templates/blast.py`,
-  `heatmap.py`, `allvsall.py`, `tree.py`). Templates live in `pages/`, static in
-  `public/`. A single download endpoint `GET /downloads/<path:filename>` serves
-  generated files via `send_from_directory` (path-traversal safe).
-- **CLI** (`main.py`) exposes the same analysis pipeline headlessly.
-- **Analysis core** (`analysis/`) is UI-agnostic and shared by web + CLI.
-- Heavy work (tree building, clustering) runs in **background threads**; the HTTP
-  request returns immediately and the client polls for status.
+- **Flask app** (`app.py`) with four **blueprints** (`blueprints/blast.py`,
+  `heatmap.py`, `allvsall.py`, `tree.py` — Python, not Jinja; the templates live
+  in `pages/`, static in `public/`). A single download endpoint
+  `GET /downloads/<path:filename>` serves generated files via
+  `send_from_directory` (path-traversal safe). The built React SPA is mounted at
+  `/app`.
+- **Configuration** (`config.py`) holds every path and tunable knob, all
+  env-overridable. Paths are absolute, so behaviour does not depend on the
+  working directory gunicorn was started from.
+- **CLI** (`main.py`) exposes the same analysis pipeline headlessly and exits
+  non-zero on failure.
+- **Analysis core** (`analysis/`) is UI-agnostic and shared by web + CLI, and
+  imports no UI framework.
+- Heavy work (tree building, clustering) runs in a **separate process**
+  (`workers.py` via a `ProcessPoolExecutor`); the HTTP request returns
+  immediately and the client polls. State lives in a SQLite job store
+  (`jobs.py`), so it survives restarts and is shared across gunicorn workers.
 
 ## 2. Data model
 
@@ -25,10 +34,14 @@ BLAST tabular input (`-outfmt 6`, 12 columns). Two derived identifiers:
   first `-` (used as internal ground truth in clustering validation).
 
 Matrices (rows = species, cols = domains):
-- **Correlation matrix** — hit counts; a hit counts only if `EValue <= 1e-5`
-  (`create_correlation_matrix`, `evalue_threshold`).
+- **Correlation matrix** — hit counts; a hit counts only if `EValue <= 1e-5`.
 - **Feature matrix** — each cell is a JSON feature vector (mean %id, mean
   alignment length, mean bitscore, num_hits, min_evalue).
+
+Both are built from `_load_blast`, which applies the E-value cutoff **once** for
+both. They used to disagree: only the correlation matrix filtered, so the same
+heatmap/clustergram/embedding tools got different presence semantics depending
+on which file you uploaded.
 
 ## 3. Pipelines
 
@@ -42,7 +55,17 @@ Matrices (rows = species, cols = domains):
 1. Presence/absence profile per species (`value > 0`); drop all-zero rows;
    aggregate duplicate species (logical OR).
 2. `pdist(profiles, metric='jaccard')` → `squareform` → lower-triangular list.
-3. `construct_tree` → Bio.Phylo `DistanceTreeConstructor().nj()` → Newick.
+3. `construct_tree` → `tree_construction/nj.py` → Newick.
+
+`nj_newick` is Neighbour-Joining with each iteration expressed in numpy. It
+replaced `Bio.Phylo`'s pure-Python O(n³) implementation, which took **119.9 s**
+on this repo's 848-species matrix (against 0.08 s to compute the distances
+themselves) and deep-copied the whole matrix first. The vectorised version takes
+**0.76 s** and produces an identical topology — asserted in `tests/test_nj.py`
+by comparing bipartitions against `Bio.Phylo` (Robinson-Foulds 0). `upgma_newick`
+is offered as an explicit second method (O(n²), ~5 s for 8480 taxa) but assumes a
+molecular clock, so it is never substituted silently. `MAX_TAXA` turns an
+eventual OOM into an actionable error.
 
 Distances are derived from **real** domain profiles (not list order). Identical
 profiles → distance 0; disjoint → 1.
@@ -54,8 +77,12 @@ profiles → distance 0; disjoint → 1.
 2. `build_domain_graph` — edge when Jaccard ≥ `threshold`, weight = Jaccard.
 3. MCL (`markov_clustering.run_mcl` on the weighted sparse adjacency) →
    `get_clusters`.
-4. Domain × domain **co-cluster** ("all-vs-all") matrix + `spring_layout` positions.
+4. Cluster labels straight from MCL (the co-cluster matrix and `spring_layout`
+   are computed once into the cached result but are not sent unless a client
+   asks for them with `?include=`).
 5. `validate_clusters` report (see §5).
+6. The whole payload is content-addressed cached under `cache/`, keyed on the
+   file's bytes plus the parameters plus an algorithm version.
 
 This clusters **domains by shared phylogenetic profile** (the intended goal), not
 the raw bipartite species–domain graph.
@@ -81,13 +108,19 @@ the client depth slider prunes the view.
 | GET | `/tools/tree_status?job_id=` | tree | `in_progress\|completed\|failed`, 404 if unknown |
 | GET/POST | `/tools/tree_viewer` | tree | POST parses Newick |
 
-**Job lifecycle (tree construct):** POST saves upload as
-`uploads/{job_id}_{name}`, sets `_jobs[job_id]={status:"in_progress",...}` **before**
-starting the thread, returns `job_id`. The worker thread runs `compute_distance_matrix`
-+ `construct_tree`, then sets `completed` (with `result` path) or `failed` (with
-`error`). The client polls `/tools/tree_status?job_id=` and stops on
-`completed`/`failed`/404. **allvsall** is analogous but keyed by the (secured)
-filename. All shared dicts are guarded by a `Lock`.
+**Job lifecycle (both kinds are now identical).** POST saves the upload under a
+uuid-prefixed name, inserts a row in the SQLite job store, submits
+`workers.run_*_job` to the process pool and returns the `job_id`. The worker
+reports progress at real pipeline boundaries by writing to the same store, then
+records `done` (with a result: a download filename, or a gzipped JSON blob under
+`results/`) or `failed`. The client polls and branches on `state`. A reaper
+expires finished jobs after `JOB_TTL_SECONDS`, deleting their blobs, and fails
+jobs whose worker vanished.
+
+This replaced two incompatible in-memory models — a uuid-keyed dict for trees and
+a filename-keyed pair of dicts plus a `"Completed."` magic string for all-vs-all —
+which grew without bound, were lost on restart, forced a single gunicorn worker,
+and let one user read another's results.
 
 ## 5. Clustering validation
 
@@ -109,20 +142,23 @@ Run via `python main.py --validate_clusters`.
   dominant cluster with `Q ≈ 0` even with the e-value cutoff and correct method —
   this is the *data*, and `validate_clusters` flags it. Sharper presence calls
   (stricter `evalue_threshold`/bitscore) or richer data are needed for modules.
-- **NJ is O(n³).** ~600 species ≈ 1 min; the full ~3000-species set would take
-  hours. `construct_tree` raises the recursion limit and prints a warning.
-- **In-memory job state.** `_jobs`/`precomputed_results` live in process memory →
-  run gunicorn with **1 worker** (threads for concurrency). State is lost on
-  restart. A persistent store (Redis/SQLite) would be needed for multi-worker.
-- **Clustering not cached.** Domain clustering is cheap (216 domains), so the old
-  pickle cache was removed. (Tree NJ is the expensive step.)
+- **NJ is still O(n³)**, just with a ~158× smaller constant: 848 species take
+  0.76 s, but 8000+ would take minutes and several GB. `MAX_TAXA` (default 5000)
+  refuses those with a message pointing at `upgma`.
+- **`/clustergram` and `/embedding` take the matrix in the request body.** That is
+  fine at the current scale but is O(cells) on the wire; `MAX_CELLS` caps it at
+  20M with a 413. Referencing an uploaded file by id would remove the round trip.
 - **Heatmap tool is client-side.** No server data endpoint; it parses uploaded
   CSVs in the browser.
-- **Security posture.** Uploads use `secure_filename` + extension allowlist +
-  `MAX_CONTENT_LENGTH`; downloads use `send_from_directory`; Flask debug is off
-  unless `FLASK_DEBUG=1`. Still single-tenant; no auth.
-- **Legacy/dead links.** `index.html` has placeholder `/features` and `/contact`
-  links with no backing routes.
+- **Security posture.** Uploads go through one validator (`secure_filename` +
+  per-kind extension allowlist + `MAX_CONTENT_LENGTH`), are stored under
+  unguessable uuid-prefixed names, and downloads use `send_from_directory`. Job
+  ids are unguessable capability tokens — that is *not* authentication, and there
+  is still no auth or per-user accounting.
+- **Two front-ends.** Both the Jinja pages and the React SPA are served and must
+  be kept in step; which one is canonical has not been decided.
+- **The bundled dataset still has weak structure** (see the first bullet); that is
+  the data, not the code.
 
 ## 7. Extension points
 

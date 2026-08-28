@@ -4,7 +4,7 @@ import logging
 import threading
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
-from flask import Flask, jsonify, render_template, send_from_directory
+from flask import Flask, jsonify, redirect, render_template, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 import config
@@ -128,6 +128,36 @@ def health():
     """Liveness plus a cheap look at the job queue."""
     return jsonify({"status": "success", "max_upload_mb": config.MAX_UPLOAD_MB,
                     "job_workers": config.JOB_WORKERS})
+
+
+# ---------------------------------------------------------------------------
+# React SPA
+#
+# The built bundle used to be unreachable: nothing served frontend/dist and the
+# Docker image never ran `npm run build`, so `docker compose up` shipped only the
+# Jinja pages. It is now mounted at /app, *alongside* them -- which UI becomes
+# canonical is a product decision, not one this route forces.
+# ---------------------------------------------------------------------------
+DIST = config.BASE / "frontend" / "dist"
+
+
+@app.get("/app")
+def spa_root():
+    return redirect("/app/", code=308)
+
+
+@app.get("/app/", defaults={"path": ""})
+@app.get("/app/<path:path>")
+def spa(path):
+    if not (DIST / "index.html").is_file():
+        return jsonify({
+            "status": "error",
+            "message": "The React bundle is not built. Run: npm ci --prefix frontend "
+                       "&& npm run build --prefix frontend",
+        }), 503
+    if path and (DIST / path).is_file():
+        return send_from_directory(DIST, path)
+    return send_from_directory(DIST, "index.html")   # client-side routing
 
 
 # Single shared download endpoint. send_from_directory rejects path traversal.

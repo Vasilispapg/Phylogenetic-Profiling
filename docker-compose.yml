@@ -8,9 +8,16 @@ services:
       # Set to 1 only for local debugging (never in production).
       - FLASK_DEBUG=0
       - MAX_UPLOAD_MB=200
+      # How many jobs may run concurrently, and how long results are kept.
+      - JOB_WORKERS=2
+      - JOB_TTL_SECONDS=86400
+      # Job database and result blobs live under one mounted directory: binding
+      # a single file that does not exist yet would make Docker create a folder.
+      - DB_PATH=/app/state/jobs.sqlite
+      - RESULT_DIR=/app/state/results
     volumes:
-      # Persist uploaded and generated files on the host.
       - ./uploads:/app/uploads
       - ./downloads:/app/downloads
       - ./cache:/app/cache
+      - ./state:/app/state
     restart: unless-stopped
