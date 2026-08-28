@@ -1,9 +1,13 @@
 import json
+import logging
 
 import numpy as np
 import pandas as pd
 
+from config import EVALUE_THRESHOLD
 from .utils import extract_species
+
+log = logging.getLogger(__name__)
 
 BLAST_COLUMNS = [
     'QueryID', 'SubjectID', 'PercentIdentity', 'AlignmentLength', 'Mismatches',
@@ -12,18 +16,34 @@ BLAST_COLUMNS = [
 ]
 
 
-def _load_blast(blast_file_path):
-    """Load a tab-separated BLAST tabular file with named columns."""
+def _load_blast(blast_file_path, evalue_threshold=EVALUE_THRESHOLD):
+    """
+    Load a tab-separated BLAST tabular file with named columns.
+
+    The E-value cutoff lives HERE, not in the individual matrix builders, so the
+    correlation matrix and the feature matrix agree on what "present" means. They
+    used to disagree: only the correlation matrix filtered, which silently gave
+    the two files different presence semantics even though the same tools accept
+    both. Pass ``evalue_threshold=None`` to keep every reported hit.
+    """
     blast_df = pd.read_csv(
         blast_file_path, sep='\t', header=None, names=BLAST_COLUMNS
     )
+    if evalue_threshold is not None:
+        evalues = pd.to_numeric(blast_df['EValue'], errors='coerce')
+        kept = evalues <= evalue_threshold
+        dropped = int((~kept).sum())
+        if dropped:
+            log.info("e-value filter (<= %g) dropped %d of %d hits",
+                     evalue_threshold, dropped, len(blast_df))
+        blast_df = blast_df[kept]
     blast_df['Domain'] = blast_df['QueryID']
     blast_df['Species'] = blast_df['SubjectID'].apply(extract_species)
     return blast_df
 
 
 def create_correlation_matrix(blast_file_path, output_path="output/correlation_matrix.csv",
-                              using_pi=False, evalue_threshold=1e-5):
+                              using_pi=False, evalue_threshold=EVALUE_THRESHOLD):
     """
     Parse the BLAST file and create a matrix where rows are species and columns
     are domains. Cells are hit counts (or mean percent identity when using_pi).
@@ -33,11 +53,7 @@ def create_correlation_matrix(blast_file_path, output_path="output/correlation_m
     meaningful for downstream profiling/clustering. Pass ``evalue_threshold=None``
     to count every reported hit.
     """
-    blast_df = _load_blast(blast_file_path)
-
-    if evalue_threshold is not None:
-        evalues = pd.to_numeric(blast_df['EValue'], errors='coerce')
-        blast_df = blast_df[evalues <= evalue_threshold]
+    blast_df = _load_blast(blast_file_path, evalue_threshold)
 
     heatmap_data = pd.pivot_table(
         blast_df,
@@ -48,21 +64,28 @@ def create_correlation_matrix(blast_file_path, output_path="output/correlation_m
         fill_value=0,
     )
 
-    if using_pi:
-        output_path = output_path.replace(".csv", "_pi.csv")
+    if using_pi and output_path.endswith(".csv"):
+        output_path = output_path[:-len(".csv")] + "_pi.csv"
 
     heatmap_data.to_csv(output_path)
-    print(f"Correlation matrix saved to {output_path}")
+    log.info("correlation matrix (%d species x %d domains) saved to %s",
+             *heatmap_data.shape, output_path)
     return heatmap_data
 
 
-def create_feature_matrix(blast_file_path, output_path="output/feature_matrix.csv"):
+def create_feature_matrix(blast_file_path, output_path="output/feature_matrix.csv",
+                          evalue_threshold=EVALUE_THRESHOLD):
     """
     Create a feature matrix where rows are species and columns are domains.
     Each cell is a JSON feature vector aggregating the BLAST hits for that
-    (species, domain) pair. Uses the same species key as the correlation matrix.
+    (species, domain) pair. Uses the same species key AND the same E-value cutoff
+    as the correlation matrix, so the two files are directly comparable.
     """
-    blast_df = _load_blast(blast_file_path)
+    blast_df = _load_blast(blast_file_path, evalue_threshold)
+    if blast_df.empty:
+        raise ValueError(
+            "No BLAST hits passed the E-value filter; cannot build a feature matrix."
+        )
 
     grouped = blast_df.groupby(['Species', 'Domain']).agg(
         total_percent_identity=('PercentIdentity', 'sum'),
@@ -99,7 +122,8 @@ def create_feature_matrix(blast_file_path, output_path="output/feature_matrix.cs
 
     feature_matrix.reset_index(inplace=True)
     feature_matrix.to_csv(output_path, index=False)
-    print(f"Feature matrix saved to {output_path}")
+    log.info("feature matrix (%d species x %d domains) saved to %s",
+             feature_matrix.shape[0], feature_matrix.shape[1] - 1, output_path)
     return feature_matrix
 
 

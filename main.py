@@ -1,9 +1,11 @@
+import logging
 import sys
-import pandas as pd
-from tree_construction.construct_tree import compute_distance_matrix, construct_tree
+
+import config
+from tree_construction.construct_tree import compute_square_distances, construct_tree
 from tree_construction.display_tree import display_tree
 from analysis.matrix_operations import create_correlation_matrix, create_feature_matrix
-from analysis.clustering_analysis import cluster_domains, domain_jaccard, validate_clusters
+from analysis.clustering_analysis import cluster_domains, domain_jaccard, validate_clusters  # noqa: F401
 from visualization.display_correlation import (
     display_species_domain_heatmap, display_species_domain_heatmap_with_features
 )
@@ -20,8 +22,9 @@ DEFAULT_TREE_DEPTH = 64
 def construct_tree_command():
     # Distances are derived from the species x domain presence/absence profile,
     # so the correlation matrix must be built first (run --analyze).
-    species, lower_triangle_matrix = compute_distance_matrix(CORRELATION_MATRIX_PATH)
-    construct_tree(species, lower_triangle_matrix)
+    method = sys.argv[2] if len(sys.argv) > 2 else "nj"
+    species, distances = compute_square_distances(CORRELATION_MATRIX_PATH)
+    construct_tree(species, distances, output_path=TREE_FILE_PATH, method=method)
 
 def display_tree_command():
     depth = int(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_TREE_DEPTH
@@ -32,18 +35,9 @@ def all_vs_all_command():
 
 def validate_clusters_command():
     # Run domain clustering and print the validation report (no UI).
-    import pandas as pd
-    import networkx as nx
-    from analysis.clustering_analysis import build_domain_graph, DEFAULT_THRESHOLD, DEFAULT_INFLATION
-    import markov_clustering as mc
-    from scipy.sparse import csr_matrix
+    from analysis.clustering_analysis import cluster_payload
 
-    corr_df = pd.read_csv(CORRELATION_MATRIX_PATH, index_col=0)
-    domains, J = domain_jaccard(corr_df)
-    graph = build_domain_graph(domains, J, DEFAULT_THRESHOLD)
-    adj = csr_matrix(nx.to_scipy_sparse_array(graph, nodelist=domains, weight="weight"))
-    clusters = mc.get_clusters(mc.run_mcl(adj, inflation=DEFAULT_INFLATION))
-    report = validate_clusters(graph, clusters, domains)
+    report = cluster_payload(CORRELATION_MATRIX_PATH)["metrics"]
     print("\n=== Cluster validation report ===")
     for k, v in report.items():
         print(f"  {k}: {v}")
@@ -73,6 +67,7 @@ COMMANDS = {
 }
 
 def main():
+    config.setup_logging()
     if len(sys.argv) < 2:
         print("Usage: python main.py [command]")
         print(f"Available commands: {', '.join(COMMANDS.keys())}")
@@ -89,7 +84,9 @@ def main():
     try:
         command_function()
     except Exception as e:
+        logging.getLogger(__name__).exception("command %s failed", command)
         print(f"An error occurred while executing '{command}': {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

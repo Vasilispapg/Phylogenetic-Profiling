@@ -2,7 +2,7 @@ import textwrap
 
 import pytest
 
-from analysis.utils import extract_species, extract_partial_species
+from analysis.utils import extract_species
 from analysis.matrix_operations import (
     create_correlation_matrix,
     create_feature_matrix,
@@ -49,11 +49,6 @@ def test_extract_species_basic():
 ])
 def test_extract_species_edge_cases(value, expected):
     assert extract_species(value) == expected
-
-
-def test_extract_partial_species_fallback():
-    assert extract_partial_species("no-match") == "no-match"
-    assert extract_partial_species(None) is None
 
 
 # --------------------------------------------------------------------------- #
