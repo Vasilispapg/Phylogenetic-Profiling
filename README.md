@@ -67,6 +67,13 @@ The server-rendered Jinja pages that used to duplicate every tool were removed:
 they had drifted (three tools existed only in React) and maintaining two clients
 for the same API was the largest source of duplication in the repo.
 
+## Deploying
+
+Production runs behind nginx on a single VPS. Pushing to `main` builds the image,
+publishes it to GHCR and restarts the container over SSH — see
+[`docs/DEPLOY.md`](docs/DEPLOY.md) for the secrets to set, the nginx config
+(including the rate limits that keep an open instance sane) and how to roll back.
+
 ## Quick start
 
 ### Docker (recommended)

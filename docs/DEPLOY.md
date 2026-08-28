@@ -1,0 +1,165 @@
+# Deploying PhyloFlask
+
+Production is a single VPS: nginx terminates TLS and rate-limits, and proxies to
+the app container on loopback. Pushing to `main` builds the image, publishes it
+to GHCR and restarts the container over SSH
+([`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)).
+
+## What you have to set up once
+
+### 1. Repository secrets
+
+`Settings → Secrets and variables → Actions`:
+
+| Secret | Value |
+|---|---|
+| `DEPLOY_HOST` | the server's hostname or IP |
+| `DEPLOY_USER` | the SSH user that can run `docker compose` |
+| `DEPLOY_KEY` | the **private** half of a key whose public half is in that user's `~/.ssh/authorized_keys` |
+| `DEPLOY_KNOWN_HOSTS` | optional but recommended: `ssh-keyscan -H <host>` output, so the workflow does not trust whatever key answers |
+| `DEPLOY_PATH` | optional, defaults to `/srv/phyloflask` |
+
+Make a key that is only for this:
+
+```bash
+ssh-keygen -t ed25519 -f phyloflask-deploy -C "phyloflask deploy" -N ""
+# public half onto the server:
+ssh-copy-id -i phyloflask-deploy.pub deployuser@your-host
+# private half into DEPLOY_KEY, then delete your local copy
+```
+
+There is also an optional repository **variable** `DEPLOY_URL` (defaults to
+`https://phyloflask.vspapg.gr`), used for the post-deploy health check.
+
+### 2. On the server
+
+```bash
+sudo mkdir -p /srv/phyloflask && sudo chown "$USER" /srv/phyloflask
+cd /srv/phyloflask
+curl -O https://raw.githubusercontent.com/Vasilispapg/PhyloFlask/main/docker-compose.prod.yml
+mkdir -p uploads downloads cache state
+docker compose -f docker-compose.prod.yml up -d
+curl -s localhost:8000/api/health
+```
+
+The image is public on GHCR, so the server needs no registry login.
+
+### 3. nginx
+
+The app listens on `127.0.0.1:8000` only. Everything below matters:
+`client_max_body_size` must match `MAX_UPLOAD_MB`, and the rate limits have to
+leave room for status polling — a running job is polled every 2 seconds, so a
+tight general limit would throttle a single legitimate user.
+
+```nginx
+# /etc/nginx/conf.d/phyloflask-limits.conf  (http context)
+limit_req_zone  $binary_remote_addr zone=phylo_api:10m   rate=2r/s;
+limit_req_zone  $binary_remote_addr zone=phylo_heavy:10m rate=6r/m;
+limit_conn_zone $binary_remote_addr zone=phylo_conn:10m;
+```
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name phyloflask.vspapg.gr;
+
+    # TLS lines as you already have them (certbot, etc.)
+
+    client_max_body_size 32m;        # keep in step with MAX_UPLOAD_MB
+    client_body_timeout  120s;
+    limit_conn phylo_conn 8;
+
+    # Starting work: uploads and job submissions. Expensive, so kept tight.
+    location ~ ^/api/(upload|process|matrices|allvsall|trees|newick)$ {
+        limit_req zone=phylo_heavy burst=3 nodelay;
+        include /etc/nginx/snippets/phyloflask-proxy.conf;
+    }
+
+    # Everything else under /api: mostly status polling and reading results.
+    location /api/ {
+        limit_req zone=phylo_api burst=40 nodelay;
+        include /etc/nginx/snippets/phyloflask-proxy.conf;
+    }
+
+    # The single-page app and its assets.
+    location / {
+        include /etc/nginx/snippets/phyloflask-proxy.conf;
+    }
+}
+```
+
+```nginx
+# /etc/nginx/snippets/phyloflask-proxy.conf
+proxy_pass         http://127.0.0.1:8000;
+proxy_http_version 1.1;
+proxy_set_header   Host              $host;
+proxy_set_header   X-Real-IP         $remote_addr;
+proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+proxy_set_header   X-Forwarded-Proto $scheme;
+proxy_read_timeout 120s;
+# The app gzips its own large JSON responses; nginx passes those through
+# untouched because they already carry Content-Encoding.
+proxy_set_header   Accept-Encoding   $http_accept_encoding;
+```
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+## What changes for anyone using the old site
+
+- **All JSON endpoints moved under `/api`.** `/upload` is now `/api/upload`,
+  `/allvsall_status/<f>` is now `/api/allvsall/<job_id>/status`, and so on. See
+  [`API.md`](API.md). Nothing outside this repo consumed them.
+- **The server-rendered pages are gone.** Old links such as `/tools/blast` land
+  on the overview rather than 404ing, and the app redirects the ones that have a
+  direct equivalent.
+- **Uploads and results are now deleted after `JOB_TTL_SECONDS`** (24 h by
+  default). Nothing used to clean them up.
+
+## Rolling back
+
+Every build is tagged with its commit, so a rollback is one command on the
+server:
+
+```bash
+cd /srv/phyloflask
+docker compose -f docker-compose.prod.yml down
+docker run -d --name phyloflask-rollback -p 127.0.0.1:8000:8000 \
+  -v "$PWD/uploads:/app/uploads" -v "$PWD/downloads:/app/downloads" \
+  -v "$PWD/cache:/app/cache"     -v "$PWD/state:/app/state" \
+  -e MAX_UPLOAD_MB=32 -e DB_PATH=/app/state/jobs.sqlite -e RESULT_DIR=/app/state/results \
+  ghcr.io/vasilispapg/phyloflask:<previous-sha>
+```
+
+Or edit the `image:` tag in `docker-compose.prod.yml` to that sha and
+`docker compose -f docker-compose.prod.yml up -d`.
+
+## Known risk: the instance is open
+
+There is no authentication. Anyone who can reach the site can upload a file and
+start a clustering or tree job, so the exposure is CPU, disk and memory rather
+than data — job and matrix ids are unguessable, so one visitor cannot read
+another's results by walking URLs.
+
+What limits it today: the nginx rate limits above, `MAX_UPLOAD_MB=32`,
+`JOB_WORKERS=2` (so at most two jobs run at once and the rest queue),
+`MAX_TAXA` refusing tree builds that would take hours, `MAX_CELLS` refusing
+absurd matrices, and the 24-hour retention sweep.
+
+If that stops being enough, the cheapest next step is HTTP basic auth in nginx:
+
+```nginx
+auth_basic           "PhyloFlask";
+auth_basic_user_file /etc/nginx/phyloflask.htpasswd;
+```
+
+## Checking a deploy
+
+```bash
+curl -s https://phyloflask.vspapg.gr/api/health
+docker compose -f docker-compose.prod.yml logs -f --tail=50
+```
+
+The workflow already does this: it polls `/api/health` for two minutes after the
+restart and fails the run if the site does not come back.
