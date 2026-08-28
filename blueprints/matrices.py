@@ -6,7 +6,7 @@ from flask import Blueprint, request
 from werkzeug.utils import secure_filename
 
 from analysis import matrix_io
-from blueprints._api import fail, gzipped_json, ok, safe_upload_name
+from blueprints._api import fail, gzipped_json, ok, save_upload
 from config import UPLOAD_DIR
 
 matrices_bp = Blueprint("matrices", __name__)
@@ -25,17 +25,13 @@ def resolve(file_id):
 @matrices_bp.post("/matrices")
 def upload_matrix():
     """Store a matrix CSV and return its id plus enough metadata to drive the UI."""
-    name, err = safe_upload_name(request.files.get("file"), "matrix")
+    token = uuid.uuid4().hex
+    name, err = save_upload(request.files.get("file"), "matrix", UPLOAD_DIR / token)
     if err:
         return err
-
-    file_id = f"{uuid.uuid4().hex}_{name}"
+    file_id = f"{token}_{name}"
     path = UPLOAD_DIR / file_id
-    try:
-        request.files["file"].save(path)
-    except OSError as exc:
-        log.exception("failed to save matrix %s", file_id)
-        return fail(f"Could not save the file: {exc}", 500)
+    (UPLOAD_DIR / token).rename(path)
 
     try:
         meta = matrix_io.describe(path)

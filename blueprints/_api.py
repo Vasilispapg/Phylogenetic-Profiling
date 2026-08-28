@@ -6,6 +6,8 @@ import os
 from flask import Response, jsonify, request
 from werkzeug.utils import secure_filename
 
+import guard
+from analysis.upload_guard import RejectedUpload, stream_to_disk
 from config import UPLOAD_KINDS
 
 # Numeric payloads compress extremely well: the bundled feature matrix as a
@@ -71,4 +73,30 @@ def safe_upload_name(storage, kind):
         ext = os.path.splitext(name)[1].lower() or "(none)"
         allowed_list = ", ".join(sorted(UPLOAD_KINDS[kind]))
         return None, fail(f"Unsupported file type {ext} for a {kind} file. Allowed: {allowed_list}", 400)
+    return name, None
+
+
+def save_upload(storage, kind, destination):
+    """
+    Validate an upload and write it to ``destination``.
+
+    One call does the whole job: the name, the declared type, the size, and —
+    the part an extension cannot tell you — whether the contents actually look
+    like the format. Returns ``(name, None)`` or ``(None, error_response)``.
+
+    A rejected upload is charged to the client that sent it: inspecting a file
+    costs real work, so a caller producing a stream of malformed ones is treated
+    the same as one exceeding its request budget.
+    """
+    name, err = safe_upload_name(storage, kind)
+    if err:
+        guard.strike(guard.client_ip(request), f"bad {kind} upload name/extension")
+        return None, err
+    try:
+        size = stream_to_disk(storage, kind, destination)
+    except RejectedUpload as exc:
+        guard.strike(guard.client_ip(request), f"rejected {kind} upload: {exc}")
+        return None, fail(str(exc), 400)
+    except OSError as exc:
+        return None, fail(f"Could not save the file: {exc}", 500)
     return name, None

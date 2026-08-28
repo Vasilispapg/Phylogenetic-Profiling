@@ -14,3 +14,7 @@ os.environ.setdefault("CACHE_DIR", os.path.join(_SCRATCH, "cache"))
 os.environ.setdefault("RESULT_DIR", os.path.join(_SCRATCH, "results"))
 os.environ.setdefault("OUTPUT_DIR", os.path.join(_SCRATCH, "output"))
 os.environ.setdefault("DB_PATH", os.path.join(_SCRATCH, "jobs.sqlite"))
+
+# The limiter would throttle the suite itself, which hammers the same endpoints
+# from one address. tests/test_guard.py turns it back on deliberately.
+os.environ.setdefault("RATE_LIMIT_ENABLED", "0")

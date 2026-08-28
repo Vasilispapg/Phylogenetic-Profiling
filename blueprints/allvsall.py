@@ -5,7 +5,7 @@ import uuid
 import jobs
 from flask import Blueprint, current_app, request
 
-from blueprints._api import fail, gzipped_bytes, gzipped_json, ok, safe_upload_name
+from blueprints._api import fail, gzipped_bytes, gzipped_json, ok, save_upload
 from config import UPLOAD_DIR
 
 allvsall_bp = Blueprint("allvsall", __name__)
@@ -23,16 +23,12 @@ OPTIONAL_FIELDS = ("matrix",)
 @allvsall_bp.post("/allvsall")
 def allvsall_tool():
     """Start a clustering job from an uploaded correlation matrix."""
-    name, err = safe_upload_name(request.files.get("file"), "matrix")
+    token = uuid.uuid4().hex
+    name, err = save_upload(request.files.get("file"), "matrix", UPLOAD_DIR / token)
     if err:
         return err
-
-    stored = f"{uuid.uuid4().hex}_{name}"
-    try:
-        request.files["file"].save(UPLOAD_DIR / stored)
-    except OSError as exc:
-        log.exception("failed to save upload %s", stored)
-        return fail(f"Could not save the file: {exc}", 500)
+    stored = f"{token}_{name}"
+    (UPLOAD_DIR / token).rename(UPLOAD_DIR / stored)
 
     from workers import run_allvsall_job
     job_id = current_app.submit_job(

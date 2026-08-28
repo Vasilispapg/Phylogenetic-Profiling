@@ -54,7 +54,7 @@ tight general limit would throttle a single legitimate user.
 ```nginx
 # /etc/nginx/conf.d/phyloflask-limits.conf  (http context)
 limit_req_zone  $binary_remote_addr zone=phylo_api:10m   rate=2r/s;
-limit_req_zone  $binary_remote_addr zone=phylo_heavy:10m rate=6r/m;
+limit_req_zone  $binary_remote_addr zone=phylo_heavy:10m rate=20r/m;
 limit_conn_zone $binary_remote_addr zone=phylo_conn:10m;
 ```
 
@@ -71,7 +71,7 @@ server {
 
     # Starting work: uploads and job submissions. Expensive, so kept tight.
     location ~ ^/api/(upload|process|matrices|allvsall|trees|newick)$ {
-        limit_req zone=phylo_heavy burst=3 nodelay;
+        limit_req zone=phylo_heavy burst=5 nodelay;
         include /etc/nginx/snippets/phyloflask-proxy.conf;
     }
 
@@ -142,10 +142,38 @@ start a clustering or tree job, so the exposure is CPU, disk and memory rather
 than data — job and matrix ids are unguessable, so one visitor cannot read
 another's results by walking URLs.
 
-What limits it today: the nginx rate limits above, `MAX_UPLOAD_MB=32`,
-`JOB_WORKERS=2` (so at most two jobs run at once and the rest queue),
-`MAX_TAXA` refusing tree builds that would take hours, `MAX_CELLS` refusing
-absurd matrices, and the 24-hour retention sweep.
+What limits it today, in two layers:
+
+**nginx** applies the rate limits above and `client_max_body_size`.
+
+**The app** does not depend on being behind nginx. It carries the same limits one
+layer in, where it knows which requests are expensive
+([`guard.py`](../guard.py)): 20 submissions a minute per address against 240
+reads, since a running job is polled every two seconds and a single budget would
+throttle an honest user. A client that keeps sending malformed uploads collects
+strikes — inspecting a file costs real work — and enough strikes earn a
+temporary ban that doubles each time, up to `BAN_SECONDS_MAX`.
+`X-Forwarded-For` is only believed when `TRUSTED_PROXY=1`, so the header cannot
+be used to rotate out of a limit.
+
+Every upload is also checked before it is kept
+([`analysis/upload_guard.py`](../analysis/upload_guard.py)): per-kind size cap,
+rejection of binary content and archive content types, a cap on the length of a
+single line, and a *sniff* that the contents match the format the extension
+claims — a `.csv` full of PNG bytes, a comma-separated file calling itself BLAST
+output, or a Newick string with unbalanced or absurdly deep nesting are all
+refused with a message that says what was expected. Validation happens while the
+file streams to disk, so a rejected upload is never written whole and never read
+into memory.
+
+Then `MAX_UPLOAD_MB=32`, `JOB_WORKERS=2` (so at most two jobs run at once and
+the rest queue), `MAX_TAXA` refusing tree builds that would take hours,
+`MAX_CELLS` refusing absurd matrices, and the 24-hour retention sweep.
+
+Nothing executes an upload: the files are only ever handed to pandas, numpy,
+scipy and Bio.Phylo as data. `tests/test_no_execution.py` fails the build if any
+module reachable from a request gains `eval`, `exec`, `pickle.load`,
+`subprocess` or a shell.
 
 If that stops being enough, the cheapest next step is HTTP basic auth in nginx:
 

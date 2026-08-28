@@ -4,10 +4,11 @@ import logging
 import threading
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
-from flask import Flask, abort, jsonify, send_from_directory
+from flask import Flask, abort, jsonify, request, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 import config
+import guard
 import jobs
 
 config.setup_logging()
@@ -18,6 +19,7 @@ app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_MB * 1024 * 1024
 
 jobs.init()
 jobs.reap()
+guard.init()
 
 
 # ---------------------------------------------------------------------------
@@ -54,6 +56,7 @@ def _start_reaper():
     def tick():
         try:
             jobs.reap()
+            guard.forget_old()
         except Exception:                          # noqa: BLE001 - never kill the timer
             log.exception("job reaper failed")
         finally:
@@ -147,6 +150,60 @@ def spa(path):
 def download_file(filename):
     """Download a generated result file from the downloads directory."""
     return send_from_directory(config.DOWNLOAD_DIR, filename, as_attachment=True)
+
+
+# ---------------------------------------------------------------------------
+# Abuse limits
+#
+# nginx limits at the edge in production, but the app should not depend on being
+# deployed behind it. These are the endpoints that start work; everything else
+# under /api is polling and reading results, which is frequent and cheap.
+# ---------------------------------------------------------------------------
+HEAVY_ENDPOINTS = frozenset({
+    "/api/upload", "/api/process", "/api/matrices",
+    "/api/allvsall", "/api/trees", "/api/newick",
+})
+
+
+@app.before_request
+def rate_limit():
+    if not request.path.startswith("/api/"):
+        return None
+    bucket = "heavy" if request.method == "POST" and request.path in HEAVY_ENDPOINTS else "api"
+    verdict = guard.check(guard.client_ip(request), bucket)
+    if verdict.allowed:
+        return None
+    response = jsonify({"status": "error", "message": verdict.reason})
+    response.status_code = 429
+    response.headers["Retry-After"] = str(verdict.retry_after)
+    return response
+
+
+@app.after_request
+def security_headers(response):
+    """
+    The app loads nothing from anywhere else, so it can say so.
+
+    Fonts, icons and every script are bundled, which makes a strict policy
+    honest rather than aspirational. Inline *styles* are still allowed because
+    the UI sets element style attributes; inline *scripts* are not.
+    """
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Content-Security-Policy", "; ".join([
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "font-src 'self'",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ]))
+    return response
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ import jobs
 from Bio import Phylo
 from flask import Blueprint, current_app, request
 
-from blueprints._api import fail, ok, safe_upload_name
+from blueprints._api import fail, ok, save_upload
 from config import DOWNLOAD_DIR, UPLOAD_DIR
 from tree_construction.nj import METHODS
 
@@ -65,11 +65,15 @@ def convert_tree_to_d3(tree, max_depth):
 # ---------------------------------------------------------------------------
 @tree_bp.post("/newick")
 def tree_viewer_endpoint():
-    name, err = safe_upload_name(request.files.get("file"), "newick")
+    token = uuid.uuid4().hex
+    scratch = UPLOAD_DIR / f"{token}.nw"
+    name, err = save_upload(request.files.get("file"), "newick", scratch)
     if err:
         return err
-
-    content = request.files["file"].read().decode("utf-8", errors="replace")
+    try:
+        content = scratch.read_text(encoding="utf-8", errors="replace")
+    finally:
+        scratch.unlink(missing_ok=True)
     try:
         tree = Phylo.read(io.StringIO(content), "newick")
     except Exception:
@@ -94,21 +98,16 @@ def tree_viewer_endpoint():
 @tree_bp.post("/trees")
 def construct_tree_endpoint():
     """Start a background tree build from an uploaded correlation matrix CSV."""
-    name, err = safe_upload_name(request.files.get("file"), "matrix")
-    if err:
-        return err
-
     method = (request.form.get("method") or "nj").lower()
     if method not in METHODS:
         return fail(f"Unknown method {method!r}; expected one of {sorted(METHODS)}.", 400)
 
     token = uuid.uuid4().hex
+    name, err = save_upload(request.files.get("file"), "matrix", UPLOAD_DIR / token)
+    if err:
+        return err
     input_path = UPLOAD_DIR / f"{token}_{name}"
-    try:
-        request.files["file"].save(input_path)
-    except OSError as exc:
-        log.exception("failed to save upload %s", input_path)
-        return fail(f"Could not save the file: {exc}", 500)
+    (UPLOAD_DIR / token).rename(input_path)
 
     base = os.path.splitext(name)[0]
     result_path = DOWNLOAD_DIR / f"{token}_{base}.nw"

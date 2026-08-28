@@ -17,6 +17,11 @@ services:
       - JOB_WORKERS=2
       - JOB_TTL_SECONDS=86400
       - LOG_LEVEL=INFO
+      # nginx sets X-Forwarded-For; without this the app would rate-limit the
+      # proxy's own address and treat every visitor as one client.
+      - TRUSTED_PROXY=1
+      - RATE_HEAVY_PER_MIN=20
+      - RATE_API_PER_MIN=240
       - DB_PATH=/app/state/jobs.sqlite
       - RESULT_DIR=/app/state/results
     volumes:

@@ -45,6 +45,21 @@ EDGE_BUDGET_PER_NODE = int(os.environ.get("EDGE_BUDGET_PER_NODE", "5"))
 TREE_DISPLAY_DEPTH = int(os.environ.get("TREE_DISPLAY_DEPTH", "6"))
 TREE_DISPLAY_MAX_DEPTH = int(os.environ.get("TREE_DISPLAY_MAX_DEPTH", "30"))
 
+# --- abuse limits ----------------------------------------------------------
+# Two budgets: submitting work is rare and expensive, polling a running job is
+# frequent and cheap (a client asks every 2 s), so one number cannot serve both.
+# 20/min is sized off the heaviest honest flow: the linked explorer uploads a
+# matrix and starts a clustering job per run, so a user iterating on it makes
+# two of these a go.
+RATE_LIMIT_ENABLED = os.environ.get("RATE_LIMIT_ENABLED", "1") not in ("0", "false", "no")
+RATE_HEAVY_PER_MIN = int(os.environ.get("RATE_HEAVY_PER_MIN", "20"))
+RATE_API_PER_MIN = int(os.environ.get("RATE_API_PER_MIN", "240"))
+BAN_AFTER_STRIKES = int(os.environ.get("BAN_AFTER_STRIKES", "5"))
+BAN_SECONDS = int(os.environ.get("BAN_SECONDS", "900"))
+BAN_SECONDS_MAX = int(os.environ.get("BAN_SECONDS_MAX", "86400"))
+# Only believe X-Forwarded-For when something really is in front of us.
+TRUSTED_PROXY = os.environ.get("TRUSTED_PROXY", "0") in ("1", "true", "yes")
+
 # --- upload validation -----------------------------------------------------
 UPLOAD_KINDS = {
     "blast": {".blastp", ".tsv", ".tab", ".txt", ".out", ".csv"},

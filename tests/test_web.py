@@ -11,6 +11,11 @@ MATRIX_CSV = (
     b"s4,0,0,1,1\ns5,0,0,1,1\ns6,0,0,1,1\n"
 )
 SMALL_Z = [[1, 0, 1, 0], [1, 0, 1, 0], [0, 1, 0, 1], [0, 1, 0, 1]]
+BLAST_TSV = (
+    b"D1\tUP000000001-00000001-Aaa_aaaa-22-1-E-1\t90.0\t100\t1\t0\t1\t100\t1\t100\t0.0\t300\n"
+    b"D1\tUP000000002-00000002-Bbb_bbbb-22-2-E-2\t88.0\t100\t2\t0\t1\t100\t1\t100\t0.0\t290\n"
+    b"D2\tUP000000001-00000001-Aaa_aaaa-22-1-E-9\t70.0\t50\t4\t0\t1\t50\t1\t50\t1e-30\t120\n"
+)
 
 
 @pytest.fixture
@@ -98,12 +103,7 @@ def test_allvsall_rejects_bad_extension(client):
 
 
 def test_upload_then_process_roundtrip(client):
-    blast = (
-        b"D1\tUP000000001-00000001-Aaa_aaaa-22-1-E-1\t90.0\t100\t1\t0\t1\t100\t1\t100\t0.0\t300\n"
-        b"D1\tUP000000002-00000002-Bbb_bbbb-22-2-E-2\t88.0\t100\t2\t0\t1\t100\t1\t100\t0.0\t290\n"
-        b"D2\tUP000000001-00000001-Aaa_aaaa-22-1-E-9\t70.0\t50\t4\t0\t1\t50\t1\t50\t1e-30\t120\n"
-    )
-    up = upload(client, "/api/upload", blast, "hits.blastp").get_json()
+    up = upload(client, "/api/upload", BLAST_TSV, "hits.blastp").get_json()
     assert up["status"] == "success"
 
     done = client.post("/api/process", json={"filename": up["filename"],
@@ -116,10 +116,10 @@ def test_upload_then_process_roundtrip(client):
 def test_two_uploads_with_the_same_name_do_not_collide(client):
     """The bug this replaced: both users wrote to uploads/<name> and to a fixed
     downloads/correlation_matrix.csv, so one silently served the other's data."""
-    a = upload(client, "/api/upload", b"first\n", "shared.csv").get_json()
-    b = upload(client, "/api/upload", b"second\n", "shared.csv").get_json()
+    a = upload(client, "/api/upload", BLAST_TSV, "shared.txt").get_json()
+    b = upload(client, "/api/upload", BLAST_TSV, "shared.txt").get_json()
     assert a["filename"] != b["filename"]
-    assert a["original_name"] == b["original_name"] == "shared.csv"
+    assert a["original_name"] == b["original_name"] == "shared.txt"
 
 
 def test_process_missing_file(client):

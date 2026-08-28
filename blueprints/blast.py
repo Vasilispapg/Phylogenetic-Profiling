@@ -7,7 +7,7 @@ from flask import Blueprint, request
 from werkzeug.utils import secure_filename
 
 from analysis.matrix_operations import create_correlation_matrix, create_feature_matrix
-from blueprints._api import fail, ok, safe_upload_name
+from blueprints._api import fail, ok, save_upload
 from config import DOWNLOAD_DIR, UPLOAD_DIR
 
 blast_bp = Blueprint("blast", __name__)
@@ -27,16 +27,13 @@ def upload_file():
     them -- but it stops two users who happen to upload "results.blastp" from
     overwriting each other's data.
     """
-    name, err = safe_upload_name(request.files.get("file"), "blast")
+    stored = f"{uuid.uuid4().hex}_pending"
+    name, err = save_upload(request.files.get("file"), "blast", UPLOAD_DIR / stored)
     if err:
         return err
-
-    stored = f"{uuid.uuid4().hex}_{name}"
-    try:
-        request.files["file"].save(UPLOAD_DIR / stored)
-    except OSError as exc:
-        log.exception("failed to save upload %s", stored)
-        return fail(f"Could not save the file: {exc}", 500)
+    final = f"{stored[:32]}_{name}"
+    (UPLOAD_DIR / stored).rename(UPLOAD_DIR / final)
+    stored = final
 
     return ok(message="File uploaded successfully!", filename=stored, original_name=name)
 
