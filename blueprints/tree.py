@@ -90,6 +90,12 @@ def tree_viewer_endpoint():
     except Exception:
         return fail("Could not parse Newick file.", 400)
 
+    # Bio.Phylo's parser is lenient: arbitrary text comes back as a single
+    # unnamed clade rather than an error, so check the result is really a tree.
+    if "(" not in content or ";" not in content or tree.count_terminals() < 2:
+        return fail("That does not look like a Newick tree "
+                    "(expected nested parentheses ending in ';').", 400)
+
     # Send the full tree; the client-side depth slider prunes the view, so the
     # user can change depth without re-uploading.
     max_depth_tree = get_max_depth(tree.root)

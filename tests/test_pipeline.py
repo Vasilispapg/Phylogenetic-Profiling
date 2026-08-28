@@ -169,3 +169,92 @@ def test_cluster_domains_finds_two_modules(tmp_path):
     assert report["same_protein_cocluster_rate"] == 1.0
     assert report["modularity"] > 0.3          # clear structure
     assert report["warning"] is None
+
+
+# --------------------------------------------------------------------------- #
+# E-value cutoff
+#
+# This is the most consequential threshold in the pipeline and it used to be
+# untested: every hit in SAMPLE_BLAST is at 0.0 or 1e-30, so deleting the filter
+# entirely left the suite green. These fixtures straddle the cutoff.
+# --------------------------------------------------------------------------- #
+STRONG = "UP000000001-00000001-Aaa_aaaa-22"
+WEAK = "UP000000002-00000002-Bbb_bbbb-22"
+
+MIXED_BLAST = textwrap.dedent("""\
+D1\tUP000000001-00000001-Aaa_aaaa-22-000001-E-000001\t90.0\t100\t1\t0\t1\t100\t1\t100\t1e-30\t300
+D1\tUP000000002-00000002-Bbb_bbbb-22-000002-E-000002\t31.0\t100\t9\t0\t1\t100\t1\t100\t1e-2\t45
+""")
+
+
+@pytest.fixture
+def mixed_blast_file(tmp_path):
+    p = tmp_path / "mixed.blastp"
+    p.write_text(MIXED_BLAST)
+    return str(p)
+
+
+def test_evalue_cutoff_drops_weak_hits(mixed_blast_file, tmp_path):
+    corr = create_correlation_matrix(mixed_blast_file, output_path=str(tmp_path / "c.csv"))
+    species = set(map(str, corr.index))
+    assert STRONG in species
+    assert WEAK not in species          # 1e-2 is above the 1e-5 cutoff
+
+
+def test_evalue_cutoff_can_be_disabled(mixed_blast_file, tmp_path):
+    corr = create_correlation_matrix(mixed_blast_file, output_path=str(tmp_path / "c.csv"),
+                                     evalue_threshold=None)
+    assert set(map(str, corr.index)) == {STRONG, WEAK}
+
+
+def test_evalue_cutoff_is_configurable(mixed_blast_file, tmp_path):
+    corr = create_correlation_matrix(mixed_blast_file, output_path=str(tmp_path / "c.csv"),
+                                     evalue_threshold=1e-1)
+    assert set(map(str, corr.index)) == {STRONG, WEAK}
+
+
+def test_feature_matrix_applies_the_same_cutoff(mixed_blast_file, tmp_path):
+    """The two matrices must agree on what 'present' means; they used not to."""
+    feat = create_feature_matrix(mixed_blast_file, output_path=str(tmp_path / "f.csv"))
+    corr = create_correlation_matrix(mixed_blast_file, output_path=str(tmp_path / "c.csv"))
+    assert set(map(str, feat["Species"])) == set(map(str, corr.index)) == {STRONG}
+
+
+def test_feature_matrix_refuses_an_empty_result(tmp_path):
+    p = tmp_path / "all-weak.blastp"
+    p.write_text(
+        "D1\tUP000000002-00000002-Bbb_bbbb-22-000002-E-000002\t31.0\t100\t9\t0\t1\t100\t1\t100\t1e-2\t45\n"
+    )
+    with pytest.raises(ValueError, match="E-value"):
+        create_feature_matrix(str(p), output_path=str(tmp_path / "f.csv"))
+
+
+# --------------------------------------------------------------------------- #
+# Tree methods
+# --------------------------------------------------------------------------- #
+def test_construct_tree_accepts_a_square_matrix(blast_file, tmp_path):
+    from tree_construction.construct_tree import compute_square_distances
+    out = str(tmp_path / "c.csv")
+    create_correlation_matrix(blast_file, output_path=out)
+    species, distances = compute_square_distances(out)
+    assert distances.shape == (len(species), len(species))
+
+    nw = tmp_path / "square.nw"
+    construct_tree(species, distances, output_path=str(nw))
+    from Bio import Phylo
+    assert Phylo.read(str(nw), "newick").count_terminals() == 3
+
+
+def test_construct_tree_upgma(blast_file, tmp_path):
+    out = str(tmp_path / "c.csv")
+    create_correlation_matrix(blast_file, output_path=out)
+    species, lt = compute_distance_matrix(out)
+    nw = tmp_path / "upgma.nw"
+    construct_tree(species, lt, output_path=str(nw), method="upgma")
+    from Bio import Phylo
+    assert Phylo.read(str(nw), "newick").count_terminals() == 3
+
+
+def test_construct_tree_rejects_duplicate_species(tmp_path):
+    with pytest.raises(ValueError, match="unique"):
+        construct_tree(["a", "a"], [[0.0], [0.5, 0.0]], output_path=str(tmp_path / "x.nw"))
