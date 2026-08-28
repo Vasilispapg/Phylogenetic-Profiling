@@ -2,8 +2,10 @@
 # Start BOTH PhyloFlask dev servers together:
 #   - Flask JSON API  → http://127.0.0.1:8000
 #   - Vite React SPA  → http://localhost:5173
-# The React app proxies /tools, /allvsall_*, /downloads, /upload … to the Flask API,
-# so both must run. Without the API you get "Unexpected end of JSON input" in the UI.
+# The React app proxies everything under /api to the Flask backend, so both must
+# run. Without the API you get a clear "can't reach the analysis server" error.
+# For a production-shaped run instead: npm run build --prefix frontend, then
+# python app.py -- Flask serves the built bundle itself.
 # Ctrl-C stops both.
 set -euo pipefail
 cd "$(dirname "$0")"

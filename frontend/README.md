@@ -18,14 +18,18 @@ npm install
 npm run dev          # open http://localhost:5173
 ```
 
-API paths (`/upload`, `/process`, `/downloads`, `/tools/*`, `/allvsall_*`) are
-proxied to Flask by `vite.config.js`.
+API paths (`/upload`, `/process`, `/downloads`, `/tools/*`, `/allvsall_*`,
+`/clustergram`, `/embedding`, `/health`) are proxied to Flask by `vite.config.js`.
 
-## Build
+## Test & build
 ```bash
-npm run build        # → frontend/dist/ (static, deploy anywhere or behind Flask)
+npm run test         # vitest (src/lib/matrix.test.js)
+npm run build        # → frontend/dist/, served by Flask at /app
 npm run preview      # preview the production build
 ```
+The bundle is built with `base: "/app/"` and the router with a matching
+`basename`, because Flask mounts it at `/app` alongside the Jinja pages. The
+Docker image builds it in its first stage.
 
 ## Structure
 ```
@@ -35,7 +39,7 @@ src/
   lib/api.js                 fetch helpers (upload / poll / postJSON)
   components/                Layout (navbar+footer), Dropzone, Stepper, Status, Molecule
   pages/                     Landing, Blast, TreeBuilder, TreeViewer, AllVsAll, Heatmap,
-                             HowTo, Faq, StyleGuide
+                             Clustergram, Explorer, Embedding, HowTo, Faq, StyleGuide
 ```
 
 Design tokens/components follow [`../docs/DESIGN.md`](../docs/DESIGN.md); the live

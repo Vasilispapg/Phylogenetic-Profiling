@@ -1,31 +1,12 @@
-import sys
+import logging
 
 import numpy as np
 import pandas as pd
-from Bio import Phylo
-from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
 from scipy.spatial.distance import pdist, squareform
 
+from tree_construction.nj import build_newick, check_size
 
-def load_species_data(species_list_path):
-    """
-    Load a plain species list file (e.g. ``data/list.2``) of the form
-    ``TaxID-SpeciesCode`` per line.
-
-    Returns a list of unique ``TaxID-SpeciesCode`` identifiers.
-
-    NOTE: A bare species list carries no information from which a meaningful
-    phylogenetic distance can be derived.  For real tree construction use
-    :func:`compute_distance_matrix`, which derives distances from a
-    species x domain presence/absence profile (the correlation matrix).
-    """
-    species_df = pd.read_csv(
-        species_list_path, sep='-', names=['TaxID', 'SpeciesCode'], engine='python'
-    )
-    species_list = (
-        species_df['TaxID'].astype('str') + '-' + species_df['SpeciesCode']
-    ).tolist()
-    return species_list
+log = logging.getLogger(__name__)
 
 
 def load_profile_matrix(profile_matrix_path):
@@ -58,9 +39,9 @@ def load_profile_matrix(profile_matrix_path):
 
     # Drop species with an all-zero profile (Jaccard undefined for 0/0 pairs).
     non_empty = presence_df.to_numpy().any(axis=1)
-    dropped = (~non_empty).sum()
+    dropped = int((~non_empty).sum())
     if dropped:
-        print(f"Warning: dropping {dropped} species with empty profiles.")
+        log.warning("dropping %d species with empty profiles", dropped)
     presence_df = presence_df[non_empty]
 
     species = presence_df.index.tolist()
@@ -68,18 +49,13 @@ def load_profile_matrix(profile_matrix_path):
     return species, profiles
 
 
-def compute_distance_matrix(profile_matrix_path, metric="jaccard"):
+def compute_square_distances(profile_matrix_path, metric="jaccard"):
     """
-    Build a lower-triangular distance matrix from a species x domain profile.
+    Build a **square numpy** distance matrix from a species x domain profile.
 
-    Distances are computed between species' domain presence/absence profiles
-    (default: Jaccard), which is the standard basis for a phylogenetic-profiling
-    tree.
-
-    Returns:
-        species: list[str]
-        lower_triangle_matrix: list[list[float]] suitable for Bio.Phylo's
-            ``DistanceMatrix`` (row ``i`` has ``i + 1`` entries, diagonal == 0).
+    This is the form every tree builder actually wants. Prefer it over
+    :func:`compute_distance_matrix`, which materialises the same data as a Python
+    list-of-lists (n^2/2 float objects -- gigabytes once n reaches a few thousand).
     """
     species, profiles = load_profile_matrix(profile_matrix_path)
 
@@ -93,7 +69,19 @@ def compute_distance_matrix(profile_matrix_path, metric="jaccard"):
     condensed = np.nan_to_num(condensed, nan=1.0)
     distance_matrix = squareform(condensed)
     np.fill_diagonal(distance_matrix, 0.0)
+    return species, distance_matrix
 
+
+def compute_distance_matrix(profile_matrix_path, metric="jaccard"):
+    """
+    Lower-triangular form of :func:`compute_square_distances`.
+
+    Kept for the CLI and for callers that need Bio.Phylo's ``DistanceMatrix``
+    layout (row ``i`` has ``i + 1`` entries, diagonal == 0). Materialising this
+    costs O(n^2) Python floats, so new code should use
+    :func:`compute_square_distances` instead.
+    """
+    species, distance_matrix = compute_square_distances(profile_matrix_path, metric)
     lower_triangle_matrix = [
         [float(distance_matrix[i][j]) for j in range(i + 1)]
         for i in range(len(species))
@@ -101,27 +89,36 @@ def compute_distance_matrix(profile_matrix_path, metric="jaccard"):
     return species, lower_triangle_matrix
 
 
-def construct_tree(species, distance_matrix, output_path="output/species_tree_approx.nw"):
-    """
-    Construct a Neighbour-Joining phylogenetic tree from a lower-triangular
-    distance matrix and save it as Newick.
-    """
-    if len(species) < 2:
-        raise ValueError("Cannot construct a tree from fewer than 2 species.")
-    if len(species) != len(set(species)):
-        raise ValueError("Species names must be unique to build a DistanceMatrix.")
+def _as_square(distance_matrix, n):
+    """Accept either a square array or a Bio.Phylo-style lower triangle."""
+    if isinstance(distance_matrix, np.ndarray) and distance_matrix.ndim == 2 \
+            and distance_matrix.shape == (n, n):
+        return np.asarray(distance_matrix, dtype=np.float64)
+    square = np.zeros((n, n), dtype=np.float64)
+    for i, row in enumerate(distance_matrix):
+        for j, value in enumerate(row):
+            square[i, j] = square[j, i] = float(value)
+    np.fill_diagonal(square, 0.0)
+    return square
 
-    # NJ on deep/large inputs can recurse deeply when serialising the tree.
-    sys.setrecursionlimit(max(sys.getrecursionlimit(), 10000))
 
+def construct_tree(species, distance_matrix, output_path="output/species_tree_approx.nw",
+                   method="nj"):
+    """
+    Build a phylogenetic tree from a distance matrix and save it as Newick.
+
+    ``distance_matrix`` may be a square numpy array or a lower-triangular list of
+    lists. ``method`` is ``"nj"`` (Neighbour-Joining, the default) or ``"upgma"``.
+    """
     species = [str(s) for s in species]
-    print(f"Constructing tree for {len(species)} species...")
-    dm = DistanceMatrix(names=species, matrix=distance_matrix)
-    print("Distance matrix created.")
-    constructor = DistanceTreeConstructor()
-    print("Constructing tree (this is O(n^3); large inputs may be slow)...")
-    species_tree = constructor.nj(dm)
-    print("Tree constructed.")
-    Phylo.write(species_tree, output_path, "newick")
-    print(f"Tree saved as {output_path}")
+    check_size(len(species), method)
+    if len(species) != len(set(species)):
+        raise ValueError("Species names must be unique to build a tree.")
+
+    square = _as_square(distance_matrix, len(species))
+    log.info("constructing %s tree for %d species", method.upper(), len(species))
+    newick = build_newick(square, species, method)
+    with open(output_path, "w", encoding="utf-8") as fh:
+        fh.write(newick + "\n")
+    log.info("tree saved to %s", output_path)
     return output_path

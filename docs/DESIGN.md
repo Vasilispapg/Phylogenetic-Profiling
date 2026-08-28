@@ -1,88 +1,99 @@
-# PhyloFlask Design System
+# Design system
 
-Read this **before touching any UI**. It defines the look, the tokens, and the
-ready-made components so every page stays consistent and polished. A live gallery
-of all components is at **`/styleguide`** (template: `pages/styleguide.html`) —
-copy markup from there.
+The live gallery is at [`/styleguide`](../frontend/src/pages/StyleGuide.jsx); the
+tokens are in [`frontend/src/theme.css`](../frontend/src/theme.css) and the
+JavaScript half in [`frontend/src/lib/theme.js`](../frontend/src/lib/theme.js).
 
-> Stack: Flask + Jinja + vanilla HTML/CSS/JS. The whole theme lives in
-> `public/assets/css/tools.css`. Tool/doc pages `{% extends "tools.html" %}`
-> (clean top navbar + footer). `index.html` is a standalone bento landing.
-> With `debug=False`, **restart the server** to see template changes.
+## The idea
 
-## 1. Principles
-- **Light "biotech SaaS"** — white surfaces, soft shadows, rounded corners,
-  generous whitespace. Friendly and clean (Airbnb / Pinterest feel), not flashy.
-- **Calm colour** — neutral surfaces; one blue accent; colour only to encode
-  meaning (clusters, status). Black pills for primary actions.
-- **Content first** — centred column (`max-width` ~980px for docs/forms), lots
-  of breathing room, clear hierarchy.
-- **Motion is subtle** — fade-ins, hover lifts; respect `prefers-reduced-motion`.
+The subject is the phylogenetic profile: a binary presence/absence grid that you
+reorder until co-occurrence blocks appear. The interface is built out of that —
+hairline rules, 3px corners, dense alignment — rather than out of the rounded
+cards and pill buttons that any product could use.
 
-## 2. Tokens (CSS variables, in `:root`)
+The palette comes from **viridis**, the perceptually-uniform colormap that is the
+default in this field and the app's own first colorscale. Its floor is a deep
+indigo-violet and its ceiling a chartreuse yellow. Taking the chrome from the
+same ramp as the data means the plots sit *inside* the design instead of being
+pasted into it, and it is a choice the subject justifies rather than a mood.
+
+Zero is anchored to the page ground (`scaleFor` in `lib/theme.js`). Plotly's
+stock viridis starts at a bright purple, which on a dark page makes every
+*absent* cell the loudest thing in a presence/absence figure — exactly backwards.
+
+## Tokens
+
 | Token | Value | Use |
-|-------|-------|-----|
-| `--bg` / `--bg-2` | `#eaeef6` / `#f6f8fc` | page background |
-| `--surface` / `--surface-2` | `#ffffff` / `#f3f5fa` | cards / insets |
-| `--text` / `--text-2` / `--text-3` | `#0e1726` / `#586074` / `#8b93a5` | heading / body / hint |
-| `--line` / `--line-2` | `rgba(18,28,54,.10)` / `.16` | borders |
-| `--ink` | `#111827` | black pill buttons |
-| `--accent` / `--accent-soft` | `#2f6bff` / `#e7eeff` | links, active, focus |
-| `--teal` | `#0bb39a` | secondary / success bio accent |
-| `--radius` / `--radius-sm` / `--pill` | 16 / 11 / 999px | corners |
-| `--shadow` / `--shadow-hover` | `0 10px 30px rgba(20,30,60,.08)` / `.14` | elevation |
-| `--font` / `--font-display` | Inter / Space Grotesk | body / headings |
+|---|---|---|
+| `--void` | `#0D0B1A` | page ground; also the zero of every colorscale |
+| `--panel` / `--panel-2` / `--panel-3` | `#161230` / `#1E1940` / `#262052` | surfaces, raised surfaces |
+| `--rule` | `#2C2560` | hairlines; the only border in the system |
+| `--paper` | `#EDEBFA` | primary text |
+| `--dim` / `--dim-2` | `#8983B5` / `#635D91` | secondary and tertiary text |
+| `--signal` | `#E8E14B` | **actions and presence only** |
+| `--flow` | `#35B7A8` | links, structure, dendrograms, edges |
+| `--warn` | `#FF7B6E` | failure |
+| `--r` / `--r-lg` | `3px` / `5px` | corners |
 
-Spacing: use rem rhythm (`1rem 1.5rem 2rem`), px for component-internal gaps
-(8/12/16). Headings use `--font-display`; never hardcode colours — use the vars.
+Elevation is carried by surface lightness and hairlines, not by shadows.
 
-## 3. Components (class → what + when)
-All are defined in `tools.css`. Minimal example HTML for each is in `/styleguide`.
+Spend the signal sparingly: it marks what you can act on and what is present.
+Section headings, body copy and figure labels are never yellow.
 
-- **Buttons** — `.futuristic-btn` (primary black pill), `.futuristic-btn-secondary`
-  (white outline pill). Disabled = light grey, never a dark blob. Landing uses
-  `.btn-pill.btn-dark` / `.btn-ghost`. Always pill-shaped, with an optional leading icon.
-- **Inputs / selects** — `.futuristic-input`, `.futuristic-select` (white, light
-  border, blue focus ring). Bare `<input>/<select>` are themed too.
-- **Drop-zone** — `.dropzone` with `.dz-icon/.dz-title/.dz-hint` + a hidden file
-  input; pair with `.file-pill` to confirm the chosen file. Wire via `Phylo.dropzone`.
-- **Cards** — `.doc-card` (content card), `.tool-card` (clickable, landing/grid),
-  `.mini` (small feature card). White, soft shadow, hover-lift.
-- **Stat card** — `.stat` / `.stat.alt` (big number `.n`, label `.l`); dark or white.
-- **Pill tag** — `.pill-tag` (keyword chip with leading icon).
-- **Callout** — `.callout` + `.callout.bio` / `.callout.cs` (left-accent info box).
-- **Status** — `.tool-status` `.show` + `.is-info/.is-error/.is-success`; add a
-  `.tool-progress`. Loader = `.tool-loader.show` (spinner + caption). Result hint = `.tool-note`.
-- **Stepper** — `.tool-stepper` with `.tool-step` (`.done/.active`) + `.bar`.
-- **Badges** — `.aud.bio` / `.aud.cs` (audience tags in docs).
-- **Chrome** — `.site-nav` (sticky top navbar), `.site-footer` (3-col), `.site-main`
-  (centred container). These come from `tools.html`; pages only fill `{% block content %}`.
+## Type
 
-## 4. Layout patterns
-- **Tool page** — `{% extends "tools.html" %}`, then a
-  `<section class="wrapper style1 fade-up"><div class="inner">…</div></section>`.
-  Start with a `.tool-stepper`, an `<h1>`, one `<p>` intro, a `.dropzone`, a
-  primary button, then `.tool-status` + a results area.
-- **Doc page** (help/faq) — `.inner` with a `.doc`/`.faq` wrapper (max-width ~960),
-  cards / `<details>` accordions, generous spacing.
-- **Landing** — bento grid: stat cards row + display `<h1>` + CTA on the left,
-  an art card (SVG molecule) + glass card on the right; pill tags; tool grid; about.
+IBM Plex, self-hosted (latin subsets only), no CDN.
 
-## 5. Visualisation on light
-Graph/SVG backgrounds = `--surface`; edges/links = `rgba(18,28,54,.12–.22)`;
-node fills use the cluster/genus colours (they read on white); tooltips are dark
-cards (`#111827` + white text). Heatmap 0-cells faint, 1-cells `--accent`/coral.
+- **IBM Plex Mono** is the *display* face — headings, buttons, labels, counts,
+  eyebrows, species keys, e-values. Mono at display size reads as an instrument
+  readout, and every identifier this app handles genuinely is fixed-width. It
+  works because the headlines are kept short; keep writing them short.
+- **IBM Plex Sans** is running text.
 
-## 6. Do / Don't
-- ✅ Use the tokens & component classes; copy from `/styleguide`.
-- ✅ Centre content, keep whitespace, round corners, soft shadows.
-- ✅ Keep one accent; colour-code only meaning.
-- ❌ No hardcoded hex in page styles (breaks dark text / theming).
-- ❌ No white `<strong>` (HTML5UP did this — `tools.css` forces it dark; keep it).
-- ❌ No fixed pixel widths on visualisations — fluid + responsive.
-- ❌ No dependence on HTML5UP scroll JS (`.fade-up` is neutralised).
+Utility text (`.eyebrow`, `.label`, `.k`, `.meta`) is mono, uppercase, tracked
+`.1em`. Numbers use `.num` for tabular figures.
 
-## 7. Accessibility
-Sentence case; `label for` on inputs; `aria-live` on status; sufficient contrast
-(text on `--surface` ≥ 4.5:1); keep `prefers-reduced-motion` honoured; icon-only
-buttons get `aria-label`.
+## The signature
+
+[`ProfileGrid`](../frontend/src/components/ProfileGrid.jsx) is the one memorable
+element: a real presence/absence matrix that reorders itself into co-occurrence
+modules, once, on load, with a caption that names each phase. It is the method
+being performed rather than an illustration of it, which is why the landing page
+has no stock imagery. It honours `prefers-reduced-motion` by rendering the sorted
+end state directly.
+
+Everything around it is deliberately quiet. There are no scroll reveals: content
+is never gated behind an animation that might not fire.
+
+## Components
+
+Buttons (`.btn` + `-primary` / `-secondary` / `-ghost`), inputs (`.input`,
+`.select`), `.card`, `.dropzone`, `.status` (info / success / error, with
+`.progress`), `.note`, `.stepper`, `details` disclosures, `.pill-tag`, `.aud`,
+`.callout`, and the landing-page pieces `.hero`, `.pipeline`, `.index`,
+`.figure`, `.credit`. Tool pages use `.tool-head`, `.toolbar`, `.readout` and
+`.canvas`.
+
+### Guidance
+
+Every tool page carries a [`Tips`](../frontend/src/components/Tips.jsx) panel:
+the shape of the input file with a real excerpt, then the two to four judgements
+that decide whether the output means anything — which threshold matters, which
+distances are trustworthy, what to read before believing the picture. It is
+collapsed by default so it never competes with the work.
+
+Each drop zone also offers **load an example file**. The samples live in
+[`lib/samples.js`](../frontend/src/lib/samples.js) and are built to teach: the
+BLAST one straddles the e-value cutoff so the filter is visible in the result,
+and the matrix holds hit counts rather than booleans so the colour scale means
+something. A sample is handed over as a real `File`, so it travels the same
+upload path, the same validation and the same endpoints as your own data.
+
+Plot chrome comes from `plotLayout()` so every figure shares one grid colour,
+one hover style and one type stack. Network views take their constants from
+[`lib/network.js`](../frontend/src/lib/network.js).
+
+## Floor
+
+Responsive to mobile, visible keyboard focus (`:focus-visible` in signal),
+`prefers-reduced-motion` respected, and no third-party requests at runtime.

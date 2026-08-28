@@ -28,11 +28,11 @@ export default function Faq() {
 
       {SECTIONS.map(([title, items]) => (
         <div key={title}>
-          <h2 style={{ color: "var(--accent)", fontSize: "1.2rem" }}>{title}</h2>
+          <h2>{title}</h2>
           {items.map(([q, a]) => (
             <details key={q} className="card" style={{ padding: "0 1.2rem", marginBottom: 10 }}>
               <summary style={{ cursor: "pointer", padding: "15px 0", fontWeight: 600, listStyle: "none" }}>{q}</summary>
-              <p style={{ padding: "0 0 16px", margin: 0, color: "var(--text)" }}>{a}</p>
+              <p style={{ padding: "0 0 16px", margin: 0, color: "var(--dim)" }}>{a}</p>
             </details>
           ))}
         </div>

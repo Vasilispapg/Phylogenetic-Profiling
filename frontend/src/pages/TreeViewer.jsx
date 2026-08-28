@@ -2,14 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
-import { uploadFile } from "../lib/api.js";
+import { API, uploadFile } from "../lib/api.js";
+import { TREE_DEPTH_DEFAULT, TREE_DEPTH_MAX } from "../lib/network.js";
+import { C, clusterColor } from "../lib/theme.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 const genus = (name) => { const p = (name || "").split("-"); return p.length > 2 ? p[2].split("_")[0] : (name || ""); };
 const genusColor = (d) => {
-  if (d.children || d._children) return d._children ? "#2f6bff" : "#9aa3b5";
-  const g = genus(d.data.name); if (!g) return "#9aa3b5";
-  let h = 0; for (const c of g) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return `hsl(${h},60%,55%)`;
+  // Collapsed nodes are the ones you can still open, so they get the signal.
+  if (d.children || d._children) return d._children ? C.signal : C.dim;
+  const g = genus(d.data.name);
+  if (!g) return C.dim;
+  let h = 0;
+  for (const c of g) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${h},52%,64%)`;
 };
 const W = 1000, H = 900, R = W / 2 - 60;
 
@@ -17,7 +24,7 @@ export default function TreeViewer() {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState(null);
   const [tree, setTree] = useState(null);
-  const [depth, setDepth] = useState(4);
+  const [depth, setDepth] = useState(TREE_DEPTH_DEFAULT);
   const svgRef = useRef(null);
   const ctl = useRef({});
 
@@ -25,8 +32,8 @@ export default function TreeViewer() {
     if (!file) return setStatus({ kind: "error", msg: "Please choose a .nw file." });
     setStatus({ kind: "info", msg: "Processing tree…", progress: true });
     try {
-      const res = await uploadFile("/tools/tree_viewer", file);
-      if (res.status === "success") { setTree(res.tree_data); setStatus({ kind: "success", msg: '<i class="fa-solid fa-check"></i> Tree loaded — click nodes to expand/collapse.' }); }
+      const res = await uploadFile(API.newick, file);
+      if (res.status === "success") { setTree(res.tree_data); setStatus({ kind: "success", msg: "Tree loaded — click nodes to expand/collapse." }); }
       else setStatus({ kind: "error", msg: res.message || "Failed to load tree." });
     } catch { setStatus({ kind: "error", msg: "An error occurred while processing the tree." }); }
   };
@@ -42,16 +49,16 @@ export default function TreeViewer() {
     const update = () => {
       d3.tree().size([2 * Math.PI, R])(root);
       g.selectAll("path.lk").data(root.links(), (d) => d.target.id).join("path")
-        .attr("class", "lk").attr("fill", "none").attr("stroke", "rgba(18,28,54,.22)").attr("stroke-width", 1)
+        .attr("class", "lk").attr("fill", "none").attr("stroke", "rgba(140,130,220,.28)").attr("stroke-width", 1)
         .attr("d", d3.linkRadial().angle((d) => d.x).radius((d) => d.y));
       const node = g.selectAll("g.nd").data(root.descendants(), (d) => d.id).join((enter) => {
         const e = enter.append("g").attr("class", "nd");
-        e.append("circle").attr("stroke", "#fff").attr("stroke-width", 1.5).style("cursor", "pointer");
-        e.append("text").attr("dy", "0.32em").attr("font-size", 9).attr("fill", "#0e1726");
+        e.append("circle").attr("stroke", C.void).attr("stroke-width", 1.5).style("cursor", "pointer");
+        e.append("text").attr("dy", "0.32em").attr("font-size", 9).attr("font-family", "IBM Plex Mono, monospace").attr("fill", C.paper);
         return e;
       });
       node.attr("transform", (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`);
-      node.select("circle").attr("r", (d) => (d._children ? 6 : 4)).attr("fill", genusColor);
+      node.select("circle").attr("r", (d) => (d._children ? 5 : 3)).attr("fill", genusColor);
       node.select("text")
         .attr("x", (d) => ((d.x < Math.PI) === !d.children ? 8 : -8))
         .style("text-anchor", (d) => ((d.x < Math.PI) === !d.children ? "start" : "end"))
@@ -72,7 +79,7 @@ export default function TreeViewer() {
       t.ancestors().forEach((a) => { if (a._children) { a.children = a._children; a._children = null; } });
       update();
       const onPath = new Set(t.ancestors().map((a) => a.id));
-      g.selectAll("path.lk").attr("stroke", (d) => (onPath.has(d.target.id) ? "#e44c65" : "rgba(18,28,54,.22)"))
+      g.selectAll("path.lk").attr("stroke", (d) => (onPath.has(d.target.id) ? C.signal : "rgba(140,130,220,.28)"))
         .attr("stroke-width", (d) => (onPath.has(d.target.id) ? 2.5 : 1));
     };
     svg.call(d3.zoom().scaleExtent([0.4, 4]).on("zoom", (e) => g.attr("transform", e.transform)));
@@ -88,7 +95,22 @@ export default function TreeViewer() {
          and colour leaves by genus.</p>
 
       {!tree && <>
-        <Dropzone accept=".nw,.newick,.nwk,.txt" hint="or click to browse · .nw" file={file} onFile={setFile} />
+        <Tips
+          format={"Newick (.nw) — nested parentheses ending in a semicolon"}
+          sample={samplePreview("newick", 1)}
+          tips={[
+          <>Click any node to <b>collapse or expand</b> it; the depth slider sets how far everything
+            opens at once.</>,
+          <><b>Search</b> a species to highlight the path from the root down to it.</>,
+          <>Leaves are coloured by <b>genus</b> — the third dash-segment of the species key — so
+            related species share a colour.</>,
+          <>Branch lengths come from whatever built the tree; from the tree builder they are Jaccard
+            distances between domain profiles.</>,
+        ]}
+        />
+
+        <Dropzone accept=".nw,.newick,.nwk,.txt" hint="or click to browse · .nw" file={file} onFile={setFile}
+                  onSample={() => setFile(sampleFile("newick"))} />
         <div style={{ marginTop: "1rem" }}><button className="btn btn-primary" onClick={upload}><i className="fa-solid fa-sitemap" /> View tree</button></div>
         <Status s={status} />
       </>}
@@ -98,13 +120,13 @@ export default function TreeViewer() {
           <input className="input" style={{ width: "auto" }} placeholder="search species…"
                  onKeyDown={(e) => { if (e.key === "Enter") ctl.current.search(e.target.value); }} />
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" }}>Expand to depth
-            <input type="range" min="1" max="20" value={depth} onChange={(e) => setDepth(parseInt(e.target.value, 10))} />
+            <input type="range" min="1" max={TREE_DEPTH_MAX} value={depth} onChange={(e) => setDepth(parseInt(e.target.value, 10))} />
             <span>{depth}</span></label>
-          <button className="btn btn-secondary" onClick={() => ctl.current.expandToDepth(99)}>Expand all</button>
+          <button className="btn btn-secondary" onClick={() => ctl.current.expandToDepth(Infinity)}>Expand all</button>
           <button className="btn btn-secondary" onClick={() => ctl.current.expandToDepth(1)}>Collapse</button>
         </div>
         <Status s={status} />
-        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 900, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
+        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", background: "var(--void)", border: "1px solid var(--rule)", borderRadius: 5 }} />
       </>}
     </div>
   );

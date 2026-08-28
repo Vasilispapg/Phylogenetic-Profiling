@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import Plotly from "plotly.js-dist-min";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
-import { parseMatrix, transform, COLORSCALES, lbl } from "../lib/matrix.js";
-import { postJSON } from "../lib/api.js";
+import { transform, COLORSCALES, lbl } from "../lib/matrix.js";
+import { API, loadMatrix, postJSON } from "../lib/api.js";
+import { C, PLOT_CONFIG, plotLayout, scaleFor } from "../lib/theme.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 const L = { display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" };
 
@@ -18,25 +21,29 @@ export default function Clustergram() {
   const [clu, setClu] = useState(null);
   const [busy, setBusy] = useState(false);
   const [sel, setSel] = useState(null);
+  const [fileId, setFileId] = useState(null);
   const ref = useRef(null);
 
-  const onFile = (f) => {
-    setFile(f); setStatus({ kind: "info", msg: "Reading CSV…", progress: true }); setClu(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      try { const d = parseMatrix(String(reader.result)); setData(d); setFeat(d.features[0]); setSel(null); setStatus(null); }
-      catch { setStatus({ kind: "error", msg: "Could not parse the CSV." }); }
-    };
-    reader.readAsText(f);
+  // One upload; the values come back as numeric planes and the id drives the
+  // clustering call, so the matrix is never carried in a request body.
+  const onFile = async (f) => {
+    setFile(f); setStatus({ kind: "info", msg: "Reading matrix…", progress: true });
+    setClu(null); setFileId(null);
+    try {
+      const d = await loadMatrix(f);
+      setData(d); setFeat(d.features[0]); setFileId(d.file_id); setSel(null); setStatus(null);
+    } catch (e) {
+      setStatus({ kind: "error", msg: e.message || "Could not read the matrix." });
+    }
   };
 
   // Cluster (backend scipy: correlation distance + average linkage) per dataset/metric.
   useEffect(() => {
-    if (!data || !feat) return;
+    if (!data || !feat || !fileId) return;
     let alive = true;
     setBusy(true); setClu(null);
     setStatus({ kind: "info", msg: "Clustering rows & columns…", progress: true });
-    postJSON("/clustergram", { z: data.data[feat] })
+    postJSON(API.clustergram, { file_id: fileId, metric: feat })
       .then((r) => {
         if (!alive) return;
         if (r.status !== "success") { setStatus({ kind: "error", msg: r.message || "Clustering failed." }); setBusy(false); return; }
@@ -44,7 +51,7 @@ export default function Clustergram() {
       })
       .catch((e) => { if (!alive) return; setStatus({ kind: "error", msg: "Error: " + (e.message || "failed") }); setBusy(false); });
     return () => { alive = false; };
-  }, [data, feat]);
+  }, [data, feat, fileId]);
 
   // Render clustergram (heatmap + two dendrograms) on clustering / display changes.
   useEffect(() => {
@@ -65,24 +72,24 @@ export default function Clustergram() {
         (swap ? dc : seg).forEach((v) => xs.push(v)); xs.push(null);
         (swap ? seg : dc).forEach((v) => ys.push(v)); ys.push(null);
       });
-      return { x: xs, y: ys, xaxis, yaxis, type: "scatter", mode: "lines", line: { color: "#9aa4b8", width: 1 }, hoverinfo: "skip", showlegend: false };
+      return { x: xs, y: ys, xaxis, yaxis, type: "scatter", mode: "lines", line: { color: C.dim2 || "#635D91", width: 1 }, hoverinfo: "skip", showlegend: false };
     };
 
     const traces = [
-      { z, x: colpos, y: rowpos, text, type: "heatmap", colorscale: scale, xaxis: "x", yaxis: "y",
-        colorbar: { thickness: 11, len: 0.84, y: 0.42 }, hovertemplate: `%{text}<br>${lbl(feat)}: %{z}<extra></extra>` },
+      { z, x: colpos, y: rowpos, text, type: "heatmap", colorscale: scaleFor(scale), xaxis: "x", yaxis: "y",
+        colorbar: { thickness: 8, len: 0.84, y: 0.42, outlinewidth: 0, tickfont: { color: C.dim } }, hovertemplate: `%{text}<br>${lbl(feat)}: %{z}<extra></extra>` },
       dendro(clu.col_dendro, "x", "y2", false),
       dendro(clu.row_dendro, "x2", "y", true),
     ];
-    const layout = {
-      autosize: true, height: 820, margin: { l: 8, r: 8, t: 8, b: 56 },
-      xaxis: { domain: [0.14, 1], showticklabels: false, showgrid: false, zeroline: false, ticks: "" },
-      yaxis: { domain: [0, 0.86], showticklabels: false, showgrid: false, zeroline: false, ticks: "" },
-      yaxis2: { domain: [0.875, 1], anchor: "x", showticklabels: false, showgrid: false, zeroline: false, ticks: "" },
-      xaxis2: { domain: [0, 0.12], anchor: "y", autorange: "reversed", showticklabels: false, showgrid: false, zeroline: false, ticks: "" },
-      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", showlegend: false,
-    };
-    Plotly.react(ref.current, traces, layout, { responsive: true, displaylogo: false, toImageButtonOptions: { filename: "phyloflask-clustergram", scale: 2 } });
+    const bare = { showticklabels: false, showgrid: false, zeroline: false, ticks: "" };
+    const layout = plotLayout({
+      autosize: true, height: 800, margin: { l: 8, r: 8, t: 8, b: 40 }, showlegend: false,
+      xaxis: { domain: [0.14, 1], ...bare },
+      yaxis: { domain: [0, 0.86], ...bare },
+      yaxis2: { domain: [0.875, 1], anchor: "x", ...bare },
+      xaxis2: { domain: [0, 0.12], anchor: "y", autorange: "reversed", ...bare },
+    });
+    Plotly.react(ref.current, traces, layout, { ...PLOT_CONFIG, toImageButtonOptions: { filename: "phyloflask-clustergram", scale: 2 } });
 
     const div = ref.current;
     if (div.removeAllListeners) div.removeAllListeners("plotly_click");
@@ -104,7 +111,22 @@ export default function Clustergram() {
          and <strong>species groups</strong> emerge as blocks. Dendrograms top &amp; left; click a cell to inspect it.</p>
 
       {!data && <>
-        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv / feature_matrix.csv" file={file} onFile={onFile} />
+        <Tips
+          format={"A correlation matrix or a feature matrix"}
+          sample={samplePreview("matrix", 3)}
+          tips={[
+          <><b>Blocks</b> are the result: a set of domains present in the same set of species. That
+            is a candidate functional module.</>,
+          <>Distance is <b>correlation</b>, so rows group by the <i>shape</i> of a profile. A rare
+            domain and a common one can still land together if they rise and fall in step.</>,
+          <>A row or column with a constant profile has undefined correlation and is treated as
+            maximally distant, so it sits at the edge rather than joining a block.</>,
+          <>Dendrogram height is how late two branches merged — short joins are tight groups.</>,
+        ]}
+        />
+
+        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · correlation_matrix.csv / feature_matrix.csv" file={file} onFile={onFile}
+                  onSample={() => onFile(sampleFile("matrix"))} />
         <Status s={status} />
       </>}
 
@@ -123,16 +145,16 @@ export default function Clustergram() {
               <option value="none">None</option><option value="row">Per species (row)</option><option value="col">Per domain (col)</option>
             </select></label>
           <label style={L}><input type="checkbox" checked={log} onChange={(e) => setLog(e.target.checked)} /> Log</label>
-          <button className="btn btn-secondary" onClick={() => { setData(null); setFile(null); setClu(null); setSel(null); }}>Load another</button>
+          <button className="btn btn-secondary" onClick={() => { setData(null); setFile(null); setClu(null); setSel(null); setFileId(null); }}>Load another</button>
         </div>
 
-        <div style={{ fontSize: ".82rem", color: "var(--text-2)", marginBottom: 8 }}>
+        <div style={{ fontSize: ".82rem", color: "var(--dim)", marginBottom: 8 }}>
           <strong>{data.rows.length}</strong> species × <strong>{data.cols.length}</strong> domains
           {busy ? " · clustering…" : clu ? " · clustered · click a cell to inspect" : ""}
         </div>
 
         {busy && <Status s={status} />}
-        <div ref={ref} style={{ width: "100%", minHeight: 200, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
+        <div ref={ref} style={{ width: "100%", minHeight: 200, background: "var(--void)", border: "1px solid var(--rule)", borderRadius: 5 }} />
 
         {sel && <div className="card card-pad" style={{ marginTop: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -144,7 +166,7 @@ export default function Clustergram() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 8 }}>
             {Object.entries(sel.vals).map(([k, v]) => (
-              <div key={k} style={{ background: "var(--surface-2)", borderRadius: 8, padding: "8px 10px" }}>
+              <div key={k} style={{ background: "var(--panel-2)", borderRadius: 8, padding: "8px 10px" }}>
                 <div className="muted" style={{ fontSize: ".72rem" }}>{lbl(k)}</div>
                 <div style={{ fontWeight: 700 }}>{typeof v === "number" ? (Number.isInteger(v) ? v : v.toFixed(3)) : v}</div>
               </div>

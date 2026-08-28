@@ -1,305 +1,86 @@
-import os
+"""
+Domain-profile clustering (phylogenetic profiling).
+
+Phylogenetic profiling groups domains that share the same presence/absence
+pattern across species. We therefore cluster a DOMAIN x DOMAIN similarity graph
+(not the raw bipartite species-domain graph): an edge connects two domains whose
+binary profiles are similar (Jaccard >= threshold), and MCL finds the modules.
+``validate_clusters`` reports whether the result is meaningful.
+
+This module is deliberately free of any UI framework so that importing a web
+blueprint does not drag Dash/Plotly in. The Dash explorer now lives in
+``visualization/dash_allvsall.py`` and is only reachable from the CLI.
+"""
+import gzip
+import hashlib
+import json
+import logging
 import time
 from collections import defaultdict
+from pathlib import Path
 
-import markov_clustering as mc
 import networkx as nx
 import numpy as np
 import pandas as pd
-from scipy.sparse import csr_matrix
 from networkx.algorithms.community import modularity
-from dash import Dash, dcc, html, Input, Output
-import plotly.graph_objects as go
-import plotly.express as px
-import dash_bootstrap_components as dbc
+from scipy.sparse import csr_matrix
 
-# Defaults for domain-profile clustering.
-DEFAULT_THRESHOLD = 0.5   # minimum Jaccard similarity to draw a domain-domain edge
-DEFAULT_INFLATION = 2.0   # MCL granularity
+from config import CACHE_DIR, EDGE_BUDGET_PER_NODE, JACCARD_THRESHOLD, MCL_INFLATION
 
+log = logging.getLogger(__name__)
 
-def _dash_debug():
-    """Dash debug mode is off unless explicitly enabled via env var."""
-    return os.environ.get("DASH_DEBUG", "").lower() in ("1", "true", "yes")
+# Kept as module-level names because main.py and the tests import them.
+DEFAULT_THRESHOLD = JACCARD_THRESHOLD   # minimum Jaccard similarity for an edge
+DEFAULT_INFLATION = MCL_INFLATION       # MCL granularity
 
-def create_dash_component(graph, nodes, all_vs_all_df, pos):
-    """
-    Creates the Dash layout and registers callbacks for the heatmap and graph visualization.
-    """
-    unique_id = str(int(time.time() * 1000))  # Generate a unique ID based on timestamp
-    domain_selector_id = f"domain-selector-{unique_id}"
-    heatmap_id = f"heatmap-{unique_id}"
-    graph_id = f"graph-{unique_id}"
-
-    layout = dbc.Container([
-        dbc.Row([
-            dbc.Col(dcc.Dropdown(
-                id=domain_selector_id,
-                options=[{"label": node, "value": node} for node in nodes],
-                placeholder="Select one or more domains...",
-                multi=True
-            ), width=6)
-        ], className="mb-4"),
-        dbc.Row([
-            dbc.Col(dcc.Loading(
-                id=f"loading-{unique_id}",
-                type="circle",
-                children=[
-                    dcc.Graph(id=heatmap_id, style={"height": "600px", "width": "100%"}),
-                    dcc.Graph(id=graph_id, style={"height": "600px", "width": "100%"})
-                ]
-            ))
-        ])
-    ])
-
-    def register_callbacks(app):
-        @app.callback(
-            [Output(heatmap_id, "figure"), Output(graph_id, "figure")],
-            [Input(domain_selector_id, "value")]
-        )
-        def update_graphs(selected_domains):
-            print(f"Callback triggered for {unique_id}")
-            if not selected_domains:
-                filtered_nodes = nodes
-                filtered_edges = list(graph.edges())
-                filtered_matrix = all_vs_all_df
-            else:
-                filtered_edges = [
-                    (u, v) for u, v in graph.edges()
-                    if u in selected_domains or v in selected_domains
-                ]
-                filtered_nodes = list(set(node for edge in filtered_edges for node in edge))
-                filtered_matrix = all_vs_all_df.loc[filtered_nodes, filtered_nodes]
-
-            if filtered_matrix.empty or not filtered_nodes:
-                heatmap_fig = px.imshow([], title="No Data Available")
-                graph_fig = go.Figure()
-                graph_fig.update_layout(title="No Data Available")
-                return heatmap_fig, graph_fig
-
-            # Heatmap
-            heatmap_fig = px.imshow(
-                filtered_matrix,
-                x=filtered_nodes,
-                y=filtered_nodes,
-                color_continuous_scale="Viridis",
-                labels={"x": "Nodes", "y": "Nodes", "color": "Similarity"},
-                title="All-vs-All Clustering Matrix"
-            )
-
-            # Graph
-            edge_x, edge_y = [], []
-            for edge in filtered_edges:
-                x0, y0 = pos[edge[0]]
-                x1, y1 = pos[edge[1]]
-                edge_x.extend([x0, x1, None])
-                edge_y.extend([y0, y1, None])
-
-            edge_trace = go.Scatter(
-                x=edge_x, y=edge_y,
-                line=dict(width=1.5, color="red"),
-                hoverinfo="none",
-                mode="lines"
-            )
-
-            node_colors = [
-                "rgba(255, 100, 100, 0.8)" if node in selected_domains else "rgba(100, 100, 255, 0.5)"
-                for node in filtered_nodes
-            ]
-
-            node_trace = go.Scatter(
-                x=[pos[node][0] for node in filtered_nodes],
-                y=[pos[node][1] for node in filtered_nodes],
-                mode="markers+text",
-                marker=dict(
-                    size=12,
-                    color=node_colors,
-                    showscale=False
-                ),
-                text=list(filtered_nodes),
-                textposition="top center",
-                hoverinfo="text"
-            )
-
-            graph_fig = go.Figure(data=[edge_trace, node_trace])
-            graph_fig.update_layout(
-                title="Graph Visualization with Selected Nodes and Neighbors",
-                height=600,
-                showlegend=False,
-                xaxis=dict(showgrid=False, zeroline=False),
-                yaxis=dict(showgrid=False, zeroline=False)
-            )
-
-            return heatmap_fig, graph_fig
-
-    return layout, register_callbacks
-
-def create_dash_app(graph, nodes, all_vs_all_df, pos):
-    """
-    Creates and runs the Dash app.
-    """
-    app = Dash(__name__)
-
-    app.layout = html.Div([
-        html.H1("Markov Clustering Visualization", style={"textAlign": "center", "marginBottom": "30px"}),
-        html.Div([
-            dcc.Dropdown(
-                id="domain-selector",
-                options=[{"label": node, "value": node} for node in nodes],
-                placeholder="Select one or more domains...",
-                multi=True,
-                style={"width": "50%", "margin": "auto"}
-            ),
-            html.Div(
-                id="time-estimate",
-                style={"textAlign": "center", "marginTop": "10px", "color": "blue"}
-            ),
-        ], style={"marginBottom": "20px", "textAlign": "center"}),
-        dcc.Loading(
-            id="loading",
-            type="circle",
-            children=[
-                html.Div(
-                    dcc.Graph(id="heatmap", style={"width": "100%", "display": "block"}),
-                    style={"marginBottom": "50px"}
-                ),
-                html.Div(
-                    dcc.Graph(id="graph", style={"width": "100%", "display": "block"})
-                )
-            ],
-            style={"marginBottom": "20px"}
-        ),
-    ])
-
-    @app.callback(
-        [Output("heatmap", "figure"), Output("graph", "figure"), Output("time-estimate", "children")],
-        [Input("domain-selector", "value")]
-    )
-    def update_graphs(selected_domains):
-        # Handle the case where no domains are selected
-        if not selected_domains:
-            selected_domains = []
-
-        start_time = time.time()
-
-        # Filter data for selected domains
-        if selected_domains:
-            filtered_edges = [
-                (u, v) for u, v in graph.edges()
-                if u in selected_domains or v in selected_domains
-            ]
-            filtered_nodes = list(set(node for edge in filtered_edges for node in edge))  # Convert set to list
-            filtered_matrix = all_vs_all_df.loc[filtered_nodes, filtered_nodes]
-        else:
-            # Show all domains when no filter is selected
-            filtered_nodes = nodes
-            filtered_edges = list(graph.edges())
-            filtered_matrix = all_vs_all_df
-
-        # Create heatmap
-        heatmap_fig = px.imshow(
-            filtered_matrix,
-            x=filtered_nodes,
-            y=filtered_nodes,
-            color_continuous_scale="Viridis",
-            labels={"x": "Nodes", "y": "Nodes", "color": "Similarity"},
-            title="All-vs-All Clustering Matrix"
-        )
-        heatmap_fig.update_layout(
-            autosize=True,
-            height=1200,
-            margin=dict(l=50, r=50, t=100, b=50),
-            xaxis=dict(tickangle=45, automargin=True),
-            yaxis=dict(automargin=True),
-            coloraxis_colorbar=dict(title="Cluster Similarity", len=0.75)
-        )
-
-        # Create graph visualization
-        edge_x, edge_y = [], []
-        for edge in filtered_edges:
-            x0, y0 = pos[edge[0]]
-            x1, y1 = pos[edge[1]]
-            edge_x.extend([x0, x1, None])
-            edge_y.extend([y0, y1, None])
-
-        edge_trace = go.Scatter(
-            x=edge_x, y=edge_y,
-            line=dict(width=1.5, color="red"),
-            hoverinfo="none",
-            mode="lines"
-        )
-
-        node_colors = [
-            "rgba(255, 100, 100, 0.8)" if node in selected_domains else "rgba(100, 100, 255, 0.5)"
-            for node in filtered_nodes
-        ]
-
-        node_trace = go.Scatter(
-            x=[pos[node][0] for node in filtered_nodes],
-            y=[pos[node][1] for node in filtered_nodes],
-            mode="markers+text",
-            marker=dict(
-                size=12,
-                color=node_colors,
-                showscale=False
-            ),
-            text=list(filtered_nodes),
-            textposition="top center",
-            hoverinfo="text"
-        )
-
-        graph_fig = go.Figure(data=[edge_trace, node_trace])
-        graph_fig.update_layout(
-            title="Graph Visualization with Selected Nodes and Neighbors",
-            height=1200,
-            showlegend=False,
-            xaxis=dict(showgrid=False, zeroline=False),
-            yaxis=dict(showgrid=False, zeroline=False),
-            margin=dict(l=50, r=50, t=100, b=50)
-        )
-
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        time_estimate = f"Approximate processing time: {elapsed_time:.2f} seconds"
-
-        return heatmap_fig, graph_fig, time_estimate
+# Bump when the payload shape or the algorithm changes, to invalidate the cache.
+CACHE_VERSION = 2
 
 
-    return app
+def _noop(fraction, message):
+    """Default progress sink."""
 
-# --------------------------------------------------------------------------- #
-# Domain-profile clustering (phylogenetic profiling)
-#
-# Phylogenetic profiling groups domains that share the same presence/absence
-# pattern across species. We therefore cluster a DOMAIN x DOMAIN similarity
-# graph (not the raw bipartite species-domain graph): an edge connects two
-# domains whose binary profiles are similar (Jaccard >= threshold), and MCL
-# finds the modules. validate_clusters() reports whether the result is
-# meaningful.
-# --------------------------------------------------------------------------- #
+
 def domain_jaccard(corr_df):
     """Return (domains, JxJ Jaccard-similarity matrix) from a species x domain
     correlation matrix (presence == value > 0)."""
-    B = (corr_df.to_numpy() > 0).astype(float)        # species x domains
+    b = (corr_df.to_numpy() > 0).astype(float)         # species x domains
     domains = [str(c) for c in corr_df.columns]
-    inter = B.T @ B                                    # shared species per domain pair
-    pres = B.sum(axis=0)
+    inter = b.T @ b                                    # shared species per domain pair
+    pres = b.sum(axis=0)
     union = pres[:, None] + pres[None, :] - inter
     with np.errstate(divide="ignore", invalid="ignore"):
-        J = np.where(union > 0, inter / union, 0.0)
-    np.fill_diagonal(J, 0.0)
-    return domains, J
+        j = np.where(union > 0, inter / union, 0.0)
+    np.fill_diagonal(j, 0.0)
+    return domains, j
 
 
-def build_domain_graph(domains, J, threshold):
+def build_domain_graph(domains, j, threshold):
     """Weighted domain graph: edge (a, b) with weight J[a,b] when J >= threshold."""
     graph = nx.Graph()
     graph.add_nodes_from(domains)
     iu, ju = np.triu_indices(len(domains), k=1)
-    mask = J[iu, ju] >= threshold
-    for a, b in zip(iu[mask], ju[mask]):
-        graph.add_edge(domains[a], domains[b], weight=float(J[a, b]))
+    mask = j[iu, ju] >= threshold
+    iu, ju = iu[mask], ju[mask]
+    graph.add_weighted_edges_from(
+        (domains[a], domains[b], float(j[a, b])) for a, b in zip(iu, ju)
+    )
     return graph
+
+
+def cluster_labels(clusters, n_domains):
+    """Cluster index per domain, as a numpy array. The MCL output already knows
+    this; deriving it here means no caller has to re-discover it with
+    connected_components on a dense co-cluster matrix."""
+    labels = np.full(n_domains, -1, dtype=np.int32)
+    for cluster_index, members in enumerate(clusters):
+        labels[list(members)] = cluster_index
+    return labels
+
+
+def co_cluster_matrix(labels):
+    """Dense domain x domain co-cluster matrix, vectorised."""
+    return (labels[:, None] == labels[None, :]).astype(np.uint8)
 
 
 def validate_clusters(graph, clusters, nodes):
@@ -362,42 +143,117 @@ def validate_clusters(graph, clusters, nodes):
     }
 
 
-def cluster_domains(corr_matrix_path, cache_dir="cache/", threshold=DEFAULT_THRESHOLD,
-                    inflation=DEFAULT_INFLATION, run_dash=False):
-    """
-    Cluster domains by shared phylogenetic profile and return data for the UI:
-    (graph, nodes, all_vs_all_df, pos). Also prints a validation report.
-    """
-    corr_df = pd.read_csv(corr_matrix_path, index_col=0)
-    domains, J = domain_jaccard(corr_df)
+def _run_mcl(graph, domains, inflation):
+    # Imported lazily: markov_clustering pulls in scikit-learn (measured 441 ms of
+    # the app's import time), and the web process should not pay that at boot.
+    import markov_clustering as mc
 
-    graph = build_domain_graph(domains, J, threshold)
-
-    mcl_start = time.time()
+    started = time.time()
     adj = csr_matrix(nx.to_scipy_sparse_array(graph, nodelist=domains, weight="weight"))
     clusters = mc.get_clusters(mc.run_mcl(adj, inflation=inflation))
-    print(f"MCL on {len(domains)} domains: {len(clusters)} clusters "
-          f"in {time.time() - mcl_start:.2f}s")
+    log.info("MCL on %d domains: %d clusters in %.2fs",
+             len(domains), len(clusters), time.time() - started)
+    return clusters
 
-    # Domain x domain co-cluster (all-vs-all) matrix.
-    co = np.zeros((len(domains), len(domains)))
-    for cluster in clusters:
-        for i in cluster:
-            for j in cluster:
-                co[i, j] = 1
-    all_vs_all_df = pd.DataFrame(co, index=domains, columns=domains)
 
-    pos = nx.spring_layout(graph)
+def _core(corr_matrix_path, threshold, inflation, progress=_noop):
+    """Shared pipeline: correlation matrix -> (domains, graph, clusters, labels, metrics)."""
+    progress(0.05, "Reading correlation matrix...")
+    corr_df = pd.read_csv(corr_matrix_path, index_col=0)
 
+    progress(0.20, f"Computing Jaccard similarity for {corr_df.shape[1]} domains...")
+    domains, j = domain_jaccard(corr_df)
+
+    progress(0.40, "Building the domain similarity graph...")
+    graph = build_domain_graph(domains, j, threshold)
+
+    progress(0.55, f"Running Markov clustering ({graph.number_of_edges():,} edges)...")
+    clusters = _run_mcl(graph, domains, inflation)
+    labels = cluster_labels(clusters, len(domains))
+
+    progress(0.85, "Validating cluster quality...")
     metrics = validate_clusters(graph, clusters, domains)
-    print("Cluster validation:", metrics)
     if metrics["warning"]:
-        print("WARNING:", metrics["warning"])
+        log.warning("cluster validation: %s", metrics["warning"])
+    else:
+        log.info("cluster validation: %s", metrics)
+    return domains, graph, clusters, labels, metrics
+
+
+def cluster_domains(corr_matrix_path, cache_dir=None, threshold=DEFAULT_THRESHOLD,
+                    inflation=DEFAULT_INFLATION, run_dash=False):
+    """
+    Cluster domains by shared phylogenetic profile.
+
+    Returns ``(graph, nodes, all_vs_all_df, pos, metrics)``. This form builds the
+    dense co-cluster matrix and a spring layout, which are O(n^2); the web API
+    uses :func:`cluster_payload` instead, which skips both.
+    """
+    domains, graph, clusters, labels, metrics = _core(corr_matrix_path, threshold, inflation)
+    all_vs_all_df = pd.DataFrame(co_cluster_matrix(labels), index=domains, columns=domains)
+    pos = nx.spring_layout(graph, seed=0)
 
     if run_dash:
-        app = create_dash_app(graph, list(graph.nodes()), all_vs_all_df, pos)
-        app.run(debug=_dash_debug(), port=8051)
-        return
+        from visualization.dash_allvsall import create_dash_app
+        create_dash_app(graph, list(graph.nodes()), all_vs_all_df, pos).run(port=8051)
+        return None
 
     return graph, list(graph.nodes()), all_vs_all_df, pos, metrics
 
+
+def cache_key(path, **params):
+    """Content-addressed key: file bytes + parameters + algorithm version."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    digest.update(json.dumps(params, sort_keys=True).encode("utf-8"))
+    return digest.hexdigest()
+
+
+def cluster_payload(corr_matrix_path, threshold=DEFAULT_THRESHOLD,
+                    inflation=DEFAULT_INFLATION, edge_budget_per_node=EDGE_BUDGET_PER_NODE,
+                    progress=_noop, cache_dir=None):
+    """
+    The API-shaped clustering result: O(n) instead of O(n^2) on the wire.
+
+    Never materialises the dense co-cluster matrix or a spring layout, and
+    returns only the strongest
+    ``edge_budget_per_node * n`` edges -- reporting ``edges_total`` so the UI can
+    say what it is hiding instead of truncating silently.
+    """
+    cache_dir = Path(cache_dir or CACHE_DIR)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    key = cache_key(corr_matrix_path, threshold=threshold, inflation=inflation,
+                    budget=edge_budget_per_node, v=CACHE_VERSION)
+    cached = cache_dir / f"allvsall-{key}.json.gz"
+    if cached.exists():
+        log.info("cluster_payload cache hit: %s", cached.name)
+        progress(1.0, "Loaded from cache.")
+        return json.loads(gzip.decompress(cached.read_bytes()).decode("utf-8"))
+
+    domains, graph, _clusters, labels, metrics = _core(
+        corr_matrix_path, threshold, inflation, progress
+    )
+
+    progress(0.95, "Preparing the network...")
+    edges = sorted(
+        ({"source": u, "target": v, "weight": round(float(d.get("weight", 1.0)), 3)}
+         for u, v, d in graph.edges(data=True)),
+        key=lambda e: -e["weight"],
+    )
+    budget = max(1, edge_budget_per_node) * max(1, len(domains))
+    # No spring layout: it is O(n^2) per iteration and every client runs its own
+    # layout. No co-cluster matrix either -- it is exactly
+    # node_cluster[i] == node_cluster[j], so storing n^2 numbers to say that is
+    # waste. /api/allvsall/<id>/data derives it on request instead.
+    payload = {
+        "nodes": domains,
+        "node_cluster": {d: int(labels[i]) for i, d in enumerate(domains)},
+        "degree": {d: int(graph.degree(d)) for d in domains},
+        "edges": edges[:budget],
+        "edges_total": len(edges),
+        "metrics": metrics,
+    }
+    cached.write_bytes(gzip.compress(json.dumps(payload).encode("utf-8")))
+    return payload

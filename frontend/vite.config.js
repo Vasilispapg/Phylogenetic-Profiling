@@ -8,17 +8,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: {
-      "/upload": api,
-      "/process": api,
-      "/results": api,
-      "/downloads": api,
-      "/allvsall_status": api,
-      "/allvsall_data": api,
-      "/clustergram": api,
-      "/embedding": api,
-      "/tools": api, // POST endpoints: tree_construct, tree_status, tree_viewer, allvsall
-    },
+    // Every endpoint is under /api, so one rule covers the whole backend.
+    proxy: { "/api": api },
   },
   build: { outDir: "dist", emptyOutDir: true },
 });

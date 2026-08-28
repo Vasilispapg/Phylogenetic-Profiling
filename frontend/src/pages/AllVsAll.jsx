@@ -4,11 +4,12 @@ import fcose from "cytoscape-fcose";
 import Dropzone from "../components/Dropzone.jsx";
 import Stepper from "../components/Stepper.jsx";
 import Status from "../components/Status.jsx";
-import { uploadFile, poll, getJSON } from "../lib/api.js";
+import { API, uploadFile, poll, getJSON } from "../lib/api.js";
+import { EDGE, EDGE_FADED, HIGHLIGHT, INK, LABEL_BG, MUTED, NODE_SIZE, ZOOM, clusterColor, fcose as fcoseOpts } from "../lib/network.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 cytoscape.use(fcose);
-
-const clusterColor = (c) => (c == null ? "#94a3b8" : `hsl(${(c * 47) % 360},68%,55%)`);
 
 export default function AllVsAll() {
   const [file, setFile] = useState(null);
@@ -29,16 +30,16 @@ export default function AllVsAll() {
     setData(null);
     setStatus({ kind: "info", msg: "Uploading & clustering…", progress: true });
     try {
-      const res = await uploadFile("/tools/allvsall", file);
+      const res = await uploadFile(API.allvsall, file);
       if (res.status !== "success") return setStatus({ kind: "error", msg: res.message || "Failed to start." });
-      const fn = res.filename;
-      await poll(() => `/allvsall_status/${encodeURIComponent(fn)}`, {
+      const fn = res.job_id;
+      await poll(() => API.allvsallStatus(fn), {
         interval: 2000,
-        isDone: (d) => d.status === "success" && d.message === "Completed.",
-        isFailed: (d) => d.status === "error" || (d.message || "").startsWith("Error"),
+        isDone: (d) => d.state === "done",
+        isFailed: (d) => d.state === "failed" || d.status === "error",
         onTick: (d) => d.message && setStatus({ kind: "info", msg: d.message, progress: true }),
       });
-      const { body: d } = await getJSON(`/allvsall_data/${encodeURIComponent(fn)}`);
+      const { body: d } = await getJSON(API.allvsallData(fn));
       if (d.status !== "success") return setStatus({ kind: "error", msg: d.message || "No data." });
       // The slider must span the ACTUAL weight range (the backend already keeps only
       // Jaccard ≥ 0.5, so a 0–1 slider would have a dead lower half). Smart default
@@ -68,22 +69,23 @@ export default function AllVsAll() {
       style: [
         { selector: "node", style: {
             "background-color": "data(color)",
-            width: `mapData(deg,1,${maxDeg},14,42)`, height: `mapData(deg,1,${maxDeg},14,42)`,
-            label: "data(id)", "font-size": 8, color: "#0e1726",
+            width: `mapData(deg,1,${maxDeg},${NODE_SIZE.min},${NODE_SIZE.max})`,
+            height: `mapData(deg,1,${maxDeg},${NODE_SIZE.min},${NODE_SIZE.max})`,
+            label: "data(id)", "font-size": 8, color: INK, "font-family": "IBM Plex Mono, monospace",
             "text-opacity": 0, "text-halign": "center", "text-valign": "bottom",
-            "text-background-color": "#ffffff", "text-background-opacity": 0.92,
+            "text-background-color": LABEL_BG, "text-background-opacity": 0.95,
             "text-background-shape": "roundrectangle", "text-background-padding": 2,
             "text-max-width": 150, "text-wrap": "ellipsis", "min-zoomed-font-size": 7,
             "transition-property": "background-opacity, border-width", "transition-duration": "120ms" } },
-        { selector: "node.iso", style: { "background-color": "#c2cad9", width: 9, height: 9 } },
-        { selector: "node.faded", style: { "background-opacity": 0.1, "text-opacity": 0 } },
-        { selector: "node.hl", style: { "text-opacity": 1, "z-index": 30, "border-width": 2, "border-color": "#0e1726" } },
-        { selector: "node:selected", style: { "border-color": "#0e1726", "border-width": 3, "text-opacity": 1 } },
-        { selector: "edge", style: { "line-color": "rgba(18,28,54,.13)", width: `mapData(weight,0,1,0.4,3)`, "curve-style": "haystack" } },
-        { selector: "edge.faded", style: { "line-opacity": 0.025 } },
-        { selector: "edge.hl", style: { "line-color": "#e11d48", "line-opacity": 0.95, width: 2.2, "z-index": 29, "curve-style": "straight" } },
+        { selector: "node.iso", style: { "background-color": MUTED, width: 9, height: 9 } },
+        { selector: "node.faded", style: { "background-opacity": 0.08, "text-opacity": 0 } },
+        { selector: "node.hl", style: { "text-opacity": 1, "z-index": 30, "border-width": 2, "border-color": INK } },
+        { selector: "node:selected", style: { "border-color": INK, "border-width": 3, "text-opacity": 1 } },
+        { selector: "edge", style: { "line-color": EDGE, width: `mapData(weight,0,1,0.4,2.6)`, "curve-style": "haystack" } },
+        { selector: "edge.faded", style: { "line-color": EDGE_FADED } },
+        { selector: "edge.hl", style: { "line-color": HIGHLIGHT, "line-opacity": 0.95, width: 2.2, "z-index": 29, "curve-style": "straight" } },
       ],
-      minZoom: 0.1, maxZoom: 3.5, wheelSensitivity: 0.3,
+      ...ZOOM,
     });
     cyRef.current = cy;
 
@@ -140,14 +142,12 @@ export default function AllVsAll() {
       const comps = vis.components().sort((a, b) => b.nodes().length - a.nodes().length);
       // Recolour by current connected group so separate groups are never confused.
       cy.batch(() => comps.forEach((c, i) => {
-        const col = c.nodes().length > 1 ? `hsl(${(i * 67) % 360},62%,55%)` : "#c2cad9";
+        const col = c.nodes().length > 1 ? clusterColor(i, { saturation: 62 }) : MUTED;
         c.nodes().forEach((nd) => nd.data("color", col));
       }));
       const big = comps.length ? comps[0].nodes().length : 0;
       if (comps.length > 1 && big <= 25) return packGrid(comps);
-      vis.layout({ name: "fcose", quality: "proof", animate: true, animationDuration: 600, randomize,
-                   packComponents: true, nodeSeparation: 140, idealEdgeLength: 60, nodeRepulsion: 7000,
-                   gravity: 0.25, gravityRange: 3.8, padding: 50, fit: true }).run();
+      vis.layout(fcoseOpts({ randomize, padding: 50 })).run();
       return;
     }
     if (lay === "concentric")
@@ -190,7 +190,22 @@ export default function AllVsAll() {
          graph into tighter groups.</p>
 
       {!data && <>
-        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · .csv (species × domains)" file={file} onFile={setFile} />
+        <Tips
+          format={"A correlation matrix (species × domains)"}
+          sample={samplePreview("matrix", 3)}
+          tips={[
+          <>Read the <b>modularity</b> in the banner before you read the picture. Below about 0.05
+            there is no community structure and the layout is showing you nothing.</>,
+          <>Raise <b>min similarity</b> to break a hairball apart; the counts underneath say how many
+            domains and links survive the threshold.</>,
+          <>Edges are <b>Jaccard similarity</b> between presence profiles, 0.5 or higher by default.</>,
+          <>The <b>same-protein co-clustering rate</b> is the internal check: domains of one protein
+            are physically linked, so they ought to land in the same cluster.</>,
+        ]}
+        />
+
+        <Dropzone accept=".csv,.tsv,.txt" hint="or click to browse · .csv (species × domains)" file={file} onFile={setFile}
+                  onSample={() => setFile(sampleFile("matrix"))} />
         <div style={{ marginTop: "1rem" }}>
           <button className="btn btn-primary" onClick={start}><i className="fa-solid fa-share-nodes" /> Generate graph</button>
         </div>
@@ -221,17 +236,19 @@ export default function AllVsAll() {
             Hide isolated</label>
         </div>
 
-        <div style={{ fontSize: ".82rem", color: "var(--text-2)", margin: "0 0 8px" }}>
+        <div style={{ fontSize: ".82rem", color: "var(--dim)", margin: "0 0 8px" }}>
           <strong>{info.shown}</strong> domains shown · <strong>{info.iso}</strong> isolated · <strong>{info.links}</strong> links ≥ {minW.toFixed(2)}
+          {data.edges_total > data.edges.length &&
+            ` · server sent the strongest ${data.edges.length.toLocaleString()} of ${data.edges_total.toLocaleString()}`}
         </div>
 
         <div style={{ position: "relative" }}>
-          <div ref={boxRef} style={{ width: "100%", height: 600, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12 }} />
+          <div ref={boxRef} style={{ width: "100%", height: 600, background: "var(--void)", border: "1px solid var(--rule)", borderRadius: 5 }} />
           {tip && <div style={{ position: "absolute", left: Math.min(tip.x + 14, 760), top: tip.y + 10, pointerEvents: "none",
-                                 background: "#0e1726", color: "#fff", borderRadius: 10, padding: "8px 11px", fontSize: ".78rem", maxWidth: 260, boxShadow: "0 8px 24px rgba(0,0,0,.25)" }}>
+                                 background: "var(--panel-2)", color: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 3, padding: "9px 11px", fontSize: ".74rem", fontFamily: "var(--mono)", maxWidth: 280, boxShadow: "0 12px 34px rgba(0,0,0,.5)" }}>
             <div style={{ fontWeight: 700, marginBottom: 2, wordBreak: "break-all" }}>{tip.name}</div>
             <div style={{ opacity: .8 }}>cluster {tip.cl} · {tip.k} link{tip.k === 1 ? "" : "s"}</div>
-            {tip.k > 0 && <div style={{ marginTop: 5, paddingTop: 5, borderTop: "1px solid rgba(255,255,255,.15)", opacity: .9, lineHeight: 1.5 }}>
+            {tip.k > 0 && <div style={{ marginTop: 5, paddingTop: 5, borderTop: "1px solid var(--rule)", opacity: .9, lineHeight: 1.5 }}>
               {tip.names.map((nm) => <div key={nm} style={{ wordBreak: "break-all" }}>↳ {nm}</div>)}
               {tip.k > tip.names.length && <div style={{ opacity: .6 }}>+{tip.k - tip.names.length} more…</div>}
             </div>}

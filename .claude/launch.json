@@ -4,9 +4,29 @@
     {
       "name": "flask",
       "runtimeExecutable": ".venv/bin/python",
-      "runtimeArgs": ["app.py"],
+      "runtimeArgs": [
+        "app.py"
+      ],
       "port": 8000,
       "autoPort": true
+    },
+    {
+      "name": "gunicorn",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": [
+        "-m",
+        "gunicorn",
+        "--workers",
+        "4",
+        "--threads",
+        "4",
+        "--timeout",
+        "60",
+        "--bind",
+        "127.0.0.1:8010",
+        "app:app"
+      ],
+      "port": 8010
     }
   ]
 }

@@ -29,10 +29,10 @@ export default function HowTo() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14, margin: "1rem 0" }}>
         <div className="card card-pad"><span className="aud bio">For biologists</span>
-          <p style={{ marginTop: 10, color: "var(--text-2)" }}>You bring the question and the BLAST file. We explain every
+          <p style={{ marginTop: 10, color: "var(--dim)" }}>You bring the question and the BLAST file. We explain every
              button and what the numbers mean — no programming, all in your browser.</p></div>
         <div className="card card-pad"><span className="aud cs">For programmers</span>
-          <p style={{ marginTop: 10, color: "var(--text-2)" }}>You know files and matrices. We explain the biology — genomes,
+          <p style={{ marginTop: 10, color: "var(--dim)" }}>You know files and matrices. We explain the biology — genomes,
              domains, homology, profiles — so the inputs and outputs make sense.</p></div>
       </div>
 
@@ -53,7 +53,7 @@ export default function HowTo() {
       {TOOLS.map(([ic, h, what, why]) => (
         <div key={h} className="card card-pad" style={{ marginBottom: 12 }}>
           <h3 style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ width: 36, height: 36, borderRadius: 10, background: "var(--ink)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ width: 36, height: 36, borderRadius: 3, background: "var(--panel-2)", color: "var(--signal)", border: "1px solid var(--rule)", fontFamily: "var(--mono)", fontSize: ".8rem", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               <i className={"fa-solid " + ic} /></span>{h}</h3>
           <p style={{ margin: "0 0 4px" }}>{what}</p>
           <p className="muted" style={{ margin: 0, fontSize: ".92rem" }}>{why}</p>
@@ -66,12 +66,12 @@ export default function HowTo() {
          <strong> Q &gt; 0.3</strong> means clear, trustworthy modules.</p>
 
       <h2>Glossary</h2>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: ".95rem", background: "var(--surface)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow)", border: "1px solid var(--line)" }}>
-        <thead><tr>{["Term", "In biology", "In computing"].map((h) => <th key={h} style={{ textAlign: "left", padding: "11px 14px", background: "var(--surface-2)" }}>{h}</th>)}</tr></thead>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: ".95rem", background: "var(--panel)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow)", border: "1px solid var(--rule)" }}>
+        <thead><tr>{["Term", "In biology", "In computing"].map((h) => <th key={h} style={{ textAlign: "left", padding: "11px 14px", background: "var(--panel-2)" }}>{h}</th>)}</tr></thead>
         <tbody>{GLOSS.map(([t, b, c]) => (
-          <tr key={t}><td style={{ padding: "11px 14px", fontWeight: 700, borderTop: "1px solid var(--line)" }}>{t}</td>
-            <td style={{ padding: "11px 14px", borderTop: "1px solid var(--line)" }}>{b}</td>
-            <td style={{ padding: "11px 14px", borderTop: "1px solid var(--line)" }}>{c}</td></tr>))}</tbody>
+          <tr key={t}><td style={{ padding: "11px 14px", fontWeight: 700, borderTop: "1px solid var(--rule)" }}>{t}</td>
+            <td style={{ padding: "11px 14px", borderTop: "1px solid var(--rule)" }}>{b}</td>
+            <td style={{ padding: "11px 14px", borderTop: "1px solid var(--rule)" }}>{c}</td></tr>))}</tbody>
       </table>
 
       <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>

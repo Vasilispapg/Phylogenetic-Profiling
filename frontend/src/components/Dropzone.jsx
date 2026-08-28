@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-export default function Dropzone({ accept, hint, file, onFile }) {
+export default function Dropzone({ accept, hint, file, onFile, onSample, sampleLabel = "or load an example file" }) {
   const ref = useRef(null);
   const [drag, setDrag] = useState(false);
   const pick = (f) => f && onFile(f);
@@ -20,6 +20,11 @@ export default function Dropzone({ accept, hint, file, onFile }) {
         <p className="dz-title">Drop a file here</p>
         <p className="dz-hint">{hint || "or click to browse"}</p>
       </div>
+      {onSample && (
+        <div className="dz-sample">
+          <button type="button" onClick={onSample}>{sampleLabel}</button>
+        </div>
+      )}
       {file && (
         <span className="file-pill">
           <i className="fa-solid fa-file" /> {file.name}{" "}

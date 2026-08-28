@@ -1,0 +1,43 @@
+# Production: run the published image, behind nginx.
+#
+# BIND is where the app listens. Never 0.0.0.0: nginx should be the only way in.
+#   127.0.0.1  nginx runs on the host
+#   172.17.0.1 nginx runs in a container and reaches the host over the docker
+#              bridge (host.docker.internal), which is the case on this server
+# See docs/DEPLOY.md.
+services:
+  web:
+    image: ghcr.io/vasilispapg/phyloflask:latest
+    pull_policy: always
+    restart: unless-stopped
+    ports:
+      - "${BIND:-127.0.0.1}:8000:8000"
+    environment:
+      - FLASK_DEBUG=0
+      # Smaller than the code default: this instance is open to the internet,
+      # and the bundled 218-query BLAST file is 14 MB, so 32 is roomy.
+      - MAX_UPLOAD_MB=32
+      - JOB_WORKERS=2
+      - JOB_TTL_SECONDS=86400
+      - LOG_LEVEL=INFO
+      # nginx sets X-Forwarded-For; without this the app would rate-limit the
+      # proxy's own address and treat every visitor as one client.
+      - TRUSTED_PROXY=1
+      - RATE_HEAVY_PER_MIN=20
+      - RATE_API_PER_MIN=240
+      - DB_PATH=/app/state/jobs.sqlite
+      - RESULT_DIR=/app/state/results
+    volumes:
+      - ./uploads:/app/uploads
+      - ./downloads:/app/downloads
+      - ./cache:/app/cache
+      - ./state:/app/state
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5).status==200 else 1)\""]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

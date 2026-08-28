@@ -50,10 +50,10 @@ browser heatmaps and an all-vs-all graph.
   Host defaults to `127.0.0.1`.
 
 ## Where to make changes
-- New analysis → `analysis/`. New page/route → the matching `templates/*.py`
-  blueprint + a `pages/*.html` that `{% extends "tools.html" %}`.
+- New analysis → `analysis/`. New page/route → the matching `blueprints/*.py`
+  blueprint under `/api` + a page in `frontend/src/pages/*.jsx`.
 - Nav links use **blueprint-qualified** `url_for` (e.g. `tree.tree_viewer_tool`).
-- **React tools** live in `frontend/src/pages/*.jsx` (Clustergram, Explorer,
+- **All tools** live in `frontend/src/pages/*.jsx` (Clustergram, Explorer,
   Embedding, …); shared CSV/transform helpers in `frontend/src/lib/matrix.js`,
   fetch helpers in `frontend/src/lib/api.js`. `heatmap_bp` also serves
   `POST /clustergram` (SciPy hierarchical clustering) and `POST /embedding`

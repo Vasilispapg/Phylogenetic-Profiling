@@ -12,6 +12,8 @@ uploads
 downloads
 cache
 output
+results
+jobs.sqlite*
 .DS_Store
 .vercel
 *.bak
@@ -19,3 +21,7 @@ output
 # Large sample BLAST input is not needed for the web app (files are uploaded
 # at runtime). Keep the small species lists.
 data/*.blastp
+
+# The SPA is built in the first Docker stage, not copied from the host.
+frontend/node_modules
+frontend/dist

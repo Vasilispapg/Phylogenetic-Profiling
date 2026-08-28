@@ -49,3 +49,7 @@ uploads/
 .claude/skills/
 skills-lock.json
 .impeccable/
+
+# Runtime job store and result blobs.
+jobs.sqlite*
+results/

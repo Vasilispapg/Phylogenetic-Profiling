@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import Layout from "./components/Layout.jsx";
 import Landing from "./pages/Landing.jsx";
@@ -15,6 +15,17 @@ const Heatmap = lazy(() => import("./pages/Heatmap.jsx"));
 const Clustergram = lazy(() => import("./pages/Clustergram.jsx"));
 const Explorer = lazy(() => import("./pages/Explorer.jsx"));
 const Embedding = lazy(() => import("./pages/Embedding.jsx"));
+
+// The server-rendered pages this app replaced. Their URLs are in a published
+// poster and in people's bookmarks, so they keep working.
+const MOVED = {
+  "/tools": "/blast",
+  "/tools/blast": "/blast",
+  "/tools/heatmap": "/heatmap",
+  "/tools/allvsall": "/all-vs-all",
+  "/tools/tree_construct": "/tree-builder",
+  "/tools/tree_viewer": "/tree-viewer",
+};
 
 const Fallback = () => (
   <div className="main"><div className="loader"><div className="spin" /><div>Loading…</div></div></div>
@@ -39,6 +50,9 @@ export default function App() {
         <Route path="/how-to" element={<HowTo />} />
         <Route path="/faq" element={<Faq />} />
         <Route path="/styleguide" element={<StyleGuide />} />
+        {Object.entries(MOVED).map(([from, to]) => (
+          <Route key={from} path={from} element={<Navigate to={to} replace />} />
+        ))}
         <Route path="*" element={<Landing />} />
       </Route>
     </Routes>

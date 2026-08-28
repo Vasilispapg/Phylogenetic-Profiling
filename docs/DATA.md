@@ -33,8 +33,8 @@ Standard BLAST `-outfmt 6`: tab-separated, **no header**, 12 columns:
 - The rest is the domain name + coordinates.
 
 ### Species list (`data/list.2`, `data/list.3`)
-One `TaxID-SpeciesCode` per line, e.g. `00000048-Arch_geph`. Parsed by
-`load_species_data` (legacy helper; not on the main tree path).
+One `TaxID-SpeciesCode` per line, e.g. `00000048-Arch_geph`. Sample data only —
+nothing in the pipeline reads these; distances come from the profile matrix.
 
 ### Correlation matrix CSV (input to tree-construct & all-vs-all)
 Produced by this app or supplied by the user. Rows = species, columns = domains:
@@ -49,11 +49,13 @@ Standard Newick `.nw`, e.g. `(A:0.1,(B:0.2,C:0.2):0.1);`.
 
 ## Outputs
 
-### Correlation matrix — `output/correlation_matrix.csv` (CLI) / `downloads/correlation_matrix.csv` (web)
+### Correlation matrix — `output/correlation_matrix.csv` (CLI) / `downloads/<uuid>_correlation_matrix.csv` (web)
 Same shape as the correlation-matrix input above.
 
-### Feature matrix — `output/feature_matrix.csv` / `downloads/feature_matrix.csv`
-Rows = species, columns = domains. Each cell is a **JSON string**:
+### Feature matrix — `output/feature_matrix.csv` / `downloads/<uuid>_feature_matrix.csv`
+Rows = species, columns = domains. Hits are filtered by the **same** `EValue <= 1e-5`
+cutoff as the correlation matrix, so the two files are directly comparable (this
+was not true before). Each cell is a **JSON string**:
 ```json
 {"mean_percent_identity": 92.4, "mean_alignment_length": 1579.0,
  "mean_bitscore": 2957.0, "num_hits": 1, "min_evalue": 0.0}
@@ -61,15 +63,18 @@ Rows = species, columns = domains. Each cell is a **JSON string**:
 Empty (species, domain) combinations are filled with the all-zero vector of the
 same keys.
 
-### Species tree — `output/species_tree_approx.nw` / `downloads/<job_id>_<name>.nw`
-Newick; leaf names are species keys; branch lengths are NJ distances in Jaccard
-units.
+### Species tree — `output/species_tree_approx.nw` / `downloads/<uuid>_<name>.nw`
+Newick; leaf names are species keys (quoted if they contain Newick punctuation);
+branch lengths are NJ distances in Jaccard units.
 
 ### All-vs-all (web JSON, not a file)
-`GET /allvsall_data/<f>` returns domain nodes with their cluster id and degree,
-Jaccard-weighted edges, a domain × domain co-cluster matrix, 2-D positions, and a
-validation `metrics` object. See [`API.md`](API.md).
+`GET /api/allvsall/<job_id>/data` returns domain nodes with their cluster id and
+degree, the strongest Jaccard-weighted edges (plus `edges_total`), and a
+validation `metrics` object. The co-cluster matrix and 2-D positions are
+`?include=`-only. See [`API.md`](API.md).
 
 ## Where files live
 - `output/` — CLI outputs. `downloads/` — web outputs. `uploads/` — uploads.
-  `cache/` — scratch. All gitignored. `data/` — sample inputs (tracked).
+  `cache/` — content-addressed clustering cache. `results/` — gzipped job result
+  blobs. `jobs.sqlite` — the job store. All gitignored. `data/` — sample inputs
+  (tracked). Every path is overridable via env vars (see `config.py`).

@@ -2,7 +2,9 @@ import { useState } from "react";
 import Dropzone from "../components/Dropzone.jsx";
 import Stepper from "../components/Stepper.jsx";
 import Status from "../components/Status.jsx";
-import { uploadFile, postJSON } from "../lib/api.js";
+import { API, uploadFile, postJSON } from "../lib/api.js";
+import Tips from "../components/Tips.jsx";
+import { sampleFile, samplePreview } from "../lib/samples.js";
 
 export default function Blast() {
   const [file, setFile] = useState(null);
@@ -15,10 +17,10 @@ export default function Blast() {
     setFile(f); setResult(null); setUploaded("");
     setStatus({ kind: "info", msg: "Uploading…", progress: true });
     try {
-      const res = await uploadFile("/upload", f);
+      const res = await uploadFile(API.upload, f);
       if (res.status === "success") {
         setUploaded(res.filename);
-        setStatus({ kind: "success", msg: '<i class="fa-solid fa-check"></i> File uploaded. Choose an analysis type.' });
+        setStatus({ kind: "success", msg: "File uploaded. Choose an analysis type." });
       } else setStatus({ kind: "error", msg: res.message || "Upload failed." });
     } catch { setStatus({ kind: "error", msg: "An error occurred during upload." }); }
   };
@@ -28,8 +30,8 @@ export default function Blast() {
     if (!uploaded) return setStatus({ kind: "error", msg: "Please upload a file first." });
     setResult(null); setStatus({ kind: "info", msg: "Processing… please wait.", progress: true });
     try {
-      const res = await postJSON("/process", { filename: uploaded, analysis_type: type });
-      if (res.status === "success") { setStatus({ kind: "success", msg: '<i class="fa-solid fa-check"></i> Analysis completed.' }); setResult(res.filename); }
+      const res = await postJSON(API.process, { filename: uploaded, analysis_type: type });
+      if (res.status === "success") { setStatus({ kind: "success", msg: "Analysis completed." }); setResult(res.filename); }
       else setStatus({ kind: "error", msg: res.message || "Processing failed." });
     } catch { setStatus({ kind: "error", msg: "An error occurred during processing." }); }
   };
@@ -41,8 +43,25 @@ export default function Blast() {
       <p className="muted">Upload a BLAST tabular file (<code>-outfmt 6</code>) to build a correlation matrix
          (species × domains) or a feature matrix.</p>
 
+      <Tips
+        format={"BLAST tabular (-outfmt 6) — 12 tab-separated columns, no header"}
+        sample={samplePreview("blast", 3)}
+        tips={[
+          <>The <b>species</b> is the first four dash-segments of the subject id:{" "}
+            <code>UP000005640-00009606-Homo_sapi-22-001536-E-013170</code> becomes{" "}
+            <code>UP000005640-00009606-Homo_sapi-22</code>.</>,
+          <>The <b>domain</b> is the whole query id. Everything before its first dash is the
+            protein accession, which the clustering later uses as an internal check.</>,
+          <>A hit counts as present only at <b>e-value ≤ 1e-5</b>. The example file includes one
+            weak hit that gets dropped, so you can see the cutoff do its work.</>,
+          <>Start with the <b>correlation matrix</b> — it is what every other tool takes. The
+            feature matrix carries five metrics per cell and feeds the heatmap's inspector.</>,
+        ]}
+      />
+
       <Dropzone accept=".blastp,.tsv,.tab,.txt,.out,.csv" hint="or click to browse · .blastp / .tsv / .txt"
-                file={file} onFile={onFile} />
+                file={file} onFile={onFile}
+                onSample={() => onFile(sampleFile("blast"))} />
 
       <div style={{ maxWidth: 420, marginTop: "1.25rem" }}>
         <label className="label" htmlFor="atype">Analysis type</label>
@@ -62,7 +81,7 @@ export default function Blast() {
       <Status s={status} />
       {result && (
         <div style={{ marginTop: "1rem" }}>
-          <a className="btn btn-secondary" href={`/downloads/${encodeURIComponent(result)}`} target="_blank" rel="noopener noreferrer">
+          <a className="btn btn-secondary" href={API.download(result)} target="_blank" rel="noopener noreferrer">
             <i className="fa-solid fa-download" /> Download {result}
           </a>
         </div>
