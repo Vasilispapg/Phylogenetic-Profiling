@@ -6,7 +6,7 @@ import uuid
 
 import jobs
 from Bio import Phylo
-from flask import Blueprint, current_app, render_template, request
+from flask import Blueprint, current_app, request
 
 from blueprints._api import fail, ok, safe_upload_name
 from config import DOWNLOAD_DIR, UPLOAD_DIR
@@ -19,21 +19,6 @@ log = logging.getLogger(__name__)
 # onto them so both stay in sync.
 LEGACY_STATE = {"queued": "in_progress", "running": "in_progress",
                 "done": "completed", "failed": "failed"}
-
-
-# ---------------------------------------------------------------------------
-# Pages
-# ---------------------------------------------------------------------------
-@tree_bp.get("/tools/tree_construct")
-def tree_construct_tool():
-    """Render the Tree Construction tool page."""
-    return render_template("tree_construct.html", active_tool="tree_construct")
-
-
-@tree_bp.get("/tools/tree_viewer")
-def tree_viewer_tool():
-    """Render the Tree Viewer tool page."""
-    return render_template("tree_viewer.html", active_tool="tree_viewer")
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +63,7 @@ def convert_tree_to_d3(tree, max_depth):
 # ---------------------------------------------------------------------------
 # Tree Viewer: parse an uploaded Newick file and return D3 JSON
 # ---------------------------------------------------------------------------
-@tree_bp.post("/tools/tree_viewer")
+@tree_bp.post("/newick")
 def tree_viewer_endpoint():
     name, err = safe_upload_name(request.files.get("file"), "newick")
     if err:
@@ -106,7 +91,7 @@ def tree_viewer_endpoint():
 # ---------------------------------------------------------------------------
 # Tree Construction: build a phylogenetic tree from a correlation matrix
 # ---------------------------------------------------------------------------
-@tree_bp.post("/tools/tree_construct")
+@tree_bp.post("/trees")
 def construct_tree_endpoint():
     """Start a background tree build from an uploaded correlation matrix CSV."""
     name, err = safe_upload_name(request.files.get("file"), "matrix")
@@ -136,16 +121,12 @@ def construct_tree_endpoint():
     return ok(message="Tree generation started.", job_id=job_id), 202
 
 
-@tree_bp.get("/tools/tree_status")
-def tree_status():
-    """Check the status of a tree-generation job by its job_id."""
-    job_id = request.args.get("job_id")
-    if not job_id:
-        return fail("No job_id specified.", 400)
-
+@tree_bp.get("/trees/<job_id>")
+def tree_status(job_id):
+    """Check the status of a tree-generation job."""
     job = jobs.get(job_id)
     if job is None or job["kind"] != "tree":
-        return fail("Job not found.", 404)
+        return fail("No tree job with that id.", 404)
 
     result = job["result"] or {}
     download = result.get("download")
@@ -160,6 +141,6 @@ def ok_status(job, download):
         "state": job["state"],
         "progress": job["progress"],
         "message": job["error"] or job["message"],
-        "download_url": f"/downloads/{download}" if download else None,
+        "download_url": f"/api/downloads/{download}" if download else None,
         "original_filename": (job["result"] or {}).get("name"),
     })

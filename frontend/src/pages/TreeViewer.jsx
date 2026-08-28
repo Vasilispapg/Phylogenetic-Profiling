@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
-import { uploadFile } from "../lib/api.js";
+import { API, uploadFile } from "../lib/api.js";
+import { TREE_DEPTH_DEFAULT, TREE_DEPTH_MAX } from "../lib/network.js";
 
 const genus = (name) => { const p = (name || "").split("-"); return p.length > 2 ? p[2].split("_")[0] : (name || ""); };
 const genusColor = (d) => {
@@ -17,7 +18,7 @@ export default function TreeViewer() {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState(null);
   const [tree, setTree] = useState(null);
-  const [depth, setDepth] = useState(4);
+  const [depth, setDepth] = useState(TREE_DEPTH_DEFAULT);
   const svgRef = useRef(null);
   const ctl = useRef({});
 
@@ -25,7 +26,7 @@ export default function TreeViewer() {
     if (!file) return setStatus({ kind: "error", msg: "Please choose a .nw file." });
     setStatus({ kind: "info", msg: "Processing tree…", progress: true });
     try {
-      const res = await uploadFile("/tools/tree_viewer", file);
+      const res = await uploadFile(API.newick, file);
       if (res.status === "success") { setTree(res.tree_data); setStatus({ kind: "success", msg: "Tree loaded — click nodes to expand/collapse." }); }
       else setStatus({ kind: "error", msg: res.message || "Failed to load tree." });
     } catch { setStatus({ kind: "error", msg: "An error occurred while processing the tree." }); }
@@ -98,9 +99,9 @@ export default function TreeViewer() {
           <input className="input" style={{ width: "auto" }} placeholder="search species…"
                  onKeyDown={(e) => { if (e.key === "Enter") ctl.current.search(e.target.value); }} />
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" }}>Expand to depth
-            <input type="range" min="1" max="20" value={depth} onChange={(e) => setDepth(parseInt(e.target.value, 10))} />
+            <input type="range" min="1" max={TREE_DEPTH_MAX} value={depth} onChange={(e) => setDepth(parseInt(e.target.value, 10))} />
             <span>{depth}</span></label>
-          <button className="btn btn-secondary" onClick={() => ctl.current.expandToDepth(99)}>Expand all</button>
+          <button className="btn btn-secondary" onClick={() => ctl.current.expandToDepth(Infinity)}>Expand all</button>
           <button className="btn btn-secondary" onClick={() => ctl.current.expandToDepth(1)}>Collapse</button>
         </div>
         <Status s={status} />

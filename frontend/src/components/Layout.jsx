@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Link, Outlet, useLocation } from "react-router-dom";
+import { POSTER } from "../lib/links.js";
 
 const TOOLS = [
   { to: "/blast", icon: "fa-dna", label: "BLAST analysis", desc: "Build the species × domain matrix" },
@@ -11,7 +12,6 @@ const TOOLS = [
   { to: "/tree-viewer", icon: "fa-tree", label: "Tree viewer", desc: "Interactive species tree" },
   { to: "/tree-builder", icon: "fa-sitemap", label: "Tree builder", desc: "Neighbour-Joining tree" },
 ];
-const POSTER = "https://f1000research-files.f1000.com/posters/compressed/f1000research-728675.pdf";
 
 export default function Layout() {
   const [openTools, setOpenTools] = useState(false);

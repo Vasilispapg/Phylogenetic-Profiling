@@ -68,7 +68,7 @@ Newick; leaf names are species keys (quoted if they contain Newick punctuation);
 branch lengths are NJ distances in Jaccard units.
 
 ### All-vs-all (web JSON, not a file)
-`GET /allvsall_data/<job_id>` returns domain nodes with their cluster id and
+`GET /api/allvsall/<job_id>/data` returns domain nodes with their cluster id and
 degree, the strongest Jaccard-weighted edges (plus `edges_total`), and a
 validation `metrics` object. The co-cluster matrix and 2-D positions are
 `?include=`-only. See [`API.md`](API.md).

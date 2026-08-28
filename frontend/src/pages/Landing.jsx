@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import DnaHero from "../components/DnaHero.jsx";
 import Reveal from "../components/Reveal.jsx";
+import { POSTER } from "../lib/links.js";
 
 const TOOLS = [
   ["/blast", "fa-dna", "BLAST analysis", "Build the species × domain matrix from a BLAST file."],
@@ -12,7 +13,6 @@ const TOOLS = [
   ["/tree-viewer", "fa-tree", "Tree viewer", "Collapsible radial species tree — colour, search, zoom."],
   ["/tree-builder", "fa-sitemap", "Tree builder", "Neighbour-Joining tree from domain profiles."],
 ];
-const POSTER = "https://f1000research-files.f1000.com/posters/compressed/f1000research-728675.pdf";
 
 export default function Landing() {
   return (

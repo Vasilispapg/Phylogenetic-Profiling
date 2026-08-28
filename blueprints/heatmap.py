@@ -1,45 +1,53 @@
-"""Client-side heatmap page plus the two server-side maths endpoints."""
+"""Server-side clustering and embedding for the heatmap family of tools."""
 import logging
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, request
 
+from analysis import matrix_io
 from blueprints._api import fail, ok
+from blueprints.matrices import resolve
 
 heatmap_bp = Blueprint("heatmap", __name__)
 log = logging.getLogger(__name__)
 
-MIN_POINTS = 3          # fewer than this and clustering/embedding are meaningless
-MAX_CELLS = 20_000_000  # refuse absurd matrices with a clear message, not an OOM
+MIN_POINTS = 3   # fewer than this and clustering/embedding are meaningless
 
 
 def _matrix(payload):
-    """Validate and convert the posted matrix. Returns (array, None) or (None, error)."""
+    """
+    Resolve the matrix to work on. Returns (array, None) or (None, error).
+
+    Preferred: ``{"file_id": "..."}`` referring to a matrix uploaded to
+    /matrices, so the values never travel in a request body. ``{"z": [[...]]}``
+    is still accepted for small ad-hoc matrices and for the CLI/tests.
+    """
     import numpy as np
+
+    file_id = payload.get("file_id")
+    if file_id:
+        path = resolve(file_id)
+        if path is None:
+            return None, fail("Unknown matrix id. Upload the file again.", 404)
+        try:
+            _rows, _cols, values = matrix_io.plane(path, payload.get("metric"))
+        except matrix_io.MatrixError as exc:
+            return None, fail(str(exc), 400)
+        return values, None
 
     z = payload.get("z")
     if not z or not isinstance(z, list) or not z[0]:
-        return None, fail("No matrix provided.", 400)
+        return None, fail("No matrix provided: pass file_id or z.", 400)
     try:
         m = np.asarray(z, dtype=float)
     except (TypeError, ValueError):
         return None, fail("Matrix must be numeric and rectangular.", 400)
     if m.ndim != 2:
         return None, fail("Matrix must be two-dimensional.", 400)
-    if m.size > MAX_CELLS:
+    if m.size > matrix_io.MAX_CELLS:
         return None, fail(
-            f"Matrix has {m.size:,} cells, above the {MAX_CELLS:,} limit. "
-            "Reduce the matrix or run the analysis from the CLI.", 413)
+            f"Matrix has {m.size:,} cells, above the {matrix_io.MAX_CELLS:,} limit. "
+            "Upload it to /matrices and pass file_id instead.", 413)
     return m, None
-
-
-@heatmap_bp.get("/tools/heatmap")
-def heatmap_tool():
-    """
-    Render the heatmap tool page. The page processes uploaded CSV matrices
-    entirely client-side (PapaParse / d3 + Plotly / ECharts), so no data
-    endpoint is required here.
-    """
-    return render_template("heatmap.html", active_tool="heatmap")
 
 
 @heatmap_bp.post("/clustergram")

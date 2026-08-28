@@ -32,30 +32,35 @@ These describe what the code does now, so you don't have to re-read it all.
 
 | Page | Route | What it does |
 |------|-------|--------------|
-| BLAST Analysis | `/tools/blast` | Upload a BLAST file → build correlation or feature matrix (downloadable) |
-| Heatmap | `/tools/heatmap` | Upload a matrix → heatmaps with a metric selector (feature matrices), compare-two, normalize/log, cell inspector, PNG |
-| Clustergram | `/clustergram` (React) | Hierarchically-clustered heatmap with row & column dendrograms (SciPy backend) |
-| Linked explorer | `/explorer` (React) | Clustered heatmap ↔ domain network, synchronised selection |
-| Embedding map | `/embedding` (React) | 2D PCA / t-SNE projection of profiles, KMeans groups, searchable |
-| All vs All | `/tools/allvsall` | Upload a correlation matrix → MCL clusters: network coloured by cluster + linked co-cluster heatmap |
-| Tree builder | `/tools/tree_construct` | Upload a correlation matrix → NJ (or UPGMA) tree, async job + polling |
-| Tree viewer | `/tools/tree_viewer` | Upload a `.nw` file → collapsible radial tree (genus colours, search) |
+| BLAST Analysis | `/blast` | Upload a BLAST file → build correlation or feature matrix (downloadable) |
+| Heatmap | `/heatmap` | Upload a matrix → heatmaps with a metric selector (feature matrices), compare-two, normalize/log, cell inspector, PNG |
+| Clustergram | `/clustergram` | Hierarchically-clustered heatmap with row & column dendrograms (SciPy backend) |
+| Linked explorer | `/explorer` | Clustered heatmap ↔ domain network, synchronised selection |
+| Embedding map | `/embedding` | 2D PCA / t-SNE projection of profiles, KMeans groups, searchable |
+| All vs All | `/all-vs-all` | Upload a correlation matrix → MCL clusters: interactive network coloured by cluster |
+| Tree builder | `/tree-builder` | Upload a correlation matrix → NJ (or UPGMA) tree, async job + polling |
+| Tree viewer | `/tree-viewer` | Upload a `.nw` file → collapsible radial tree (genus colours, search) |
 | How to use | `/how-to` | Per-tool walkthrough |
 | FAQ | `/faq` | Concepts, methods, troubleshooting, credits |
 
+Every JSON endpoint lives under **`/api`**; everything else is a client-side
+route served by the SPA. See [`docs/API.md`](docs/API.md).
+
 ## Frontend
 
-Two UIs share the same Flask JSON API:
-- **Classic** — server-rendered Jinja pages (light, zero build), served by Flask at `/`.
-- **React SPA** — a Vite + React app in [`frontend/`](frontend/) that consumes the API,
-  served by Flask at **`/app`** once built (the Docker image builds it for you).
-  Dev: **`./dev.sh`** starts both (Flask :8000 + Vite :5173, proxied) — or run them
-  separately (`python app.py` and `cd frontend && npm install && npm run dev`).
-  Build: `npm run build` → `frontend/dist/`. See [`frontend/README.md`](frontend/README.md).
-  Design system: [`docs/DESIGN.md`](docs/DESIGN.md) (live gallery at `/styleguide`).
+A single **Vite + React** SPA in [`frontend/`](frontend/), served by Flask at `/`
+once built (the Docker image builds it). Fonts and icons are bundled, so the app
+makes **no third-party requests** and works offline.
 
-> Which UI is canonical has not been decided; both are served, and the API is the
-> contract between them.
+- Dev: **`./dev.sh`** starts both (Flask :8000 + Vite :5173, `/api` proxied) — or
+  run them separately (`python app.py` and `cd frontend && npm install && npm run dev`).
+- Build: `npm run build --prefix frontend` → `frontend/dist/`.
+- Tests: `npm run test --prefix frontend`.
+- Design system: [`docs/DESIGN.md`](docs/DESIGN.md) (live gallery at `/styleguide`).
+
+The server-rendered Jinja pages that used to duplicate every tool were removed:
+they had drifted (three tools existed only in React) and maintaining two clients
+for the same API was the largest source of duplication in the repo.
 
 ## Quick start
 
@@ -130,7 +135,8 @@ All of these are read in [`config.py`](config.py).
 | `JACCARD_THRESHOLD` | `0.5` | Minimum similarity for a domain–domain edge |
 | `MCL_INFLATION` | `2.0` | MCL granularity |
 | `MAX_TAXA` | `5000` | Refuse NJ above this many species (use `upgma` instead) |
-| `EDGE_BUDGET_PER_NODE` | `5` | Strongest edges per node returned by `/allvsall_data` |
+| `EDGE_BUDGET_PER_NODE` | `5` | Strongest edges per node returned by the all-vs-all data endpoint |
+| `TREE_DISPLAY_DEPTH` | `6` | Default depth for every tree display |
 | `UPLOAD_DIR` / `DOWNLOAD_DIR` / `CACHE_DIR` / `RESULT_DIR` / `DB_PATH` | under the repo | Runtime paths |
 | `DASH_DEBUG` | off | Debug mode for standalone Dash apps |
 
@@ -138,7 +144,7 @@ All of these are read in [`config.py`](config.py).
 
 ```bash
 pip install pytest
-pytest -q                      # 74 tests
+pytest -q                      # 83 tests
 npm run test --prefix frontend # 11 tests
 ```
 Covers species-key extraction, the E-value cutoff, matrix building, Jaccard
@@ -150,18 +156,16 @@ CI runs all of it plus a Docker build: [`.github/workflows/ci.yml`](.github/work
 ## Project layout
 
 ```
-app.py                  Flask app, page routes, SPA mount, error handlers, job pool
+app.py                  Flask app: SPA mount, /api registration, errors, job pool
 config.py               Paths and every tunable knob (all env-overridable)
-jobs.py                 SQLite job store (state, progress, result blobs, TTL)
+jobs.py                 SQLite job store (state, progress, result blobs, retention)
 workers.py              Background job entry points (run in a separate process)
 main.py                 CLI entry point
-blueprints/*.py         Flask blueprints (blast, heatmap, allvsall, tree)
-analysis/               BLAST parsing, matrices, MCL clustering + validation
+blueprints/*.py         JSON API (blast, matrices, heatmap, allvsall, tree)
+analysis/               BLAST parsing, matrices, matrix I/O, MCL + validation
 tree_construction/      Distance matrix + fast NJ/UPGMA (nj.py)
 visualization/          Plotly heatmaps + the CLI-only Dash explorer
-pages/*.html            Jinja templates (tools.html is the base layout)
-frontend/               React SPA (served at /app once built)
-public/                 Static assets (CSS/JS/images)
+frontend/               React SPA — the UI (served at / once built)
 data/                   Sample inputs (species lists + BLAST file)
 tests/                  pytest suite
 Dockerfile, docker-compose.yml

@@ -1,4 +1,21 @@
 // Thin client for the Flask JSON API (proxied in dev via vite.config.js).
+//
+// Every endpoint lives under /api so that no client-side route can ever shadow
+// one. Paths are declared here rather than sprinkled through the pages.
+export const API = {
+  upload: "/api/upload",
+  process: "/api/process",
+  matrices: "/api/matrices",
+  clustergram: "/api/clustergram",
+  embedding: "/api/embedding",
+  allvsall: "/api/allvsall",
+  allvsallStatus: (id) => `/api/allvsall/${encodeURIComponent(id)}/status`,
+  allvsallData: (id) => `/api/allvsall/${encodeURIComponent(id)}/data`,
+  trees: "/api/trees",
+  tree: (id) => `/api/trees/${encodeURIComponent(id)}`,
+  newick: "/api/newick",
+  download: (name) => `/api/downloads/${encodeURIComponent(name)}`,
+};
 
 // Parse a response as JSON, turning the common failure modes into clear errors
 // instead of the cryptic "Unexpected end of JSON input" you get from res.json()
@@ -27,6 +44,14 @@ export async function uploadFile(url, file, fields = {}) {
   Object.entries(fields).forEach(([k, v]) => fd.append(k, v));
   const r = await fetch(url, { method: "POST", body: fd });
   return asJSON(r, "upload");
+}
+
+// Upload a matrix once and refer to it by id afterwards, instead of posting the
+// parsed values back to the server in every request body.
+export async function uploadMatrix(file) {
+  const res = await uploadFile(API.matrices, file);
+  if (res.status !== "success") throw new Error(res.message || "Could not read the matrix.");
+  return res;
 }
 
 export async function postJSON(url, body) {

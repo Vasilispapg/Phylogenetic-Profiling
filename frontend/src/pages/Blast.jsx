@@ -2,7 +2,7 @@ import { useState } from "react";
 import Dropzone from "../components/Dropzone.jsx";
 import Stepper from "../components/Stepper.jsx";
 import Status from "../components/Status.jsx";
-import { uploadFile, postJSON } from "../lib/api.js";
+import { API, uploadFile, postJSON } from "../lib/api.js";
 
 export default function Blast() {
   const [file, setFile] = useState(null);
@@ -15,7 +15,7 @@ export default function Blast() {
     setFile(f); setResult(null); setUploaded("");
     setStatus({ kind: "info", msg: "Uploading…", progress: true });
     try {
-      const res = await uploadFile("/upload", f);
+      const res = await uploadFile(API.upload, f);
       if (res.status === "success") {
         setUploaded(res.filename);
         setStatus({ kind: "success", msg: "File uploaded. Choose an analysis type." });
@@ -28,7 +28,7 @@ export default function Blast() {
     if (!uploaded) return setStatus({ kind: "error", msg: "Please upload a file first." });
     setResult(null); setStatus({ kind: "info", msg: "Processing… please wait.", progress: true });
     try {
-      const res = await postJSON("/process", { filename: uploaded, analysis_type: type });
+      const res = await postJSON(API.process, { filename: uploaded, analysis_type: type });
       if (res.status === "success") { setStatus({ kind: "success", msg: "Analysis completed." }); setResult(res.filename); }
       else setStatus({ kind: "error", msg: res.message || "Processing failed." });
     } catch { setStatus({ kind: "error", msg: "An error occurred during processing." }); }
@@ -62,7 +62,7 @@ export default function Blast() {
       <Status s={status} />
       {result && (
         <div style={{ marginTop: "1rem" }}>
-          <a className="btn btn-secondary" href={`/downloads/${encodeURIComponent(result)}`} target="_blank" rel="noopener noreferrer">
+          <a className="btn btn-secondary" href={API.download(result)} target="_blank" rel="noopener noreferrer">
             <i className="fa-solid fa-download" /> Download {result}
           </a>
         </div>

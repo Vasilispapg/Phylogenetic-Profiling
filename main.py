@@ -17,7 +17,7 @@ OUTPUT_DIR = "output"
 TREE_FILE_PATH = f"{OUTPUT_DIR}/species_tree_approx.nw"
 CORRELATION_MATRIX_PATH = f"{OUTPUT_DIR}/correlation_matrix.csv"
 FEATURE_MATRIX_PATH = f"{OUTPUT_DIR}/feature_matrix.csv"
-DEFAULT_TREE_DEPTH = 64
+DEFAULT_TREE_DEPTH = config.TREE_DISPLAY_DEPTH
 
 def construct_tree_command():
     # Distances are derived from the species x domain presence/absence profile,

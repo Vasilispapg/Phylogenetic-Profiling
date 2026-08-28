@@ -6,12 +6,13 @@ File map is in [`INDEX.md`](INDEX.md).
 
 ## 1. Architecture
 
-- **Flask app** (`app.py`) with four **blueprints** (`blueprints/blast.py`,
-  `heatmap.py`, `allvsall.py`, `tree.py` — Python, not Jinja; the templates live
-  in `pages/`, static in `public/`). A single download endpoint
-  `GET /downloads/<path:filename>` serves generated files via
-  `send_from_directory` (path-traversal safe). The built React SPA is mounted at
-  `/app`.
+- **Flask app** (`app.py`). Every JSON endpoint is registered under **`/api`**
+  (`blueprints/blast.py`, `matrices.py`, `heatmap.py`, `allvsall.py`, `tree.py`);
+  every other path serves the built React SPA. That split is deliberate: when the
+  SPA was mounted at the root while endpoints sat beside it, `/clustergram` and
+  `/embedding` were simultaneously a page and an endpoint. A single download
+  endpoint `GET /api/downloads/<path:filename>` serves generated files via
+  `send_from_directory` (path-traversal safe).
 - **Configuration** (`config.py`) holds every path and tunable knob, all
   env-overridable. Paths are absolute, so behaviour does not depend on the
   working directory gunicorn was started from.
@@ -88,7 +89,7 @@ This clusters **domains by shared phylogenetic profile** (the intended goal), no
 the raw bipartite species–domain graph.
 
 ### 3.4 Newick → interactive tree (viewer)
-`POST /tools/tree_viewer`: `Bio.Phylo.read` → `convert_tree_to_d3` (iterative,
+`POST /api/newick`: `Bio.Phylo.read` → `convert_tree_to_d3` (iterative,
 stack-based; safe for very deep trees) → D3 JSON. Server sends the full tree;
 the client depth slider prunes the view.
 
@@ -96,17 +97,21 @@ the client depth slider prunes the view.
 
 | Method | Path | Handler | Notes |
 |--------|------|---------|-------|
-| GET | `/`, `/tools`, `/tools/blast`, `/how-to`, `/faq` | `app.py` | pages |
-| GET | `/downloads/<path:filename>` | `app.py` | shared, traversal-safe |
-| POST | `/upload` | blast | secure_filename + extension allowlist |
-| POST | `/process` | blast | builds matrix → `downloads/`, returns `filename` |
-| GET | `/results` | blast | existence check |
-| GET | `/tools/heatmap` | heatmap | client-side only |
-| GET/POST | `/tools/allvsall` | allvsall | POST starts clustering job |
-| GET | `/allvsall_status/<f>`, `/allvsall_data/<f>` | allvsall | poll + fetch (data includes node_cluster, degree, edge weights, metrics) |
-| GET/POST | `/tools/tree_construct` | tree | POST → `job_id` (202) |
-| GET | `/tools/tree_status?job_id=` | tree | `in_progress\|completed\|failed`, 404 if unknown |
-| GET/POST | `/tools/tree_viewer` | tree | POST parses Newick |
+| GET | `/<anything not /api>` | `app.py` | the React bundle (index.html fallback) |
+| GET | `/api/health` | `app.py` | liveness + queue info |
+| GET | `/api/downloads/<path:filename>` | `app.py` | shared, traversal-safe |
+| POST | `/api/upload` | blast | one validator: secure_filename + per-kind allowlist |
+| POST | `/api/process` | blast | builds a matrix into `downloads/`, unique name |
+| GET | `/api/results` | blast | existence check |
+| POST | `/api/matrices` | matrices | store once, return `file_id` + labels |
+| POST | `/api/clustergram` | heatmap | `file_id` (preferred) or inline `z` |
+| POST | `/api/embedding` | heatmap | `file_id` (preferred) or inline `z` |
+| POST | `/api/allvsall` | allvsall | starts a clustering job → `job_id` |
+| GET | `/api/allvsall/<job_id>/status` | allvsall | poll `state` |
+| GET | `/api/allvsall/<job_id>/data` | allvsall | `?include=matrix,positions` for the O(n²) extras |
+| POST | `/api/trees` | tree | starts a build (`method=nj\|upgma`) → `job_id` (202) |
+| GET | `/api/trees/<job_id>` | tree | `state` + legacy `status`, 404 if unknown |
+| POST | `/api/newick` | tree | parses an uploaded tree for the viewer |
 
 **Job lifecycle (both kinds are now identical).** POST saves the upload under a
 uuid-prefixed name, inserts a row in the SQLite job store, submits
@@ -145,22 +150,32 @@ Run via `python main.py --validate_clusters`.
 - **NJ is still O(n³)**, just with a ~158× smaller constant: 848 species take
   0.76 s, but 8000+ would take minutes and several GB. `MAX_TAXA` (default 5000)
   refuses those with a message pointing at `upgma`.
-- **`/clustergram` and `/embedding` take the matrix in the request body.** That is
-  fine at the current scale but is O(cells) on the wire; `MAX_CELLS` caps it at
-  20M with a 413. Referencing an uploaded file by id would remove the round trip.
-- **Heatmap tool is client-side.** No server data endpoint; it parses uploaded
-  CSVs in the browser.
+- **Matrices are uploaded twice in the Clustergram/Embedding flow** — once read
+  locally to draw, once posted to `/api/matrices`. Cheap, but not free.
+- **Heatmap tool is client-side.** It parses the uploaded CSV in the browser and
+  needs no server call at all. Clustergram and Embedding parse locally *for
+  rendering* but upload the file once to `/api/matrices` and reference it by id,
+  so the values never travel inside a request body.
 - **Security posture.** Uploads go through one validator (`secure_filename` +
   per-kind extension allowlist + `MAX_CONTENT_LENGTH`), are stored under
   unguessable uuid-prefixed names, and downloads use `send_from_directory`. Job
   ids are unguessable capability tokens — that is *not* authentication, and there
   is still no auth or per-user accounting.
-- **Two front-ends.** Both the Jinja pages and the React SPA are served and must
-  be kept in step; which one is canonical has not been decided.
+- **No authentication.** Job and matrix ids are unguessable capability tokens,
+  which stops accidental cross-user access but is not auth. A deployment on an
+  open network needs a real access control layer in front.
 - **The bundled dataset still has weak structure** (see the first bullet); that is
   the data, not the code.
 
-## 7. Extension points
+## 7. Retention
+
+Nothing used to clean up: uploads, generated matrices, trees and in-memory job
+results all accumulated forever, in bind-mounted volumes. `jobs.reap()` now runs
+at startup and hourly, and it (a) deletes job rows older than `JOB_TTL_SECONDS`
+along with their result blobs, (b) fails jobs whose worker vanished, and
+(c) sweeps `uploads/` and `downloads/` for files past the same window.
+
+## 8. Extension points
 
 - Stricter presence calls: tune `create_correlation_matrix(evalue_threshold=...)`.
 - Clustering granularity: `cluster_domains(threshold=..., inflation=...)`.

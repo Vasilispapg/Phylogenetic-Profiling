@@ -1,25 +1,32 @@
 # HTTP API Reference
 
-All responses are JSON unless noted. Error responses are
+Every endpoint lives under **`/api`**. Everything outside it is a client-side
+route served by the React bundle, which is why the namespaces cannot collide --
+`/clustergram` and `/embedding` used to be *both* a page and an endpoint.
+
+All responses are JSON. Error responses are
 `{"status": "error", "message": "..."}` **with a real HTTP status code**
 (400 bad request, 404 missing, 409 not ready, 410 expired, 413 too large,
-422 job failed, 500 internal). Data formats: [`DATA.md`](DATA.md).
+422 job failed, 500 internal). An unmatched `/api/...` path returns 404 JSON, not
+the SPA. Data formats: [`DATA.md`](DATA.md).
 
-## Pages (HTML)
-`GET /`, `GET /tools`, `GET /tools/blast`, `GET /tools/heatmap`,
-`GET /tools/tree_construct`, `GET /tools/tree_viewer`, `GET /how-to`, `GET /faq`,
-`GET /styleguide` → rendered templates (200).
+## The SPA
+`GET /<anything not under /api>` serves the built React bundle: an existing file
+is returned as-is, anything else falls back to `index.html` for client-side
+routing. A missing path that *looks* like a file (has an extension) returns 404
+rather than HTML. If `frontend/dist` is absent the response is a 503 explaining
+how to build it.
 
-`GET /app/...` serves the built React SPA (503 with instructions if
-`frontend/dist` is missing). `GET /health` returns a liveness payload.
+### `GET /api/health`
+`{"status":"success","max_upload_mb":200,"job_workers":2,"spa_built":true}`
 
 ## Downloads
-### `GET /downloads/<filename>`
+### `GET /api/downloads/<filename>`
 Returns the generated file as an attachment from the `downloads/` directory.
 `404` if missing; path traversal is rejected (`send_from_directory`).
 
 ## BLAST blueprint
-### `POST /upload`
+### `POST /api/upload`
 Multipart form, field `file`. Validated with `secure_filename` + extension
 allowlist (`.blastp .tsv .tab .txt .out .csv`). The returned `filename` carries a
 uuid prefix so concurrent users with the same file name cannot overwrite each
@@ -29,7 +36,7 @@ other; treat it as an opaque token and pass it back to `/process`.
  "filename":"<uuid>_<safe>","original_name":"<safe>"}
 ```
 
-### `POST /process`
+### `POST /api/process`
 JSON body:
 ```json
 {"filename": "<uploaded name>", "analysis_type": "correlation" | "features"}
@@ -41,24 +48,23 @@ Builds the matrix into `downloads/` under a unique name and returns it:
 ```
 Errors: 400 missing filename / unknown `analysis_type`, 404 file not found.
 
-### `GET /results?filename=<name>`
+### `GET /api/results?filename=<name>`
 `{"status":"success","filename":"<name>"}` if the file exists in `downloads/`,
 else an error.
 
 ## All-vs-all blueprint (domain MCL clustering)
-### `POST /tools/allvsall`
+### `POST /api/allvsall`
 Multipart form, field `file` = a **correlation matrix CSV**
 (`.csv .tsv .txt`). Starts a background clustering job.
 ```json
 {"status":"success","message":"File uploaded and processing started.",
- "filename":"<job_id>","job_id":"<job_id>"}
+ "job_id":"<job_id>"}
 ```
-`filename` is the job id, not the uploaded name: jobs used to be keyed by file
-name, so two users uploading `correlation_matrix.csv` clobbered each other and
-either could read the other's result.
-`GET /tools/allvsall` renders the page.
+Jobs used to be keyed by the uploaded file name, so two users uploading
+`correlation_matrix.csv` clobbered each other and either could read the other's
+result. They are keyed by an unguessable id now.
 
-### `GET /allvsall_status/<job_id>`
+### `GET /api/allvsall/<job_id>/status`
 ```json
 {"status":"success","state":"queued"|"running"|"done"|"failed",
  "progress":0.55,"message":"Running Markov clustering (16,238 edges)..."}
@@ -66,7 +72,7 @@ either could read the other's result.
 Poll until `state` is `done` or `failed`. **Branch on `state`, never on
 `message`** — the message is display text. 404 if the job is unknown.
 
-### `GET /allvsall_data/<job_id>[?include=matrix,positions]`
+### `GET /api/allvsall/<job_id>/data[?include=matrix,positions]`
 ```json
 {
   "status": "success",
@@ -94,7 +100,7 @@ Other codes: 404 unknown job, 409 still running, 410 result expired, 422 the job
 failed.
 
 ## Tree blueprint
-### `POST /tools/tree_construct`
+### `POST /api/trees`
 Multipart form, field `file` = a **correlation matrix CSV** (now extension-checked
 like the other upload endpoints). Optional form field `method` = `nj` (default) or
 `upgma`. Starts a background tree build. Responds **202**:
@@ -102,14 +108,14 @@ like the other upload endpoints). Optional form field `method` = `nj` (default) 
 {"status":"success","message":"Tree generation started.","job_id":"<uuid hex>"}
 ```
 
-### `GET /tools/tree_status?job_id=<id>`
+### `GET /api/trees/<job_id>`
 ```json
 {
   "status": "in_progress" | "completed" | "failed",
   "state": "queued" | "running" | "done" | "failed",
   "progress": 0.35,
   "message": null | "<progress or error>",
-  "download_url": "/downloads/<uuid>_<name>.nw" | null,
+  "download_url": "/api/downloads/<uuid>_<name>.nw" | null,
   "original_filename": "<name>.nw"
 }
 ```
@@ -117,7 +123,7 @@ like the other upload endpoints). Optional form field `method` = `nj` (default) 
 store. `400` if `job_id` missing, `404` if unknown. Stop polling on
 `completed`/`failed`/`404`.
 
-### `POST /tools/tree_viewer`
+### `POST /api/newick`
 Multipart form, field `file` = a **Newick** file. Returns the full tree as D3
 JSON (the client slider prunes depth):
 ```json
@@ -134,11 +140,22 @@ The heatmap / clustergram / embedding **pages** parse CSVs client-side; these tw
 endpoints do the heavy maths server-side (SciPy / scikit-learn). Both take the
 numeric matrix as JSON.
 
-Both refuse matrices above `MAX_CELLS` (20M) with a 413 rather than running out
-of memory.
+### `POST /api/matrices`
+Multipart form, field `file` = a matrix CSV. Stores it and returns an id plus the
+labels, so later calls can reference the matrix instead of carrying it:
+```json
+{"status":"success","file_id":"<uuid>_<name>","name":"<name>",
+ "kind":"numeric"|"feature","rows":["s1","..."],"cols":["D1","..."],
+ "features":["value"] | ["num_hits","mean_bitscore","..."]}
+```
+No cell values come back -- the response is O(rows + cols).
 
-### `POST /clustergram`
-JSON body `{"z": [[...], ...]}` — a numeric matrix (rows × cols). Hierarchically
+Both maths endpoints below accept **either** `{"file_id": "...", "metric": "..."}`
+(preferred: the values never travel in a request body) **or** `{"z": [[...]]}` for
+small ad-hoc matrices. They refuse matrices above `MAX_CELLS` (20M) with a 413.
+
+### `POST /api/clustergram`
+JSON body `{"file_id": "..."}` (or `{"z": [[...]]}`). Hierarchically
 clusters both axes (**correlation distance, average linkage**) and returns leaf
 orders + dendrogram line coordinates (drawn client-side):
 ```json
@@ -152,10 +169,11 @@ orders + dendrogram line coordinates (drawn client-side):
 ```
 Constant rows/cols (undefined correlation) are treated as maximally distant.
 
-### `POST /embedding`
+### `POST /api/embedding`
 JSON body:
 ```json
-{"z": [[...], ...], "axis": "domains" | "species", "method": "pca" | "tsne", "k": 8}
+{"file_id": "...", "metric": "num_hits",
+ "axis": "domains" | "species", "method": "pca" | "tsne", "k": 8}
 ```
 Projects the chosen axis to 2D (**PCA** or **t-SNE** on standardized profiles)
 and groups points with **KMeans**:

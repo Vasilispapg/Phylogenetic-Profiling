@@ -3,7 +3,7 @@ import logging
 import uuid
 
 import jobs
-from flask import Blueprint, current_app, render_template, request
+from flask import Blueprint, current_app, request
 
 from blueprints._api import fail, ok, safe_upload_name
 from config import UPLOAD_DIR
@@ -21,12 +21,9 @@ LEGACY_DONE = "Completed."
 OPTIONAL_FIELDS = ("matrix", "positions")
 
 
-@allvsall_bp.route("/tools/allvsall", methods=["GET", "POST"])
+@allvsall_bp.post("/allvsall")
 def allvsall_tool():
-    """Render the all-vs-all page, or start a clustering job."""
-    if request.method == "GET":
-        return render_template("allvsall.html", active_tool="allvsall")
-
+    """Start a clustering job from an uploaded correlation matrix."""
     name, err = safe_upload_name(request.files.get("file"), "matrix")
     if err:
         return err
@@ -43,29 +40,26 @@ def allvsall_tool():
         "allvsall", run_allvsall_job, str(UPLOAD_DIR / stored),
         message="Queued for clustering...",
     )
-    # `filename` is the legacy handle both front-ends round-trip; it is now the
-    # job id, so status and data lookups can no longer collide between users.
-    return ok(message="File uploaded and processing started.",
-              filename=job_id, job_id=job_id)
+    return ok(message="File uploaded and processing started.", job_id=job_id)
 
 
-@allvsall_bp.get("/allvsall_status/<path:filename>")
-def allvsall_status(filename):
+@allvsall_bp.get("/allvsall/<job_id>/status")
+def allvsall_status(job_id):
     """
-    Poll a clustering job. `filename` is the job id returned by the upload.
+    Poll a clustering job.
 
     A failed *job* is still a successful *request*, so this returns 200 with
     ``state="failed"``. Only a genuinely bad request (unknown job) is a 4xx.
     """
-    job = jobs.get(filename)
+    job = jobs.get(job_id)
     if job is None or job["kind"] != "allvsall":
-        return fail("No process found for this file.", 404)
+        return fail("No clustering job with that id.", 404)
     message = LEGACY_DONE if job["state"] == "done" else (job["message"] or "Working...")
     return ok(message=message, state=job["state"], progress=job["progress"])
 
 
-@allvsall_bp.get("/allvsall_data/<path:filename>")
-def get_allvsall_data(filename):
+@allvsall_bp.get("/allvsall/<job_id>/data")
+def get_allvsall_data(job_id):
     """
     Fetch the finished clustering payload.
 
@@ -73,9 +67,9 @@ def get_allvsall_data(filename):
     matrix and a spring layout). New clients derive the matrix from
     ``node_cluster`` and run their own layout, so they never need them.
     """
-    job = jobs.get(filename)
+    job = jobs.get(job_id)
     if job is None or job["kind"] != "allvsall":
-        return fail("Data not found for this file.", 404)
+        return fail("No clustering job with that id.", 404)
     if job["state"] == "failed":
         return fail(job["message"] or "Clustering failed.", 422)
     if job["state"] != "done":

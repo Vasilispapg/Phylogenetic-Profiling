@@ -4,7 +4,7 @@ import logging
 import threading
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
-from flask import Flask, jsonify, redirect, render_template, send_from_directory
+from flask import Flask, abort, jsonify, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 import config
@@ -13,7 +13,7 @@ import jobs
 config.setup_logging()
 log = logging.getLogger(__name__)
 
-app = Flask(__name__, template_folder="pages", static_folder="public")
+app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_MB * 1024 * 1024
 
 jobs.init()
@@ -90,65 +90,40 @@ _start_reaper()
 
 
 # ---------------------------------------------------------------------------
-# Pages
-# ---------------------------------------------------------------------------
-@app.get("/")
-def index():
-    """Main page with navigation."""
-    return render_template("index.html", active_tool="index")
-
-
-@app.get("/tools")
-@app.get("/tools/blast")
-def blast_tool():
-    """Render the BLAST analysis tool page (default)."""
-    return render_template("blast.html", active_tool="blast")
-
-
-@app.get("/how-to")
-def how_to():
-    """Step-by-step guide to using PhyloFlask."""
-    return render_template("help.html", active_tool="help")
-
-
-@app.get("/faq")
-def faq():
-    """Frequently asked questions and concepts."""
-    return render_template("faq.html", active_tool="faq")
-
-
-@app.get("/styleguide")
-def styleguide():
-    """Living design-system gallery (component templates)."""
-    return render_template("styleguide.html", active_tool="styleguide")
-
-
-@app.get("/health")
-def health():
-    """Liveness plus a cheap look at the job queue."""
-    return jsonify({"status": "success", "max_upload_mb": config.MAX_UPLOAD_MB,
-                    "job_workers": config.JOB_WORKERS})
-
-
-# ---------------------------------------------------------------------------
 # React SPA
 #
-# The built bundle used to be unreachable: nothing served frontend/dist and the
-# Docker image never ran `npm run build`, so `docker compose up` shipped only the
-# Jinja pages. It is now mounted at /app, *alongside* them -- which UI becomes
-# canonical is a product decision, not one this route forces.
+# The single UI. The server-rendered Jinja pages that used to duplicate every
+# tool were removed: they had drifted (three tools existed only in React), and
+# maintaining two implementations of the same API client was the largest source
+# of duplication in the repo.
 # ---------------------------------------------------------------------------
 DIST = config.BASE / "frontend" / "dist"
 
-
-@app.get("/app")
-def spa_root():
-    return redirect("/app/", code=308)
+API_PREFIX = "/api"
 
 
-@app.get("/app/", defaults={"path": ""})
-@app.get("/app/<path:path>")
+@app.get("/api/health")
+def health():
+    """Liveness plus a cheap look at the job queue."""
+    return jsonify({"status": "success", "max_upload_mb": config.MAX_UPLOAD_MB,
+                    "job_workers": config.JOB_WORKERS,
+                    "spa_built": (DIST / "index.html").is_file()})
+
+
+@app.get("/", defaults={"path": ""})
+@app.get("/<path:path>")
 def spa(path):
+    """
+    Serve the built bundle, falling back to index.html for client-side routes.
+
+    Every JSON endpoint lives under /api, so a React route can never collide with
+    one -- which it did: /clustergram and /embedding were both a page and an
+    endpoint, and the endpoint won. An unmatched /api path must 404 as JSON
+    rather than fall through to index.html, or a typo in a client would look
+    like a successful request returning HTML.
+    """
+    if path == "api" or path.startswith("api/"):
+        abort(404)
     if not (DIST / "index.html").is_file():
         return jsonify({
             "status": "error",
@@ -157,11 +132,16 @@ def spa(path):
         }), 503
     if path and (DIST / path).is_file():
         return send_from_directory(DIST, path)
-    return send_from_directory(DIST, "index.html")   # client-side routing
+    # A missing file with an extension is a broken asset reference, not a
+    # client-side route: 404 it instead of quietly answering with index.html,
+    # which turns a typo'd bundle path into a confusing HTML-parse error.
+    if "." in path.rsplit("/", 1)[-1]:
+        abort(404)
+    return send_from_directory(DIST, "index.html")
 
 
 # Single shared download endpoint. send_from_directory rejects path traversal.
-@app.get("/downloads/<path:filename>")
+@app.get("/api/downloads/<path:filename>")
 def download_file(filename):
     """Download a generated result file from the downloads directory."""
     return send_from_directory(config.DOWNLOAD_DIR, filename, as_attachment=True)
@@ -189,12 +169,11 @@ def unhandled_error(exc):
 from blueprints.allvsall import allvsall_bp        # noqa: E402
 from blueprints.blast import blast_bp              # noqa: E402
 from blueprints.heatmap import heatmap_bp          # noqa: E402
+from blueprints.matrices import matrices_bp      # noqa: E402
 from blueprints.tree import tree_bp                # noqa: E402
 
-app.register_blueprint(blast_bp)
-app.register_blueprint(heatmap_bp)
-app.register_blueprint(allvsall_bp)
-app.register_blueprint(tree_bp)
+for _bp in (blast_bp, heatmap_bp, matrices_bp, allvsall_bp, tree_bp):
+    app.register_blueprint(_bp, url_prefix=API_PREFIX)
 
 
 if __name__ == "__main__":

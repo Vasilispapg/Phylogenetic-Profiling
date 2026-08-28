@@ -6,7 +6,8 @@ of all components is at **`/styleguide`** (template: `pages/styleguide.html`) �
 copy markup from there.
 
 > Stack: Flask + Jinja + vanilla HTML/CSS/JS. The whole theme lives in
-> `public/assets/css/tools.css`. Tool/doc pages `{% extends "tools.html" %}`
+> `frontend/src/theme.css`, imported once by `frontend/src/main.jsx`. Every page
+> renders inside `components/Layout.jsx`
 > (clean top navbar + footer). `index.html` is a standalone bento landing.
 > With `debug=False`, **restart the server** to see template changes.
 
@@ -56,10 +57,10 @@ All are defined in `tools.css`. Minimal example HTML for each is in `/styleguide
 - **Stepper** — `.tool-stepper` with `.tool-step` (`.done/.active`) + `.bar`.
 - **Badges** — `.aud.bio` / `.aud.cs` (audience tags in docs).
 - **Chrome** — `.site-nav` (sticky top navbar), `.site-footer` (3-col), `.site-main`
-  (centred container). These come from `tools.html`; pages only fill `{% block content %}`.
+  (centred container). These come from `components/Layout.jsx`; pages render into its `<Outlet/>`.
 
 ## 4. Layout patterns
-- **Tool page** — `{% extends "tools.html" %}`, then a
+- **Tool page** — a component under `src/pages/`, rendered by the router, with a
   `<section class="wrapper style1 fade-up"><div class="inner">…</div></section>`.
   Start with a `.tool-stepper`, an `<h1>`, one `<p>` intro, a `.dropzone`, a
   primary button, then `.tool-status` + a results area.

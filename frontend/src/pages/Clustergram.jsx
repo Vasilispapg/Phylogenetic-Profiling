@@ -3,7 +3,7 @@ import Plotly from "plotly.js-dist-min";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
 import { parseMatrix, transform, COLORSCALES, lbl } from "../lib/matrix.js";
-import { postJSON } from "../lib/api.js";
+import { API, postJSON, uploadMatrix } from "../lib/api.js";
 
 const L = { display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" };
 
@@ -18,25 +18,32 @@ export default function Clustergram() {
   const [clu, setClu] = useState(null);
   const [busy, setBusy] = useState(false);
   const [sel, setSel] = useState(null);
+  const [fileId, setFileId] = useState(null);
   const ref = useRef(null);
 
-  const onFile = (f) => {
-    setFile(f); setStatus({ kind: "info", msg: "Reading CSV…", progress: true }); setClu(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      try { const d = parseMatrix(String(reader.result)); setData(d); setFeat(d.features[0]); setSel(null); setStatus(null); }
-      catch { setStatus({ kind: "error", msg: "Could not parse the CSV." }); }
-    };
-    reader.readAsText(f);
+  // The values are parsed locally to draw the heatmap; the file is also uploaded
+  // once so the clustering call can reference it by id rather than shipping the
+  // whole matrix in a request body.
+  const onFile = async (f) => {
+    setFile(f); setStatus({ kind: "info", msg: "Reading CSV…", progress: true });
+    setClu(null); setFileId(null);
+    try {
+      const text = await f.text();
+      const d = parseMatrix(text);
+      const meta = await uploadMatrix(f);
+      setData(d); setFeat(d.features[0]); setFileId(meta.file_id); setSel(null); setStatus(null);
+    } catch (e) {
+      setStatus({ kind: "error", msg: e.message || "Could not parse the CSV." });
+    }
   };
 
   // Cluster (backend scipy: correlation distance + average linkage) per dataset/metric.
   useEffect(() => {
-    if (!data || !feat) return;
+    if (!data || !feat || !fileId) return;
     let alive = true;
     setBusy(true); setClu(null);
     setStatus({ kind: "info", msg: "Clustering rows & columns…", progress: true });
-    postJSON("/clustergram", { z: data.data[feat] })
+    postJSON(API.clustergram, { file_id: fileId, metric: feat })
       .then((r) => {
         if (!alive) return;
         if (r.status !== "success") { setStatus({ kind: "error", msg: r.message || "Clustering failed." }); setBusy(false); return; }
@@ -44,7 +51,7 @@ export default function Clustergram() {
       })
       .catch((e) => { if (!alive) return; setStatus({ kind: "error", msg: "Error: " + (e.message || "failed") }); setBusy(false); });
     return () => { alive = false; };
-  }, [data, feat]);
+  }, [data, feat, fileId]);
 
   // Render clustergram (heatmap + two dendrograms) on clustering / display changes.
   useEffect(() => {
@@ -123,7 +130,7 @@ export default function Clustergram() {
               <option value="none">None</option><option value="row">Per species (row)</option><option value="col">Per domain (col)</option>
             </select></label>
           <label style={L}><input type="checkbox" checked={log} onChange={(e) => setLog(e.target.checked)} /> Log</label>
-          <button className="btn btn-secondary" onClick={() => { setData(null); setFile(null); setClu(null); setSel(null); }}>Load another</button>
+          <button className="btn btn-secondary" onClick={() => { setData(null); setFile(null); setClu(null); setSel(null); setFileId(null); }}>Load another</button>
         </div>
 
         <div style={{ fontSize: ".82rem", color: "var(--text-2)", marginBottom: 8 }}>

@@ -5,12 +5,10 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 
 ## Entry points
 
-- **`app.py`** — Flask app (`app`). Page routes `/`, `/tools`, `/tools/blast`,
-  `/how-to`, `/faq`, `/styleguide`, `/health`; the built React SPA at `/app`;
-  single shared download endpoint `GET /downloads/<path:filename>`
-  (`send_from_directory`, traversal-safe). Owns the job process pool
-  (`app.submit_job`), the reaper timer and the JSON error handlers. WSGI callable
-  for gunicorn = `app:app`.
+- **`app.py`** — Flask app (`app`). Serves the built React SPA for every path
+  outside `/api`, registers all blueprints under `/api`, and owns the job process
+  pool (`app.submit_job`), the retention timer and the JSON error handlers.
+  WSGI callable for gunicorn = `app:app`.
 - **`config.py`** — every path and knob, all env-overridable (`EVALUE_THRESHOLD`,
   `JACCARD_THRESHOLD`, `MCL_INFLATION`, `MAX_TAXA`, `JOB_*`, directories).
   Creates the runtime directories and configures logging.
@@ -28,6 +26,8 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 
 - **`blueprints/_api.py`** — `fail()` / `ok()` (real HTTP status codes) and
   `safe_upload_name()`, the single upload validator every endpoint goes through.
+- **`blueprints/matrices.py`** — `POST /api/matrices`: store a matrix once and
+  return an id, so clustergram/embedding calls need not carry the values.
 - **`blueprints/blast.py`** (`blast_bp`) — `POST /upload` (uuid-prefixed storage),
   `POST /process` (→ `create_correlation_matrix` / `create_feature_matrix`, writes
   a uuid-prefixed file to `downloads/`), `GET /results`.
@@ -35,15 +35,14 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
   `POST /clustergram` (SciPy hierarchical clustering → leaf orders + dendrogram
   coords) and `POST /embedding` (scikit-learn PCA/t-SNE + KMeans → 2D coords +
   labels). Heatmap/clustergram/embedding pages parse CSVs client-side.
-- **`blueprints/allvsall.py`** (`allvsall_bp`) — `GET/POST /tools/allvsall`
-  (POST starts a background clustering job and returns its id),
-  `GET /allvsall_status/<job_id>` (poll `state`),
-  `GET /allvsall_data/<job_id>[?include=matrix,positions]`.
+- **`blueprints/allvsall.py`** (`allvsall_bp`) — `POST /api/allvsall`
+  (starts a background clustering job and returns its id),
+  `GET /api/allvsall/<job_id>/status` (poll `state`),
+  `GET /api/allvsall/<job_id>/data[?include=matrix,positions]`.
 - **`blueprints/tree.py`** (`tree_bp`) — tree pages + endpoints. Key pieces:
-  - `GET/POST /tools/tree_construct` — POST starts a background build (`method=nj|upgma`),
-    returns `job_id` with 202.
-  - `GET /tools/tree_status?job_id=` — `status` (legacy) plus `state`/`progress`, or 404.
-  - `POST /tools/tree_viewer` — parse uploaded Newick → D3 JSON (`convert_tree_to_d3`,
+  - `POST /api/trees` — starts a background build (`method=nj|upgma`), 202 + `job_id`.
+  - `GET /api/trees/<job_id>` — `state`/`progress` plus a legacy `status`, or 404.
+  - `POST /api/newick` — parse uploaded Newick → D3 JSON (`convert_tree_to_d3`,
     `get_max_depth`, both iterative/stack-based).
 
 ## Analysis pipeline (`analysis/`)
@@ -91,34 +90,20 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 - **`display_species_correlation.py`** — `display_heatmap_speciesxspecies`
   (species × species correlation + dendrogram; NaNs filled before linkage).
 
-## Frontend (`pages/`, `public/`)
+## React SPA (`frontend/`) — the UI
 
-- **`pages/tools.html`** — base layout + nav (uses blueprint-qualified `url_for`).
-  All tool pages `{% extends "tools.html" %}`.
-- **`pages/index.html`** — PhyloFlask landing page.
-- **`pages/help.html`** — "How to use" guide (`/how-to`).
-- **`pages/faq.html`** — FAQ + concepts + credits (`/faq`).
-- **`pages/styleguide.html`** — living design-system gallery (`/styleguide`); see `docs/DESIGN.md`.
-- **`pages/blast.html`** — drop-zone upload + process; download via `/downloads/<filename>`.
-- **`pages/tree_construct.html`** — upload correlation matrix, poll by `job_id`.
-- **`pages/tree_viewer.html`** — collapsible radial D3 tree (genus colours, search).
-- **`pages/allvsall.html`** — Cytoscape network (cluster colours, slider, layouts)
-  linked to a Plotly co-cluster heatmap.
-- **`pages/heatmap.html`** — client-side heatmap tool (order/log toggles, cell-click).
-- **`public/assets/css/tools.css`** — shared themed components, responsive rules, polish.
-- **`public/assets/js/tools.js`** — `Phylo` helpers: dropzone, upload, poll, status
-  (status text is inserted with `textContent`, never as markup).
-
-## React SPA (`frontend/`)
-
-Vite + React app consuming the same JSON API, served by Flask at **`/app`** once
-built (the Docker image builds it). The Jinja pages are still served at `/`; which
-one is canonical is an open decision. Run both dev servers with **`./dev.sh`**.
+Vite + React app consuming the JSON API, served by Flask at `/` once built (the
+Docker image builds it). Fonts and icons are bundled: no third-party requests.
+Run both dev servers with **`./dev.sh`**.
 
 - **`src/lib/matrix.js`** — shared CSV parse (PapaParse; handles JSON feature
   cells with embedded commas), ordering, per-row/col normalize + log transforms.
-- **`src/lib/api.js`** — fetch helpers; surfaces a clear error when the backend is
-  unreachable instead of a cryptic `Unexpected end of JSON input`.
+- **`src/lib/api.js`** — the `API` path table plus fetch helpers: `uploadMatrix`,
+  `postJSON`, and a `poll` with timeout, backoff and no overlapping requests.
+  Surfaces a clear error when the backend is unreachable.
+- **`src/lib/network.js`** — shared cytoscape/fcose constants and cluster colours,
+  so the two network views cannot drift apart again.
+- **`src/lib/links.js`** — external links used by more than one page.
 - **`src/pages/`** — `Landing`, `Blast`, `Heatmap` (metric selector, compare-two,
   cell inspector), **`Clustergram`** (heatmap + row/col dendrograms), **`Explorer`**
   (linked clustered heatmap ↔ domain network), **`Embedding`** (PCA/t-SNE map +

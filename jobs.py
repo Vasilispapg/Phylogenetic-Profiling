@@ -17,7 +17,7 @@ import sqlite3
 import time
 import uuid
 
-from config import DB_PATH, JOB_TTL_SECONDS, RESULT_DIR
+from config import DB_PATH, DOWNLOAD_DIR, JOB_TTL_SECONDS, RESULT_DIR, UPLOAD_DIR
 
 log = logging.getLogger(__name__)
 
@@ -134,9 +134,9 @@ def load_blob(blob_id):
 # --- housekeeping ----------------------------------------------------------
 def reap(now=None):
     """
-    Expire old jobs (deleting their blobs) and fail jobs whose worker vanished.
+    Expire old jobs and their artifacts, and fail jobs whose worker vanished.
 
-    Returns ``(expired, stranded)`` counts. Called on startup and periodically.
+    Returns ``(expired, stranded, files)``. Called on startup and periodically.
     """
     now = time.time() if now is None else now
     cutoff = now - JOB_TTL_SECONDS
@@ -154,9 +154,36 @@ def reap(now=None):
         ).rowcount
     for _, result in rows:
         _delete_blobs(result)
-    if rows or stranded:
-        log.info("job reap: %d expired, %d stranded", len(rows), stranded)
-    return len(rows), stranded
+
+    files = sweep_files(cutoff)
+    if rows or stranded or files:
+        log.info("job reap: %d expired, %d stranded, %d files removed",
+                 len(rows), stranded, files)
+    return len(rows), stranded, files
+
+
+def sweep_files(cutoff):
+    """
+    Delete uploads and generated results older than the retention window.
+
+    Nothing used to clean these: every uploaded BLAST file and every generated
+    matrix and tree stayed on disk forever, in directories that are bind-mounted
+    volumes in the compose file.
+    """
+    removed = 0
+    for directory in (UPLOAD_DIR, DOWNLOAD_DIR):
+        if not directory.is_dir():
+            continue
+        for entry in directory.iterdir():
+            if not entry.is_file() or entry.name.startswith("."):
+                continue
+            try:
+                if entry.stat().st_mtime < cutoff:
+                    entry.unlink()
+                    removed += 1
+            except OSError:            # racing with another worker's sweep
+                continue
+    return removed
 
 
 def _delete_blobs(result):

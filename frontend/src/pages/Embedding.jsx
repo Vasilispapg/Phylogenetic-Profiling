@@ -3,10 +3,11 @@ import Plotly from "plotly.js-dist-min";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
 import { parseMatrix, lbl } from "../lib/matrix.js";
-import { postJSON } from "../lib/api.js";
+import { API, postJSON, uploadMatrix } from "../lib/api.js";
+
+import { INK, clusterColor as cc } from "../lib/network.js";
 
 const L = { display: "flex", alignItems: "center", gap: 8, fontSize: ".88rem" };
-const cc = (l) => `hsl(${(l * 47) % 360},66%,55%)`;
 
 export default function Embedding() {
   const [file, setFile] = useState(null);
@@ -21,26 +22,32 @@ export default function Embedding() {
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState(null);   // active cluster filter (null = all)
   const [selIdx, setSelIdx] = useState(null); // highlighted point
+  const [fileId, setFileId] = useState(null);
   const ref = useRef(null);
 
   const names = data ? (axis === "domains" ? data.cols : data.rows) : [];
 
-  const onFile = (f) => {
-    setFile(f); setStatus({ kind: "info", msg: "Reading CSV…", progress: true }); setEmb(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      try { const d = parseMatrix(String(reader.result)); setData(d); setFeat(d.features[0]); setSelIdx(null); setGroup(null); setQuery(""); setStatus(null); }
-      catch { setStatus({ kind: "error", msg: "Could not parse the CSV." }); }
-    };
-    reader.readAsText(f);
+  // Parsed locally for the point labels; uploaded once so the projection call
+  // references it by id instead of posting every value back.
+  const onFile = async (f) => {
+    setFile(f); setStatus({ kind: "info", msg: "Reading CSV…", progress: true });
+    setEmb(null); setFileId(null);
+    try {
+      const d = parseMatrix(await f.text());
+      const meta = await uploadMatrix(f);
+      setData(d); setFeat(d.features[0]); setFileId(meta.file_id);
+      setSelIdx(null); setGroup(null); setQuery(""); setStatus(null);
+    } catch (e) {
+      setStatus({ kind: "error", msg: e.message || "Could not parse the CSV." });
+    }
   };
 
   useEffect(() => {
-    if (!data || !feat) return;
+    if (!data || !feat || !fileId) return;
     let alive = true;
     setBusy(true); setEmb(null); setSelIdx(null); setGroup(null);
     setStatus({ kind: "info", msg: `Projecting ${axis} with ${method.toUpperCase()}…`, progress: true });
-    postJSON("/embedding", { z: data.data[feat], axis, method, k })
+    postJSON(API.embedding, { file_id: fileId, metric: feat, axis, method, k })
       .then((r) => {
         if (!alive) return;
         if (r.status !== "success") { setStatus({ kind: "error", msg: r.message || "Embedding failed." }); setBusy(false); return; }
@@ -48,7 +55,7 @@ export default function Embedding() {
       })
       .catch((e) => { if (!alive) return; setStatus({ kind: "error", msg: "Error: " + (e.message || "failed") }); setBusy(false); });
     return () => { alive = false; };
-  }, [data, feat, axis, method, k]);
+  }, [data, feat, fileId, axis, method, k]);
 
   const counts = useMemo(() => {
     const c = {}; if (emb) emb.labels.forEach((l) => (c[l] = (c[l] || 0) + 1)); return c;
@@ -81,7 +88,7 @@ export default function Embedding() {
     if (selIdx != null && emb.coords[selIdx]) {
       traces.push({
         x: [emb.coords[selIdx][0]], y: [emb.coords[selIdx][1]], type: "scattergl", mode: "markers",
-        marker: { size: 20, color: "rgba(0,0,0,0)", line: { width: 3, color: "#0e1726" } },
+        marker: { size: 20, color: "rgba(0,0,0,0)", line: { width: 3, color: INK } },
         hoverinfo: "skip", showlegend: false,
       });
     }
@@ -139,7 +146,7 @@ export default function Embedding() {
             <select className="select" style={{ width: "auto" }} value={feat} onChange={(e) => setFeat(e.target.value)}>
               {data.features.map((f) => <option key={f} value={f}>{lbl(f)}</option>)}
             </select></label>}
-          <button className="btn btn-secondary" onClick={() => { setData(null); setFile(null); setEmb(null); setSelIdx(null); }}>Load another</button>
+          <button className="btn btn-secondary" onClick={() => { setData(null); setFile(null); setEmb(null); setSelIdx(null); setFileId(null); }}>Load another</button>
         </div>
 
         <div style={{ fontSize: ".82rem", color: "var(--text-2)", marginBottom: 8 }}>

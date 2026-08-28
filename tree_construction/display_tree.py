@@ -5,9 +5,11 @@ from Bio import Phylo
 import plotly.graph_objects as go
 import numpy as np
 
+from config import TREE_DISPLAY_DEPTH
+
 log = logging.getLogger(__name__)
 
-def convert_tree_to_circular_plotly(tree, max_depth=4):
+def convert_tree_to_circular_plotly(tree, max_depth=TREE_DISPLAY_DEPTH):
     """
     Convert a Bio.Phylo tree to circular Plotly-compatible data for interactive visualization.
     """
@@ -28,7 +30,7 @@ def convert_tree_to_circular_plotly(tree, max_depth=4):
     get_coordinates(tree.root, 0, 0, 0, 1, coords)
     return coords
 
-def display_tree(tree_filename="species_tree_approx.nw", max_depth=12):
+def display_tree(tree_filename="species_tree_approx.nw", max_depth=TREE_DISPLAY_DEPTH):
     # Load the tree
     tree = Phylo.read(tree_filename, "newick")
     

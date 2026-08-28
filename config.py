@@ -39,6 +39,11 @@ SPECIES_SEGMENTS = int(os.environ.get("SPECIES_SEGMENTS", "4"))
 MAX_TAXA = int(os.environ.get("MAX_TAXA", "5000"))
 # How many of the strongest edges /allvsall_data returns by default (times N).
 EDGE_BUDGET_PER_NODE = int(os.environ.get("EDGE_BUDGET_PER_NODE", "5"))
+# Default depth for every tree *display*. There used to be four different
+# defaults for the same idea (64 in the CLI, 12 and 4 in display_tree, 4 in the
+# viewer), which made "depth" mean something different in each place.
+TREE_DISPLAY_DEPTH = int(os.environ.get("TREE_DISPLAY_DEPTH", "6"))
+TREE_DISPLAY_MAX_DEPTH = int(os.environ.get("TREE_DISPLAY_MAX_DEPTH", "30"))
 
 # --- upload validation -----------------------------------------------------
 UPLOAD_KINDS = {

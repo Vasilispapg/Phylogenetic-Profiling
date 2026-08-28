@@ -5,10 +5,10 @@ import fcose from "cytoscape-fcose";
 import Dropzone from "../components/Dropzone.jsx";
 import Status from "../components/Status.jsx";
 import { parseMatrix, transform } from "../lib/matrix.js";
-import { postJSON, uploadFile, poll, getJSON } from "../lib/api.js";
+import { API, postJSON, uploadFile, uploadMatrix, poll, getJSON } from "../lib/api.js";
+import { HIGHLIGHT, INK, NODE_SIZE_COMPACT, ZOOM, clusterColor as cc, fcose as fcoseOpts } from "../lib/network.js";
 
 cytoscape.use(fcose);
-const cc = (c) => (c == null ? "#94a3b8" : `hsl(${(c * 47) % 360},66%,55%)`);
 
 export default function Explorer() {
   const [file, setFile] = useState(null);
@@ -28,17 +28,18 @@ export default function Explorer() {
     catch { return setStatus({ kind: "error", msg: "Could not parse the CSV." }); }
     try {
       setStatus({ kind: "info", msg: "Clustering rows/cols + building the domain network…", progress: true });
-      const cluP = postJSON("/clustergram", { z: d.data[d.features[0]] });
+      const cluP = uploadMatrix(file).then((meta) =>
+        postJSON(API.clustergram, { file_id: meta.file_id, metric: d.features[0] }));
       const netP = (async () => {
-        const up = await uploadFile("/tools/allvsall", file);
+        const up = await uploadFile(API.allvsall, file);
         if (up.status !== "success") throw new Error(up.message || "upload failed");
-        const fn = up.filename;
-        await poll(() => `/allvsall_status/${encodeURIComponent(fn)}`, {
+        const fn = up.job_id;
+        await poll(() => API.allvsallStatus(fn), {
           interval: 2000,
           isDone: (s) => s.state === "done",
           isFailed: (s) => s.state === "failed" || s.status === "error",
         });
-        const { body } = await getJSON(`/allvsall_data/${encodeURIComponent(fn)}`);
+        const { body } = await getJSON(API.allvsallData(fn));
         if (body.status !== "success") throw new Error(body.message || "no network");
         return body;
       })();
@@ -88,15 +89,16 @@ export default function Explorer() {
         ...edges.map((e) => ({ data: { source: e.source, target: e.target, weight: e.weight != null ? e.weight : 1 } })),
       ],
       style: [
-        { selector: "node", style: { "background-color": "data(color)", width: `mapData(deg,1,${maxDeg},8,24)`, height: `mapData(deg,1,${maxDeg},8,24)`, "border-width": 0 } },
+        { selector: "node", style: { "background-color": "data(color)", width: `mapData(deg,1,${maxDeg},${NODE_SIZE_COMPACT.min},${NODE_SIZE_COMPACT.max})`,
+            height: `mapData(deg,1,${maxDeg},${NODE_SIZE_COMPACT.min},${NODE_SIZE_COMPACT.max})`, "border-width": 0 } },
         { selector: "node.faded", style: { "background-opacity": 0.1 } },
-        { selector: "node.hl", style: { "border-width": 3, "border-color": "#0e1726" } },
+        { selector: "node.hl", style: { "border-width": 3, "border-color": INK } },
         { selector: "edge", style: { "line-color": "rgba(18,28,54,.07)", "curve-style": "haystack", width: `mapData(weight,0,1,.25,1.6)` } },
         { selector: "edge.faded", style: { "line-opacity": 0.02 } },
-        { selector: "edge.hl", style: { "line-color": "#e11d48", "line-opacity": 0.9, width: 2 } },
+        { selector: "edge.hl", style: { "line-color": HIGHLIGHT, "line-opacity": 0.9, width: 2 } },
       ],
-      layout: { name: "fcose", quality: "proof", animate: true, packComponents: true, nodeSeparation: 170, nodeRepulsion: 14000, idealEdgeLength: 75, gravity: 0.15, padding: 40 },
-      minZoom: 0.1, maxZoom: 3, wheelSensitivity: 0.3,
+      layout: fcoseOpts({ padding: 40 }),
+      ...ZOOM,
     });
     cyRef.current = cy;
     cy.on("tap", "node", (e) => setSel(e.target.id()));
@@ -123,7 +125,7 @@ export default function Explorer() {
       const idx = sel ? colNamesRef.current.indexOf(sel) : -1;
       try {
         Plotly.relayout(hmRef.current, {
-          shapes: idx >= 0 ? [{ type: "line", xref: "x", yref: "paper", x0: idx, x1: idx, y0: 0, y1: 1, line: { color: "#e11d48", width: 2 } }] : [],
+          shapes: idx >= 0 ? [{ type: "line", xref: "x", yref: "paper", x0: idx, x1: idx, y0: 0, y1: 1, line: { color: HIGHLIGHT, width: 2 } }] : [],
         });
       } catch { /* noop */ }
     }
