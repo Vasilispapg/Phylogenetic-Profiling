@@ -23,6 +23,7 @@ University of Thessaloniki. See the in-app **How to use** and **FAQ** pages.
 - [`docs/METHODS.md`](docs/METHODS.md) — scientific rationale and how to interpret results.
 - [`docs/DATA.md`](docs/DATA.md) — exact input/output formats.
 - [`docs/API.md`](docs/API.md) — HTTP endpoint request/response schemas.
+- [`docs/DEPLOY.md`](docs/DEPLOY.md) — production deploy: secrets, nginx, rate limits, rollback.
 - [`docs/CLAUDE.md`](docs/CLAUDE.md) — onboarding notes for AI agents working in this repo.
 - [`docs/DESIGN.md`](docs/DESIGN.md) — design system & component templates (live gallery at `/styleguide`).
 
@@ -36,7 +37,7 @@ These describe what the code does now, so you don't have to re-read it all.
 | Heatmap | `/heatmap` | Upload a matrix → heatmaps with a metric selector (feature matrices), compare-two, normalize/log, cell inspector, PNG |
 | Clustergram | `/clustergram` | Hierarchically-clustered heatmap with row & column dendrograms (SciPy backend) |
 | Linked explorer | `/explorer` | Clustered heatmap ↔ domain network, synchronised selection |
-| Embedding map | `/embedding` | 2D PCA / t-SNE projection of profiles, KMeans groups, searchable |
+| Embedding map | `/embedding` | 2D PCA / t-SNE projection of profiles, KMeans groups, searchable (draws without WebGL where the browser has none) |
 | All vs All | `/all-vs-all` | Upload a correlation matrix → MCL clusters: interactive network coloured by cluster |
 | Tree builder | `/tree-builder` | Upload a correlation matrix → NJ (or UPGMA) tree, async job + polling |
 | Tree viewer | `/tree-viewer` | Upload a `.nw` file → collapsible radial tree (genus colours, search) |
@@ -67,12 +68,44 @@ The server-rendered Jinja pages that used to duplicate every tool were removed:
 they had drifted (three tools existed only in React) and maintaining two clients
 for the same API was the largest source of duplication in the repo.
 
+## Safety on an open instance
+
+The deployed instance takes uploads from anyone, so the app defends itself
+instead of assuming there is a proxy in front of it:
+
+- **Uploads are validated as they stream to disk**
+  ([`analysis/upload_guard.py`](analysis/upload_guard.py)): a per-kind size
+  ceiling (64 MB for BLAST and matrices, 8 MB for Newick), a maximum line
+  length, a Newick nesting limit, and a **content sniff** — the first lines have
+  to look like the format the extension claims. A bad file never lands whole and
+  is never read into memory to be judged.
+- **Two rate-limit budgets** ([`guard.py`](guard.py)), because submitting work is
+  rare and expensive while polling a running job is frequent and cheap. A client
+  that keeps overrunning the expensive budget collects strikes, and enough
+  strikes earn a temporary ban that doubles each time. The counters live in the
+  jobs database, so the limits hold across gunicorn workers rather than being
+  four times looser than they look.
+- **A strict Content-Security-Policy** plus `nosniff`, `no-referrer` and
+  `DENY` framing. Fonts, icons and scripts are all bundled and the app loads
+  nothing from anywhere else, which makes `default-src 'self'` honest rather
+  than aspirational.
+- Uploaded content is **data, never instructions**: it only ever reaches pandas,
+  NumPy, SciPy and Bio.Phylo as something to parse.
+  [`tests/test_no_execution.py`](tests/test_no_execution.py) fails if `eval`,
+  `exec`, `pickle`, `subprocess` or a shell ever appears in the server code.
+
 ## Deploying
 
 Production runs behind nginx on a single VPS. Pushing to `main` builds the image,
 publishes it to GHCR and restarts the container over SSH — see
 [`docs/DEPLOY.md`](docs/DEPLOY.md) for the secrets to set, the nginx config
 (including the rate limits that keep an open instance sane) and how to roll back.
+
+The server runs [`docker-compose.prod.yml`](docker-compose.prod.yml), which pulls
+the published image rather than building: a smaller `MAX_UPLOAD_MB` (32 — the
+bundled 218-query BLAST file is 14 MB), `TRUSTED_PROXY=1` so the rate limiter
+sees the visitor instead of nginx, a health check, and `BIND` for the address to
+listen on — never `0.0.0.0`, since nginx should be the only way in.
 
 ## Quick start
 
@@ -81,7 +114,8 @@ publishes it to GHCR and restarts the container over SSH — see
 docker compose up --build
 # open http://localhost:8000
 ```
-Uploaded/generated files persist in `./uploads`, `./downloads`, `./cache`.
+Uploaded and generated files persist in `./uploads`, `./downloads`, `./cache`;
+the job database and result blobs in `./state`.
 
 ### Local (Python 3.13)
 ```bash
@@ -132,7 +166,7 @@ SubjectStart, SubjectEnd, EValue, BitScore`.
 
 ## Configuration (env vars)
 
-All of these are read in [`config.py`](config.py).
+Read in [`config.py`](config.py), except where a row says otherwise.
 
 | Var | Default | Meaning |
 |-----|---------|---------|
@@ -143,26 +177,37 @@ All of these are read in [`config.py`](config.py).
 | `JOB_WORKERS` | `2` | Concurrent background jobs |
 | `JOB_BACKEND` | `process` | `process` (off the GIL) or `thread` (escape hatch) |
 | `JOB_TTL_SECONDS` | `86400` | How long finished jobs and their results are kept |
+| `REAP_INTERVAL_SECONDS` | `3600` | How often expired jobs, blobs and client counters are swept |
 | `EVALUE_THRESHOLD` | `1e-5` | A BLAST hit counts as present at or below this |
+| `SPECIES_SEGMENTS` | `4` | Leading dash-segments of a `SubjectID` that name a species |
 | `JACCARD_THRESHOLD` | `0.5` | Minimum similarity for a domain–domain edge |
 | `MCL_INFLATION` | `2.0` | MCL granularity |
 | `MAX_TAXA` | `5000` | Refuse NJ above this many species (use `upgma` instead) |
 | `EDGE_BUDGET_PER_NODE` | `5` | Strongest edges per node returned by the all-vs-all data endpoint |
 | `TREE_DISPLAY_DEPTH` | `6` | Default depth for every tree display |
-| `UPLOAD_DIR` / `DOWNLOAD_DIR` / `CACHE_DIR` / `RESULT_DIR` / `DB_PATH` | under the repo | Runtime paths |
-| `DASH_DEBUG` | off | Debug mode for standalone Dash apps |
+| `TREE_DISPLAY_MAX_DEPTH` | `30` | Deepest a client may ask for |
+| `RATE_LIMIT_ENABLED` | `1` (on) | In-app rate limiting (nginx also limits at the edge) |
+| `RATE_HEAVY_PER_MIN` | `20` | Uploads and job submissions per client per minute |
+| `RATE_API_PER_MIN` | `240` | Polling and result reads per client per minute |
+| `BAN_AFTER_STRIKES` | `5` | Overruns of the heavy budget before a ban |
+| `BAN_SECONDS` / `BAN_SECONDS_MAX` | `900` / `86400` | First ban length; it doubles up to the cap |
+| `TRUSTED_PROXY` | `0` (off) | Believe `X-Forwarded-For` — only true behind nginx |
+| `UPLOAD_DIR` / `DOWNLOAD_DIR` / `CACHE_DIR` / `RESULT_DIR` / `OUTPUT_DIR` / `DB_PATH` | under the repo | Runtime paths |
+| `DASH_DEBUG` | off | Debug mode for the CLI-only Dash app (read in `visualization/dash_allvsall.py`) |
 
 ## Testing
 
 ```bash
 pip install pytest
-pytest -q                      # 97 tests
-npm run test --prefix frontend # 6 tests
+pytest -q                      # 163 tests
+npm run test --prefix frontend # 12 tests
 ```
 Covers species-key extraction, the E-value cutoff, matrix building, Jaccard
 distance, **equivalence of the fast Neighbour-Joining to Bio.Phylo**
 (Robinson-Foulds 0), the job store, domain clustering + validation, every HTTP
-endpoint including both async jobs end to end, and the SPA's CSV parser.
+endpoint including both async jobs end to end, upload validation and sniffing,
+the rate limiter and its bans, the "uploads are never executed" check over all
+server code, and the SPA's CSV parser and theme.
 CI runs all of it plus a Docker build: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## Performance
@@ -175,17 +220,28 @@ CSV, and repeated clusterings and projections are served from a cache.
 ## Project layout
 
 ```
-app.py                  Flask app: SPA mount, /api registration, errors, job pool
-config.py               Paths and every tunable knob (all env-overridable)
-jobs.py                 SQLite job store (state, progress, result blobs, retention)
-workers.py              Background job entry points (run in a separate process)
-main.py                 CLI entry point
-blueprints/*.py         JSON API (blast, matrices, heatmap, allvsall, tree)
-analysis/               BLAST parsing, matrices, matrix I/O, MCL + validation
-tree_construction/      Distance matrix + fast NJ/UPGMA (nj.py)
-visualization/          Plotly heatmaps + the CLI-only Dash explorer
-frontend/               React SPA — the UI (served at / once built)
-data/                   Sample inputs (species lists + BLAST file)
-tests/                  pytest suite
-Dockerfile, docker-compose.yml
+app.py                Flask app: SPA mount, /api registration, limits, job pool
+config.py             Paths and every tunable knob (all env-overridable)
+jobs.py               SQLite job store (state, progress, result blobs, retention)
+guard.py              Per-client rate limiting and banning (same database)
+workers.py            Background job entry points (run in a separate process)
+main.py               CLI entry point
+dev.sh                Start the Flask API and the Vite dev server together
+requirements.txt      Python deps (the SPA's are in frontend/package.json)
+blueprints/           JSON API — _api, blast, matrices, heatmap, allvsall, tree
+analysis/             BLAST parsing, matrices, matrix I/O, MCL, upload_guard
+tree_construction/    construct_tree, nj.py (fast NJ/UPGMA), display_tree (CLI)
+visualization/        Plotly heatmaps + the CLI-only Dash explorer
+frontend/             React SPA — src/{pages,components,lib}, built to dist/
+data/                 Sample inputs: two species lists + the BLAST file
+docs/                 The documents listed at the top
+tests/                pytest suite (conftest redirects every runtime path)
+uploads/ downloads/   Runtime, gitignored: what came in, what was generated
+cache/ output/        Runtime, gitignored: memoised results, CLI outputs
+jobs.sqlite results/  Runtime, gitignored: job store and gzipped result blobs
+state/                Where those two live in Docker (mounted; see compose)
+Dockerfile            Multi-stage: builds the SPA, then the app
+docker-compose.yml    Local run; docker-compose.prod.yml is the deployed one
+.github/workflows/    ci.yml — pytest, vitest, SPA build, Docker build
+FIXES.md              The audit fixes: where each lands, cost, payoff (Greek)
 ```
