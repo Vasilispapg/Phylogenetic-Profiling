@@ -225,7 +225,7 @@ Read in [`config.py`](config.py), except where a row says otherwise.
 
 ```bash
 pip install pytest
-pytest -q                      # 163 tests
+pytest -q                      # 211 tests
 npm run test --prefix frontend # 12 tests
 ```
 Covers species-key extraction, the E-value cutoff, matrix building, Jaccard
