@@ -1,0 +1,43 @@
+name: Method or interpretation question
+description: Ask what an output means, or how a method is defined here
+labels: ["question", "methods"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions about what a result *means* are welcome — they usually reveal
+        that a document or a tooltip is unclear, which is a bug in the docs.
+
+        Two answers up front, because they are the most common questions:
+        the bundled dataset genuinely has **no strong cluster structure**
+        (modularity ≈ 0, one dominant cluster) — the validation report flags it,
+        and it is the data rather than a fault; and a hit counts as **present**
+        only at `EValue <= 1e-5`, which is why a domain you expect can be absent.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: >-
+        Which tool, which output, and what you are unsure about. Paste the
+        numbers or the validation report if they are part of the question.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: What data are you running it on?
+      description: >-
+        How many species and domains, where the BLAST file came from, and any
+        non-default settings (`EVALUE_THRESHOLD`, `JACCARD_THRESHOLD`,
+        `MCL_INFLATION`, …).
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Already read
+      options:
+        - label: The in-app **How to use** and **FAQ** pages
+        - label: "[`docs/METHODS.md`](https://github.com/Vasilispapg/PhyloFlask/blob/main/docs/METHODS.md) — the rationale and the limits"
+        - label: "[`docs/DATA.md`](https://github.com/Vasilispapg/PhyloFlask/blob/main/docs/DATA.md) — the exact input/output formats"

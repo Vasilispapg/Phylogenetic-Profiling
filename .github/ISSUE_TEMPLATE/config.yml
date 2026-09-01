@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Vasilispapg/PhyloFlask/security/advisories/new
+    about: Never in a public issue — report privately, see SECURITY.md.
+  - name: Method, format and API documentation
+    url: https://github.com/Vasilispapg/PhyloFlask/blob/main/docs/INDEX.md
+    about: A file-by-file map of the codebase, the methods, the data formats and the API.
+  - name: How to contribute
+    url: https://github.com/Vasilispapg/PhyloFlask/blob/main/CONTRIBUTING.md
+    about: Setup, the tests that must pass, and the rules that are enforced in CI.

@@ -1,0 +1,80 @@
+name: Feature request
+description: Suggest a tool, an option or a change to how something works
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Anything that changes a method, an input/output format or an API response
+        is best discussed here before it is written — those changes move
+        published results, so the reasoning should live somewhere citable.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do that you cannot do now?
+      description: >-
+        Describe the analysis, not the implementation. What question about your
+        data are you unable to answer with the current tools?
+      placeholder: >-
+        I have profiles for ~4000 species and want the tree, but NJ refuses above
+        MAX_TAXA and UPGMA loses the resolution I need.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like it to do?
+      description: If you have a specific method, option or UI in mind, describe it.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of PhyloFlask?
+      options:
+        - A tool page in the web app
+        - Matrix building / BLAST parsing
+        - Tree construction (NJ / UPGMA)
+        - Clustering (MCL) or cluster validation
+        - Visualisation (heatmap, network, embedding, clustergram)
+        - The CLI
+        - The API
+        - Docs
+        - New tool page
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: Method reference or prior art
+      description: >-
+        A DOI, a paper or another tool that does this. For anything methodological
+        this matters more than the rest of the form — see
+        [`docs/METHODS.md`](https://github.com/Vasilispapg/PhyloFlask/blob/main/docs/METHODS.md) for how the current
+        methods are justified.
+
+  - type: dropdown
+    id: breaking
+    attributes:
+      label: Would this change existing results or formats?
+      options:
+        - "No — additive only"
+        - "Yes — different numbers out of an existing tool"
+        - "Yes — a changed file format or API response"
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: help
+    attributes:
+      label: Are you offering to implement it?
+      options:
+        - "No"
+        - "Maybe, with guidance"
+        - "Yes — I will open a pull request"

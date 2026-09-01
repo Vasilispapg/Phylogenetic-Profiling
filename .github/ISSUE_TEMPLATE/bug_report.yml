@@ -1,0 +1,119 @@
+name: Bug report
+description: Something in a tool page, the API or the CLI does not work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most reports come down to an input that is not quite the documented
+        format — a BLAST file that is not `-outfmt 6`, or a matrix whose first
+        column is not the index. [`docs/DATA.md`](https://github.com/Vasilispapg/PhyloFlask/blob/main/docs/DATA.md)
+        pins both formats down, and every drop zone offers **load an example
+        file** so you can compare against something known to work.
+
+        **Never attach unpublished or sensitive sequence data.** A few
+        anonymised lines that reproduce the problem are enough.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+      placeholder: |
+        Uploaded a correlation matrix to the tree builder. The job reached 60%
+        and then failed with "…". I expected a Newick file.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - BLAST Analysis (/blast)
+        - Heatmap (/heatmap)
+        - Clustergram (/clustergram)
+        - Linked explorer (/explorer)
+        - Embedding map (/embedding)
+        - All vs All (/all-vs-all)
+        - Tree builder (/tree-builder)
+        - Tree viewer (/tree-viewer)
+        - The CLI (main.py)
+        - The API (/api/...)
+        - Docs, install or deployment
+        - Somewhere else / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        Numbered steps, including which file you used. If you can reproduce it
+        with a bundled example file or the data in `data/`, say which — that
+        makes it reproducible for us immediately.
+      placeholder: |
+        1. Open /tree-builder
+        2. Load the example correlation matrix
+        3. Choose UPGMA, submit
+        4. Job fails after ~10 s
+    validations:
+      required: true
+
+  - type: textarea
+    id: input
+    attributes:
+      label: The input, if a file is involved
+      description: >-
+        A few lines, the number of rows and columns, and how the file was
+        produced. Paste as text rather than a screenshot.
+      render: text
+
+  - type: textarea
+    id: errors
+    attributes:
+      label: Error output
+      description: >-
+        The server log or traceback, and the browser console if the problem is
+        in a tool page (⌥⌘I / F12 → Console).
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Commit SHA (`git rev-parse --short HEAD`), image tag, or "the public instance".
+      placeholder: b59b96d
+    validations:
+      required: true
+
+  - type: dropdown
+    id: how-run
+    attributes:
+      label: How are you running it?
+      options:
+        - The public instance
+        - Docker (docker compose up)
+        - Local Python (python app.py / dev.sh)
+        - CLI only (python main.py)
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: OS, Python and browser
+      placeholder: "macOS 15, Python 3.13, Chrome 131"
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the [FAQ](https://phyloflask.vspapg.gr/faq) and [`docs/DATA.md`](https://github.com/Vasilispapg/PhyloFlask/blob/main/docs/DATA.md) for the input format
+          required: true
+        - label: This is not a security vulnerability (those go through [`SECURITY.md`](https://github.com/Vasilispapg/PhyloFlask/blob/main/SECURITY.md), privately)
+          required: true
+        - label: The data I am attaching is safe to publish
+          required: true
