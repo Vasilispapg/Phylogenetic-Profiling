@@ -153,7 +153,9 @@ export default function Clustergram() {
           {busy ? " · clustering…" : clu ? " · clustered · click a cell to inspect" : ""}
         </div>
 
-        {busy && <Status s={status} />}
+        {/* Not gated on `busy`: a failure clears busy, which used to take
+            the error message off screen with it and leave a blank panel. */}
+        <Status s={status} />
         <div ref={ref} style={{ width: "100%", minHeight: 200, background: "var(--void)", border: "1px solid var(--rule)", borderRadius: 5 }} />
 
         {sel && <div className="card card-pad" style={{ marginTop: 12 }}>

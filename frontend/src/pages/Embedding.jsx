@@ -173,9 +173,12 @@ export default function Embedding() {
           <strong>{npoints}</strong> {axis} projected{emb ? ` · ${emb.n_clusters} groups` : ""}{busy ? " · computing…" : ""}
           {selIdx != null && names[selIdx] && <> · selected <strong style={{ wordBreak: "break-all" }}>{names[selIdx]}</strong> (cluster {emb.labels[selIdx]})</>}
           {emb && scatterIsSlow(emb.coords.length) && <> · drawing without WebGL, which is slower at this size</>}
+          {emb && emb.note && <> · {emb.note}</>}
         </div>
 
-        {busy && <Status s={status} />}
+        {/* Not gated on `busy`: a failure clears busy, which used to take
+            the error message off screen with it and leave a blank panel. */}
+        <Status s={status} />
 
         <div className="explorer-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 12 }}>
           <div ref={ref} style={{ width: "100%", minHeight: 200, background: "var(--void)", border: "1px solid var(--rule)", borderRadius: 5 }} />

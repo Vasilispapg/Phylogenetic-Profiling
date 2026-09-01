@@ -353,3 +353,57 @@ def test_missing_asset_404s_instead_of_returning_html(client):
     """A broken asset reference must not come back as index.html with a 200."""
     assert client.get("/assets/does-not-exist.js").status_code in (404, 503)
     assert client.get("/favicon.ico").status_code in (404, 503)
+
+
+# --------------------------------------------------------------------------- #
+# t-SNE at small point counts
+#
+# scikit-learn requires perplexity < n_samples, and the old formula had a floor
+# of 5, so every projection of five points or fewer failed — the exact size of a
+# small domain set. The client showed an empty panel because the error was
+# rendered only while the request was still in flight.
+# --------------------------------------------------------------------------- #
+def _matrix_csv(rows, cols):
+    header = "Species," + ",".join(f"D{j}" for j in range(cols))
+    body = "".join(f"s{i}," + ",".join(str((i * 3 + j) % 5) for j in range(cols)) + "\n"
+                   for i in range(rows))
+    return (header + "\n" + body).encode()
+
+
+# t-SNE is slow, so this covers the sizes that matter rather than a grid: the
+# smallest allowed, the size that was reported broken, and a normal one.
+@pytest.mark.parametrize("rows, cols, axis, expected", [
+    (3, 3, "species", 3),      # MIN_POINTS, the boundary
+    (8, 5, "domains", 5),      # the reported failure
+    (14, 6, "species", 14),    # a size where t-SNE is actually meaningful
+])
+def test_tsne_works_at_every_allowed_size(client, rows, cols, axis, expected):
+    file_id = upload(client, "/api/matrices", _matrix_csv(rows, cols), "m.csv").get_json()["file_id"]
+    resp = client.post("/api/embedding",
+                       json={"file_id": file_id, "axis": axis, "method": "tsne", "k": 3})
+    assert resp.status_code == 200, resp.get_json()
+    body = resp.get_json()
+    assert len(body["coords"]) == expected
+    assert all(len(point) == 2 for point in body["coords"])
+
+
+def test_tsne_says_when_there_are_too_few_points_to_mean_anything(client):
+    file_id = upload(client, "/api/matrices", _matrix_csv(5, 5), "m.csv").get_json()["file_id"]
+    small = client.post("/api/embedding", json={"file_id": file_id, "axis": "domains",
+                                                "method": "tsne"}).get_json()
+    assert "note" in small and "PCA" in small["note"]
+
+
+def test_tsne_is_quiet_when_there_are_enough_points(client):
+    file_id = upload(client, "/api/matrices", _matrix_csv(14, 6), "m.csv").get_json()["file_id"]
+    big = client.post("/api/embedding", json={"file_id": file_id, "axis": "species",
+                                              "method": "tsne"}).get_json()
+    assert "note" not in big
+
+
+def test_pca_is_unaffected_at_small_sizes(client):
+    file_id = upload(client, "/api/matrices", _matrix_csv(3, 3), "m.csv").get_json()["file_id"]
+    resp = client.post("/api/embedding", json={"file_id": file_id, "axis": "domains",
+                                               "method": "pca"})
+    assert resp.status_code == 200
+    assert "note" not in resp.get_json()
