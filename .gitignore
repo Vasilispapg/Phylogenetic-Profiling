@@ -42,11 +42,11 @@ cache/
 downloads/
 uploads/
 
-# Locally-installed design skills / agent tooling (npx skills, impeccable).
-# Kept out of the project repo; the hooks still run locally.
+# Local editor and tooling directories. Not part of the project; they stay on
+# the machine that created them.
 .agents/
 .codex/
-.claude/skills/
+.claude/
 skills-lock.json
 .impeccable/
 
