@@ -1,0 +1,63 @@
+cff-version: 1.2.0
+message: "If you use PhyloFlask in your research, please cite it as below."
+title: "PhyloFlask: a software framework for large-scale phylogenetic profile visualization"
+abstract: >-
+  PhyloFlask turns a BLAST tabular file into species x domain presence/absence
+  matrices and, from them, an interactive Neighbour-Joining species tree
+  (Jaccard distance between domain profiles), Markov-Clustering domain clusters
+  with a clustering-quality validation report, heatmaps, a clustergram, a linked
+  heatmap-network explorer and a 2D PCA/t-SNE embedding of domain co-occurrence.
+  It ships as a Flask web application and a parallel command-line interface that
+  call the same functions on the same inputs.
+type: software
+license: MIT
+repository-code: "https://github.com/Vasilispapg/PhyloFlask"
+url: "https://github.com/Vasilispapg/PhyloFlask"
+authors:
+  - family-names: Michailidis
+    given-names: A.
+    affiliation: "Biological Computation and Computational Biology (BCCB) Group, Aristotle University of Thessaloniki, Greece"
+  - family-names: Papagrigoriou
+    given-names: "Vasileios S."
+    affiliation: "Biological Computation and Computational Biology (BCCB) Group, Aristotle University of Thessaloniki, Greece"
+  - family-names: Ouzounis
+    given-names: "C. A."
+    affiliation: "Biological Computation and Computational Biology (BCCB) Group, Aristotle University of Thessaloniki, Greece"
+keywords:
+  - phylogenetic profiling
+  - protein domains
+  - comparative genomics
+  - Markov clustering
+  - neighbour joining
+  - bioinformatics visualization
+references:
+  - type: conference-paper
+    title: "PhyloFlask: a software framework for large-scale phylogenetic profile visualization"
+    url: "https://f1000research-files.f1000.com/posters/compressed/f1000research-728675.pdf"
+    notes: "Poster, F1000Research, p. 104."
+    authors:
+      - family-names: Michailidis
+        given-names: A.
+      - family-names: Papagrigoriou
+        given-names: "Vasileios S."
+      - family-names: Ouzounis
+        given-names: "C. A."
+  - type: article
+    title: "A computational analysis of whole-genome expression data reveals chromosomal domains of gene expression"
+    doi: "10.1038/79896"
+    journal: "Nature Genetics"
+    volume: 26
+    issue: 2
+    start: 183
+    end: 186
+    year: 2000
+    notes: "Method reference cited in the PhyloFlask FAQ."
+    authors:
+      - family-names: Cohen
+        given-names: "B. A."
+      - family-names: Mitra
+        given-names: "R. D."
+      - family-names: Hughes
+        given-names: "J. D."
+      - family-names: Church
+        given-names: "G. M."
