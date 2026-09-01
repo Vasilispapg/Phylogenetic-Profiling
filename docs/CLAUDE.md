@@ -23,8 +23,11 @@ browser heatmaps and an all-vs-all graph.
   alone starts only the frontend and its API calls fail — start the backend too.
 - **Run web (prod):** `gunicorn --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:8000 app:app`
 - **Docker:** `docker compose up --build` → http://localhost:8000
-- **Tests:** `pytest -q` (28 tests)
-- **CLI:** `python main.py --analyze | --construct_tree | --validate_clusters | ...`
+- **Tests:** `pytest -q` (211 tests)
+- **CLI:** `python main.py --analyze | --construct_tree | --embed | --validate_clusters | ...`
+  Every command takes `-i/--input` (and `-o/--output` where it writes) plus its
+  own knobs — `--evalue`, `--metric`, `--threshold`/`--inflation`,
+  `--method`/`--axis`/`-k`; `python main.py <command> --help` lists them.
 
 ## Must-know conventions & gotchas
 - **gunicorn must run with 1 worker.** Job state (`_jobs`, `precomputed_results`)

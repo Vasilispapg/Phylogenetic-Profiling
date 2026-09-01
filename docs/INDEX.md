@@ -18,11 +18,13 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
 - **`workers.py`** — `run_tree_job` / `run_allvsall_job`. These run in a separate
   process, so they import no Flask.
 - **`main.py`** — CLI dispatcher. `COMMANDS` dict maps `--analyze`,
-  `--construct_tree`, `--display_tree`, `--all_vs_all`, `--validate_clusters`,
-  `--display_*` to a runner plus its argparse options; every command takes
-  `-i/--input` and, where it writes, `-o/--output`. `BLAST_FILE_PATH`,
-  `CORRELATION_MATRIX_PATH`, `FEATURE_MATRIX_PATH` and `TREE_FILE_PATH` are the
-  defaults for those options, not fixed paths.
+  `--construct_tree`, `--display_tree`, `--embed`, `--all_vs_all`,
+  `--validate_clusters`, `--display_*` to a runner plus its argparse options;
+  every command takes `-i/--input` and, where it writes, `-o/--output`, plus its
+  own knobs (`--evalue`, `--metric`, `--threshold`/`--inflation`,
+  `--method`/`--axis`/`-k`). `BLAST_FILE_PATH`, `CORRELATION_MATRIX_PATH`,
+  `FEATURE_MATRIX_PATH`, `TREE_FILE_PATH` and `EMBEDDING_PATH` are the defaults
+  for those options, not fixed paths.
 
 ## Flask blueprints (`blueprints/*.py` — these are Python, not HTML)
 
@@ -36,8 +38,9 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
   a uuid-prefixed file to `downloads/`), `GET /results`.
 - **`blueprints/heatmap.py`** (`heatmap_bp`) — `GET /tools/heatmap` (page) plus
   `POST /clustergram` (SciPy hierarchical clustering → leaf orders + dendrogram
-  coords) and `POST /embedding` (scikit-learn PCA/t-SNE + KMeans → 2D coords +
-  labels). Heatmap/clustergram/embedding pages parse CSVs client-side.
+  coords) and `POST /embedding` (delegates to `analysis/embedding.py`, so the
+  web and the CLI project identically; the blueprint keeps request parsing,
+  validation and the content-addressed cache).
 - **`blueprints/allvsall.py`** (`allvsall_bp`) — `POST /api/allvsall`
   (starts a background clustering job and returns its id),
   `GET /api/allvsall/<job_id>/status` (poll `state`),
@@ -72,13 +75,19 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
     tuple used by the CLI.
   - `validate_clusters(graph, clusters, nodes)` → metrics dict (n_clusters,
     modularity, same_protein_cocluster_rate, warning).
+- **`embedding.py`** — `embed(matrix, axis, method, k)` → `{coords, labels,
+  n_clusters}` (+ `note` when t-SNE has too few points to mean anything). PCA,
+  t-SNE and KMeans are all seeded, so the same matrix always gives the same
+  picture. Shared by `POST /api/embedding` and the CLI's `--embed`;
+  `METHODS`, `AXES`, `MIN_POINTS`, `TSNE_MEANINGFUL` live here.
 
 ## Tree construction (`tree_construction/`)
 
 - **`nj.py`** — `nj_newick` (Neighbour-Joining vectorised with numpy; 158× faster
   than Bio.Phylo with an identical topology, asserted in `tests/test_nj.py`),
   `upgma_newick` (explicit O(n²) alternative), `check_size` (the `MAX_TAXA` guard).
-- **`construct_tree.py`** —
+- **`construct_tree.py`** — `PROFILE_METRICS` is the accepted set of
+  presence/absence distances (jaccard by default; CLI `--metric`).
   - `load_profile_matrix(path)` — presence/absence profile (drops empty rows,
     aggregates duplicate species).
   - `compute_square_distances(path, metric="jaccard")` → (species, square array).
@@ -96,6 +105,9 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
   `json.loads`, never `eval`).
 - **`display_species_correlation.py`** — `display_heatmap_speciesxspecies`
   (species × species correlation + dendrogram; NaNs filled before linkage).
+- **`display_embedding.py`** — `display_embedding(result, names, axis, method)`,
+  the scatter behind `--embed --show` (one trace per cluster, so the legend
+  isolates).
 
 ## React SPA (`frontend/`) — the UI
 
@@ -134,6 +146,9 @@ Run both dev servers with **`./dev.sh`**.
 
 - **`tests/test_pipeline.py`** — species keys, the E-value cutoff, matrices, true
   positives, Jaccard distances, both tree methods.
+- **`tests/test_cli.py`** — the CLI's argument surface: `-i`/`-o` routing,
+  per-command options, the README's positional invocations, `--embed` output,
+  and the failure modes (missing input, unknown command/method/projection).
 - **`tests/test_nj.py`** — equivalence of the fast NJ to Bio.Phylo (Robinson-Foulds 0),
   Newick quoting, the `MAX_TAXA` guard.
 - **`tests/test_jobs.py`** — job store transitions, blobs, TTL reaping, stranded jobs.

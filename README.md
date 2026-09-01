@@ -145,22 +145,33 @@ ones that write a file take `-o/--output`. The defaults are the bundled dataset
 and `output/`, so the bare commands below still do what they always did, and
 they are absolute — a command behaves the same from any working directory.
 
-| Command | Action |
-|---------|--------|
-| `--analyze [-i BLAST] [-o DIR]` | Build `correlation_matrix.csv` and `feature_matrix.csv` (default: the bundled BLAST file → `output/`) |
-| `--construct_tree [nj\|upgma] [-i MATRIX] [-o NEWICK]` | Build a tree from a correlation matrix (default → `output/species_tree_approx.nw`) |
-| `--display_tree [depth] [-i NEWICK]` | Open an interactive circular tree (Plotly) |
-| `--all_vs_all [-i MATRIX]` | Domain MCL clustering + Dash app (port 8051) |
-| `--validate_clusters [-i MATRIX]` | Print a clustering-quality report (clusters, modularity, same-protein co-clustering) |
-| `--display_cor` / `--display_cor_features` / `--display_heatmap_spxsp` `[-i MATRIX]` | Various heatmaps |
+| Command | Action | Its own options |
+|---------|--------|-----------------|
+| `--analyze` | Build `correlation_matrix.csv` and `feature_matrix.csv` (default: the bundled BLAST file → `output/`) | `--evalue E\|none`, `--using-pi` |
+| `--construct_tree [nj\|upgma]` | Build a tree from a correlation matrix (default → `output/species_tree_approx.nw`) | `--metric jaccard\|dice\|hamming\|…` |
+| `--embed` | Project profiles into 2D and write the coordinates as JSON | `--method pca\|tsne`, `--axis domains\|species`, `-k N`, `--feature NAME`, `--show` |
+| `--all_vs_all` | Domain MCL clustering + Dash app (port 8051) | `--threshold J`, `--inflation I` |
+| `--validate_clusters` | Print a clustering-quality report (clusters, modularity, same-protein co-clustering) | `--threshold J`, `--inflation I` |
+| `--display_tree [depth]` | Open an interactive circular tree (Plotly) | |
+| `--display_cor` / `--display_cor_features` / `--display_heatmap_spxsp` | Various heatmaps | |
+
+The knobs that used to be environment-variable-only are flags now, so a sweep is
+a loop rather than an `export`: `--evalue`, `--metric`, `--threshold`,
+`--inflation`. Each still defaults to what [`config.py`](config.py) says.
 
 A run on your own data, start to finish:
 
 ```bash
-python main.py --analyze -i data/mine.blastp -o runs/mine
+python main.py --analyze -i data/mine.blastp -o runs/mine --evalue 1e-10
 python main.py --construct_tree -i runs/mine/correlation_matrix.csv -o runs/mine/tree.nw
-python main.py --validate_clusters -i runs/mine/correlation_matrix.csv
+python main.py --validate_clusters -i runs/mine/correlation_matrix.csv --inflation 2.5
+python main.py --embed -i runs/mine/correlation_matrix.csv -o runs/mine/embedding.json \
+               --method tsne --show
 ```
+
+`--embed` writes `{names, coords, labels, n_clusters, method, axis, k}` — the
+same projection the Embedding map serves, as JSON you can script against;
+`--show` opens the Plotly scatter as well.
 
 The CLI and the web API call the same functions on the same inputs, so their
 outputs are byte-identical; the web wraps them in uploads, a job store and a
@@ -194,10 +205,10 @@ Read in [`config.py`](config.py), except where a row says otherwise.
 | `JOB_BACKEND` | `process` | `process` (off the GIL) or `thread` (escape hatch) |
 | `JOB_TTL_SECONDS` | `86400` | How long finished jobs and their results are kept |
 | `REAP_INTERVAL_SECONDS` | `3600` | How often expired jobs, blobs and client counters are swept |
-| `EVALUE_THRESHOLD` | `1e-5` | A BLAST hit counts as present at or below this |
+| `EVALUE_THRESHOLD` | `1e-5` | A BLAST hit counts as present at or below this (CLI: `--evalue`) |
 | `SPECIES_SEGMENTS` | `4` | Leading dash-segments of a `SubjectID` that name a species |
-| `JACCARD_THRESHOLD` | `0.5` | Minimum similarity for a domain–domain edge |
-| `MCL_INFLATION` | `2.0` | MCL granularity |
+| `JACCARD_THRESHOLD` | `0.5` | Minimum similarity for a domain–domain edge (CLI: `--threshold`) |
+| `MCL_INFLATION` | `2.0` | MCL granularity (CLI: `--inflation`) |
 | `MAX_TAXA` | `5000` | Refuse NJ above this many species (use `upgma` instead) |
 | `EDGE_BUDGET_PER_NODE` | `5` | Strongest edges per node returned by the all-vs-all data endpoint |
 | `TREE_DISPLAY_DEPTH` | `6` | Default depth for every tree display |
@@ -245,9 +256,9 @@ main.py               CLI entry point
 dev.sh                Start the Flask API and the Vite dev server together
 requirements.txt      Python deps (the SPA's are in frontend/package.json)
 blueprints/           JSON API — _api, blast, matrices, heatmap, allvsall, tree
-analysis/             BLAST parsing, matrices, matrix I/O, MCL, upload_guard
+analysis/             BLAST parsing, matrices, matrix I/O, MCL, embedding, upload_guard
 tree_construction/    construct_tree, nj.py (fast NJ/UPGMA), display_tree (CLI)
-visualization/        Plotly heatmaps + the CLI-only Dash explorer
+visualization/        Plotly heatmaps and embedding plot + the CLI-only Dash explorer
 frontend/             React SPA — src/{pages,components,lib}, built to dist/
 data/                 Sample inputs: two species lists + the BLAST file
 docs/                 The documents listed at the top
