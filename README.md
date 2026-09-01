@@ -270,5 +270,22 @@ state/                Where those two live in Docker (mounted; see compose)
 Dockerfile            Multi-stage: builds the SPA, then the app
 docker-compose.yml    Local run; docker-compose.prod.yml is the deployed one
 .github/workflows/    ci.yml — pytest, vitest, SPA build, Docker build
+.github/ISSUE_TEMPLATE/  Issue forms; PULL_REQUEST_TEMPLATE.md sits beside them
 FIXES.md              The audit fixes: where each lands, cost, payoff (Greek)
 ```
+
+## Licence, citation and contributing
+
+**MIT Licence** — see [`LICENSE`](LICENSE). Copyright is held by the Aristotle
+University of Thessaloniki, where the work was done.
+
+If PhyloFlask supports a publication, cite it with [`CITATION.cff`](CITATION.cff)
+("Cite this repository" in the GitHub sidebar generates BibTeX and APA).
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, the tests CI insists on, and the
+  rules that are enforced rather than suggested (no execution of uploaded
+  content, no third-party requests from the browser, one species key, one
+  presence rule).
+- [`SECURITY.md`](SECURITY.md) — report a vulnerability privately, never in an
+  issue; what is in and out of scope for an instance that takes public uploads.
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — Contributor Covenant 2.1.
