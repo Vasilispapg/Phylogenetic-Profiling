@@ -19,8 +19,10 @@ repo root. For architecture & data flow see [`CODE_ANALYSIS.md`](CODE_ANALYSIS.m
   process, so they import no Flask.
 - **`main.py`** — CLI dispatcher. `COMMANDS` dict maps `--analyze`,
   `--construct_tree`, `--display_tree`, `--all_vs_all`, `--validate_clusters`,
-  `--display_*` to functions. Constants: `BLAST_FILE_PATH`, `CORRELATION_MATRIX_PATH`,
-  `FEATURE_MATRIX_PATH`.
+  `--display_*` to a runner plus its argparse options; every command takes
+  `-i/--input` and, where it writes, `-o/--output`. `BLAST_FILE_PATH`,
+  `CORRELATION_MATRIX_PATH`, `FEATURE_MATRIX_PATH` and `TREE_FILE_PATH` are the
+  defaults for those options, not fixed paths.
 
 ## Flask blueprints (`blueprints/*.py` — these are Python, not HTML)
 

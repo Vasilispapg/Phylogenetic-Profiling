@@ -136,19 +136,35 @@ multiple gunicorn workers are fine. See [`docs/CODE_ANALYSIS.md`](docs/CODE_ANAL
 ## CLI
 
 ```bash
-python main.py <command>
+python main.py <command> [-i INPUT] [-o OUTPUT]
+python main.py <command> --help          # the options for one command
 ```
+
+Paths are arguments, not constants: every command takes `-i/--input`, and the
+ones that write a file take `-o/--output`. The defaults are the bundled dataset
+and `output/`, so the bare commands below still do what they always did, and
+they are absolute — a command behaves the same from any working directory.
 
 | Command | Action |
 |---------|--------|
-| `--analyze` | Build `output/correlation_matrix.csv` and `output/feature_matrix.csv` from the bundled BLAST file |
-| `--construct_tree [nj\|upgma]` | Build a tree from the correlation matrix → `output/species_tree_approx.nw` |
-| `--display_tree [depth]` | Open an interactive circular tree (Plotly) |
-| `--all_vs_all` | Domain MCL clustering + Dash app (port 8051) |
-| `--validate_clusters` | Print a clustering-quality report (clusters, modularity, same-protein co-clustering) |
-| `--display_cor` / `--display_cor_features` / `--display_heatmap_spxsp` | Various heatmaps |
+| `--analyze [-i BLAST] [-o DIR]` | Build `correlation_matrix.csv` and `feature_matrix.csv` (default: the bundled BLAST file → `output/`) |
+| `--construct_tree [nj\|upgma] [-i MATRIX] [-o NEWICK]` | Build a tree from a correlation matrix (default → `output/species_tree_approx.nw`) |
+| `--display_tree [depth] [-i NEWICK]` | Open an interactive circular tree (Plotly) |
+| `--all_vs_all [-i MATRIX]` | Domain MCL clustering + Dash app (port 8051) |
+| `--validate_clusters [-i MATRIX]` | Print a clustering-quality report (clusters, modularity, same-protein co-clustering) |
+| `--display_cor` / `--display_cor_features` / `--display_heatmap_spxsp` `[-i MATRIX]` | Various heatmaps |
 
-Typical pipeline: `--analyze` → `--construct_tree` / `--validate_clusters`.
+A run on your own data, start to finish:
+
+```bash
+python main.py --analyze -i data/mine.blastp -o runs/mine
+python main.py --construct_tree -i runs/mine/correlation_matrix.csv -o runs/mine/tree.nw
+python main.py --validate_clusters -i runs/mine/correlation_matrix.csv
+```
+
+The CLI and the web API call the same functions on the same inputs, so their
+outputs are byte-identical; the web wraps them in uploads, a job store and a
+worker process, and the CLI runs them inline.
 
 ## Input data format
 
