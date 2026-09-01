@@ -7,16 +7,13 @@ import logging
 from flask import Blueprint, request
 
 from analysis import matrix_io
+from analysis.embedding import AXES, METHODS, MIN_POINTS, embed
 from blueprints._api import fail, gzipped_bytes, ok
 from blueprints.matrices import resolve
 from config import CACHE_DIR
 
 heatmap_bp = Blueprint("heatmap", __name__)
 log = logging.getLogger(__name__)
-
-MIN_POINTS = 3   # fewer than this and clustering/embedding are meaningless
-# Below this, t-SNE still runs but its layout carries no information.
-TSNE_MEANINGFUL = 10
 
 # Both endpoints are deterministic (t-SNE and KMeans are seeded), and the UI
 # re-requests them on every metric / axis / method / k change. Caching on the
@@ -123,18 +120,17 @@ def clustergram():
 @heatmap_bp.post("/embedding")
 def embedding():
     """Project domains (columns) or species (rows) into 2D by their co-occurrence
-    profile (PCA or t-SNE) and colour by a KMeans clustering of the profiles."""
-    import numpy as np
-    from sklearn.cluster import KMeans
-    from sklearn.decomposition import PCA
-    from sklearn.manifold import TSNE
-    from sklearn.preprocessing import StandardScaler
+    profile (PCA or t-SNE) and colour by a KMeans clustering of the profiles.
 
+    The projection itself is analysis/embedding.py, which the CLI calls too, so
+    both surfaces produce the same picture from the same matrix."""
     payload = request.get_json(silent=True) or {}
     axis = payload.get("axis", "domains")
     method = payload.get("method", "pca")
-    if method not in ("pca", "tsne"):
+    if method not in METHODS:
         return fail("Method must be 'pca' or 'tsne'.", 400)
+    if axis not in AXES:
+        return fail("Axis must be 'domains' or 'species'.", 400)
     try:
         k = int(payload.get("k", 8))
     except (TypeError, ValueError):
@@ -144,37 +140,10 @@ def embedding():
         m, err = _matrix(payload)
         if err:
             return None, err
-
-        x = m.T if axis == "domains" else m       # points = rows of x
-        n = x.shape[0]
-        if n < MIN_POINTS:
-            return None, fail(f"Need at least {MIN_POINTS} points to embed, got {n}.", 400)
-
-        xs = StandardScaler().fit_transform(x)
-        xs = np.nan_to_num(xs, nan=0.0, posinf=0.0, neginf=0.0)
-
         try:
-            if method == "tsne":
-                # scikit-learn requires perplexity < n_samples. The old floor
-                # of 5 broke every projection of 5 points or fewer, which is
-                # exactly the size of a small domain set.
-                perplexity = min(30.0, max(1.0, (n - 1) / 3.0), n - 1)
-                coords = TSNE(n_components=2, init="pca", perplexity=perplexity,
-                              learning_rate="auto", random_state=42).fit_transform(xs)
-            else:
-                coords = PCA(n_components=2).fit_transform(xs)
-            labels = KMeans(n_clusters=max(2, min(k, n - 1)), n_init=10,
-                            random_state=42).fit_predict(xs)
+            return embed(m, axis=axis, method=method, k=k), None
         except ValueError as exc:
             return None, fail(str(exc), 400)
-
-        result = {"coords": coords.tolist(), "labels": [int(v) for v in labels],
-                  "n_clusters": int(max(labels) + 1)}
-        if method == "tsne" and n < TSNE_MEANINGFUL:
-            # It runs, but say so: at this size the layout is arbitrary.
-            result["note"] = (f"t-SNE on {n} points says little about structure — "
-                              f"PCA is the more honest read here.")
-        return result, None
 
     return _cached("embedding", {**_fingerprint(payload), "axis": axis,
                                  "method": method, "k": k}, compute)
