@@ -67,6 +67,19 @@ same keys.
 Newick; leaf names are species keys (quoted if they contain Newick punctuation);
 branch lengths are NJ distances in Jaccard units.
 
+### Embedding — `output/embedding.json` (CLI) / `POST /api/embedding` (web)
+Written by `python main.py --embed`. One point per domain (or species), in the
+order of `names`:
+```json
+{"axis": "domains", "method": "pca", "k": 8,
+ "names": ["NP_001005920.3-Cupin_8__coords_52--261", "..."],
+ "coords": [[0.59, -1.73], "..."], "labels": [5, "..."], "n_clusters": 8}
+```
+`labels` is the KMeans grouping used for colour. The web endpoint returns the
+same `coords`/`labels`/`n_clusters` without `names`, since the client already
+holds the matrix. A `note` field appears when t-SNE ran on too few points to mean
+anything.
+
 ### All-vs-all (web JSON, not a file)
 `GET /api/allvsall/<job_id>/data` returns domain nodes with their cluster id and
 degree, the strongest Jaccard-weighted edges (plus `edges_total`), and a
@@ -74,7 +87,8 @@ validation `metrics` object. The co-cluster matrix and 2-D positions are
 `?include=`-only. See [`API.md`](API.md).
 
 ## Where files live
-- `output/` — CLI outputs. `downloads/` — web outputs. `uploads/` — uploads.
+- `output/` — CLI outputs (matrices, tree, `embedding.json`). `downloads/` — web
+  outputs. `uploads/` — uploads.
   `cache/` — content-addressed clustering cache. `results/` — gzipped job result
   blobs. `jobs.sqlite` — the job store. All gitignored. `data/` — sample inputs
   (tracked). Every path is overridable via env vars (see `config.py`).

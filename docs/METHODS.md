@@ -45,9 +45,12 @@ this is not a partition — it's a continuous ordering you read by eye.
 
 ## 2D embedding (PCA / t-SNE)
 Each domain (or species) is a point in profile space; the embedding projects it to
-2D so points with similar co-occurrence land close together (`POST /embedding`,
-scikit-learn). **PCA** is linear, fast and deterministic — distances and axes are
-interpretable. **t-SNE** (van der Maaten & Hinton, 2008) is non-linear and
+2D so points with similar co-occurrence land close together (`POST /embedding`
+or `python main.py --embed`, scikit-learn — both run the same code). **PCA** is
+linear, fast and deterministic — distances and axes are interpretable. (It is
+deterministic *as run here*: at these shapes scikit-learn uses a randomized SVD
+solver, so the fit is seeded; otherwise the same matrix would give a different
+map each time.) **t-SNE** (van der Maaten & Hinton, 2008) is non-linear and
 separates tight clusters more sharply, but only *local* distances are meaningful
 (gaps between far-apart blobs are not). Points are coloured by a **KMeans** grouping
 of the standardized profiles. Treat this as an exploratory map that suggests

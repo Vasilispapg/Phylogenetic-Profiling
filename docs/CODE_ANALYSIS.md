@@ -17,7 +17,12 @@ File map is in [`INDEX.md`](INDEX.md).
   env-overridable. Paths are absolute, so behaviour does not depend on the
   working directory gunicorn was started from.
 - **CLI** (`main.py`) exposes the same analysis pipeline headlessly and exits
-  non-zero on failure.
+  non-zero on failure. One argparse parser per command: inputs and outputs are
+  `-i`/`-o` arguments (defaulting to the bundled dataset and `output/`), and each
+  command carries its own knobs -- `--evalue`, `--metric`, `--threshold`,
+  `--inflation`, `--method`/`--axis`/`-k` -- so nothing needs an environment
+  variable or a code edit. Every command has a web counterpart, including
+  `--embed`, which writes the same projection `POST /api/embedding` serves.
 - **Analysis core** (`analysis/`) is UI-agnostic and shared by web + CLI, and
   imports no UI framework.
 - Heavy work (tree building, clustering) runs in a **separate process**
@@ -180,7 +185,7 @@ optimisation could change a result.
 | Feature matrix read (1 metric) | 0.19 s parse | **0.09 s** | Vectorised regex extraction, with the `json.loads` reference as a fallback the moment a cell does not fit. |
 | Feature matrix to the browser | 25.5 MB CSV, parsed cell by cell in JS | **0.87 MB** gzipped (all metrics), **0.06 MB** (one) | `GET /api/matrices/<id>/plane` returns numbers; pandas parses the file once, server-side. |
 | all-vs-all payload | 2.18 MB | **6 KB** gzipped | Strongest edges only, no stored co-cluster matrix, no spring layout, and the compressed blob is streamed verbatim. |
-| Repeat clustergram / embedding | full recompute | **~0 s** | Content-addressed cache; both endpoints are deterministic. |
+| Repeat clustergram / embedding | full recompute | **~0 s** | Content-addressed cache; both endpoints are deterministic (every estimator seeded, PCA included). |
 | First job after a restart | +0.97 s | ~0 s | The process pool imports `markov_clustering` in its initialiser rather than inside the first job. |
 
 What was measured and left alone: `domain_jaccard` (one matmul), MCL itself

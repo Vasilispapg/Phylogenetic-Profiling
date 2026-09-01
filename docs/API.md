@@ -169,8 +169,10 @@ Both maths endpoints below accept **either** `{"file_id": "...", "metric": "..."
 (preferred: the values never travel in a request body) **or** `{"z": [[...]]}` for
 small ad-hoc matrices. They refuse matrices above `MAX_CELLS` (20M) with a 413.
 
-Both are deterministic (t-SNE and KMeans are seeded), so results are cached on
-their inputs under `cache/`. Re-requesting the same clustering or projection --
+Both are deterministic -- PCA, t-SNE and KMeans are all seeded -- so results are
+cached on their inputs under `cache/`. (PCA needs the seed: at these shapes
+scikit-learn picks the randomized SVD solver, so an unseeded fit moves the points
+between cache misses.) Re-requesting the same clustering or projection --
 which the UI does on every metric, axis, method or k change -- is a file read.
 
 ### `POST /api/clustergram`
@@ -199,7 +201,13 @@ and groups points with **KMeans**:
 ```json
 {"status": "success", "coords": [[1.2, -0.4], "..."], "labels": [0, 3, "..."], "n_clusters": 8}
 ```
-`axis="domains"` embeds columns, `"species"` embeds rows. Needs ≥ 3 points.
+`axis="domains"` embeds columns, `"species"` embeds rows. Needs ≥ 3 points; an
+unknown `method` or `axis` is a 400, as is a matrix with too few points. Below 10
+points t-SNE also returns a `note` saying the layout means nothing at that size.
+
+The projection itself is [`../analysis/embedding.py`](../analysis/embedding.py),
+which the CLI's `--embed` calls too, so `python main.py --embed` and this endpoint
+return the same coordinates for the same matrix.
 
 ## Configuration
 Every knob lives in [`../config.py`](../config.py) and is env-overridable. See the
