@@ -8,6 +8,14 @@ from tree_construction.nj import build_newick, check_size
 
 log = logging.getLogger(__name__)
 
+# Distances between binary presence/absence profiles. Jaccard is the default
+# because it ignores joint absences: two domains missing from the same 400
+# species say far less about relatedness than two present in the same 40. The
+# others are offered for comparison, and validated here so an unknown name fails
+# with the list rather than as a scipy error three frames down.
+PROFILE_METRICS = ("jaccard", "dice", "hamming", "rogerstanimoto", "russellrao",
+                   "sokalsneath")
+
 
 def load_profile_matrix(profile_matrix_path):
     """
@@ -57,6 +65,10 @@ def compute_square_distances(profile_matrix_path, metric="jaccard"):
     :func:`compute_distance_matrix`, which materialises the same data as a Python
     list-of-lists (n^2/2 float objects -- gigabytes once n reaches a few thousand).
     """
+    if metric not in PROFILE_METRICS:
+        raise ValueError(
+            f"Unknown metric {metric!r}; expected one of {list(PROFILE_METRICS)}."
+        )
     species, profiles = load_profile_matrix(profile_matrix_path)
 
     if len(species) < 2:

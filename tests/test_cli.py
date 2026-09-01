@@ -11,6 +11,7 @@ What those functions *compute* is tests/test_pipeline.py's job, so here they are
 replaced with recorders -- these tests stay fast and touch no data.
 """
 import argparse
+import json
 from pathlib import Path
 
 import pytest
@@ -191,3 +192,140 @@ def test_no_arguments_is_an_error_but_help_is_not(capsys):
     main.main(["--help"])                               # returns, does not exit
     out = capsys.readouterr().out
     assert all(name in out for name in main.COMMANDS)
+
+
+# --------------------------------------------------------------------------- #
+# per-tool options: the knobs that used to need an env var or a code edit
+# --------------------------------------------------------------------------- #
+def test_analyze_passes_the_science_knobs_to_both_matrices(calls, tmp_path):
+    blast = _file(tmp_path, "mine.blastp")
+
+    main.main(["--analyze", "-i", str(blast), "-o", str(tmp_path / "out"),
+               "--evalue", "1e-10", "--using-pi"])
+
+    assert calls["create_correlation_matrix"][1] == {"using_pi": True, "evalue_threshold": 1e-10}
+    # The feature matrix gets the same cutoff, or the two stop agreeing on
+    # what "present" means -- the whole reason the filter lives in one place.
+    assert calls["create_feature_matrix"][1] == {"evalue_threshold": 1e-10}
+
+
+def test_evalue_none_keeps_every_hit(calls, tmp_path):
+    main.main(["--analyze", "-i", str(_file(tmp_path, "b.blastp")),
+               "-o", str(tmp_path / "out"), "--evalue", "none"])
+    assert calls["create_correlation_matrix"][1]["evalue_threshold"] is None
+
+
+def test_construct_tree_takes_a_profile_metric(calls, tmp_path):
+    main.main(["--construct_tree", "-i", str(_file(tmp_path, "c.csv")), "--metric", "dice"])
+    assert calls["compute_square_distances"][1] == {"metric": "dice"}
+
+
+def test_an_unknown_profile_metric_is_rejected(calls, tmp_path):
+    with pytest.raises(SystemExit) as exit_info:
+        main.main(["--construct_tree", "-i", str(_file(tmp_path, "c.csv")),
+                   "--metric", "euclidean"])
+    assert exit_info.value.code == 2
+    assert "compute_square_distances" not in calls
+
+
+@pytest.mark.parametrize("command, recorded", [
+    ("--all_vs_all", "cluster_domains"),
+    ("--validate_clusters", "cluster_payload"),
+])
+def test_clustering_commands_take_threshold_and_inflation(calls, tmp_path, command, recorded):
+    main.main([command, "-i", str(_file(tmp_path, "c.csv")),
+               "--threshold", "0.6", "--inflation", "2.5"])
+    kwargs = calls[recorded][1]
+    assert kwargs["threshold"] == 0.6
+    assert kwargs["inflation"] == 2.5
+
+
+def test_clustering_defaults_come_from_config(calls, tmp_path):
+    from analysis.clustering_analysis import DEFAULT_INFLATION, DEFAULT_THRESHOLD
+
+    main.main(["--validate_clusters", "-i", str(_file(tmp_path, "c.csv"))])
+    assert calls["cluster_payload"][1] == {"threshold": DEFAULT_THRESHOLD,
+                                           "inflation": DEFAULT_INFLATION}
+
+
+# --------------------------------------------------------------------------- #
+# --embed: JSON out, plot optional
+# --------------------------------------------------------------------------- #
+MATRIX_CSV = ",D1,D2,D3,D4\nS1,1,0,1,0\nS2,1,0,1,0\nS3,0,1,0,1\n"
+
+
+@pytest.fixture
+def matrix(tmp_path):
+    path = tmp_path / "correlation_matrix.csv"
+    path.write_text(MATRIX_CSV)
+    return path
+
+
+def test_embed_writes_the_coordinates_as_json(matrix, tmp_path, capsys):
+    out = tmp_path / "embeddings" / "domains.json"
+
+    main.main(["--embed", "-i", str(matrix), "-o", str(out), "-k", "2"])
+
+    result = json.loads(out.read_text())
+    assert result["names"] == ["D1", "D2", "D3", "D4"]      # a point per column
+    assert len(result["coords"]) == len(result["labels"]) == 4
+    assert all(len(xy) == 2 for xy in result["coords"])
+    assert (result["method"], result["axis"], result["k"]) == ("pca", "domains", 2)
+    assert "projected with PCA" in capsys.readouterr().out
+
+
+def test_embed_projects_species_when_asked(matrix, tmp_path):
+    out = tmp_path / "species.json"
+    main.main(["--embed", "-i", str(matrix), "-o", str(out), "--axis", "species", "-k", "2"])
+    assert json.loads(out.read_text())["names"] == ["S1", "S2", "S3"]
+
+
+def test_embed_is_reproducible(matrix, tmp_path):
+    """
+    Same matrix, same picture.
+
+    scikit-learn picks the randomized SVD solver at these shapes, so an unseeded
+    PCA moves the points on every run -- which would put the CLI and the web's
+    cached answer at odds.
+    """
+    first, second = tmp_path / "a.json", tmp_path / "b.json"
+    for out in (first, second):
+        main.main(["--embed", "-i", str(matrix), "-o", str(out)])
+    assert json.loads(first.read_text()) == json.loads(second.read_text())
+
+
+def test_embed_only_plots_when_asked(matrix, tmp_path, monkeypatch):
+    import visualization.display_embedding as plotting
+    shown = []
+    monkeypatch.setattr(plotting, "display_embedding",
+                        lambda *args, **kwargs: shown.append(kwargs))
+
+    main.main(["--embed", "-i", str(matrix), "-o", str(tmp_path / "a.json")])
+    assert shown == []
+
+    main.main(["--embed", "-i", str(matrix), "-o", str(tmp_path / "b.json"),
+               "--method", "tsne", "--show"])
+    assert shown == [{"axis": "domains", "method": "tsne"}]
+
+
+def test_embed_selects_a_feature_plane(matrix, tmp_path, monkeypatch):
+    """A feature matrix holds several metrics per cell; --feature picks one."""
+    from analysis import matrix_io
+    seen = {}
+    real_plane = matrix_io.plane
+
+    def recording_plane(path, metric=None):
+        seen["metric"] = metric
+        return real_plane(path, metric)
+
+    monkeypatch.setattr(matrix_io, "plane", recording_plane)
+
+    main.main(["--embed", "-i", str(matrix), "-o", str(tmp_path / "a.json"),
+               "--feature", "mean_bitscore"])
+    assert seen["metric"] == "mean_bitscore"
+
+
+def test_an_unknown_projection_is_rejected(matrix, tmp_path):
+    with pytest.raises(SystemExit) as exit_info:
+        main.main(["--embed", "-i", str(matrix), "--method", "umap"])
+    assert exit_info.value.code == 2
