@@ -49,6 +49,39 @@ export const plotLayout = (extra = {}) => ({
 
 export const PLOT_CONFIG = { responsive: true, displaylogo: false, displayModeBar: "hover" };
 
+// Plotly's scattergl trace needs WebGL, and WebGL is not always there: a VM, a
+// machine with hardware acceleration switched off, or a locked-down browser
+// leaves it unavailable and Plotly draws a grey "WebGL is not supported" panel
+// where the figure should be. Detected once, then cached.
+let webglSupport = null;
+
+export function supportsWebGL() {
+  if (webglSupport !== null) return webglSupport;
+  try {
+    const canvas = document.createElement("canvas");
+    webglSupport = Boolean(
+      canvas.getContext("webgl2") || canvas.getContext("webgl") ||
+      canvas.getContext("experimental-webgl")
+    );
+  } catch {
+    webglSupport = false;
+  }
+  return webglSupport;
+}
+
+// Below this, SVG is the better choice regardless: it is crisper, it exports
+// properly, and it needs nothing special from the machine. WebGL only earns its
+// place once there are enough points that SVG would crawl.
+export const GL_POINT_THRESHOLD = 3000;
+
+/** The scatter trace to use for `count` points on this machine. */
+export const scatterType = (count) =>
+  count >= GL_POINT_THRESHOLD && supportsWebGL() ? "scattergl" : "scatter";
+
+/** True when we are drawing many points the slow way because WebGL is missing. */
+export const scatterIsSlow = (count) =>
+  count >= GL_POINT_THRESHOLD && !supportsWebGL();
+
 /** Distinct hues for cluster ids, kept away from the signal yellow. */
 export const clusterColor = (c, { muted = C.dim } = {}) =>
   c == null ? muted : `hsl(${(c * 47 + 160) % 360},58%,62%)`;

@@ -5,7 +5,7 @@ import Status from "../components/Status.jsx";
 import { lbl } from "../lib/matrix.js";
 import { API, loadMatrix, postJSON } from "../lib/api.js";
 
-import { C, PLOT_CONFIG, plotLayout, clusterColor as cc } from "../lib/theme.js";
+import { C, PLOT_CONFIG, plotLayout, clusterColor as cc, scatterIsSlow, scatterType } from "../lib/theme.js";
 import Tips from "../components/Tips.jsx";
 import { sampleFile, samplePreview } from "../lib/samples.js";
 
@@ -81,16 +81,19 @@ export default function Embedding() {
     if (!data || !emb || !ref.current) return;
     const groups = {};
     emb.labels.forEach((l, i) => { (groups[l] = groups[l] || []).push(i); });
+    // One trace type for the whole figure: mixing scatter and scattergl layers
+    // them inconsistently.
+    const trace = scatterType(emb.coords.length);
     const traces = Object.entries(groups).map(([l, idxs]) => ({
       x: idxs.map((i) => emb.coords[i][0]), y: idxs.map((i) => emb.coords[i][1]),
       text: idxs.map((i) => names[i]), customdata: idxs,
-      name: `cluster ${l} (${counts[l] || 0})`, type: "scattergl", mode: "markers",
+      name: `cluster ${l} (${counts[l] || 0})`, type: trace, mode: "markers",
       marker: { size: 7, color: cc(+l), opacity: group == null || +l === group ? 0.92 : 0.07, line: { width: 0.5, color: "rgba(13,11,26,.8)" } },
       hovertemplate: `%{text}<extra>cluster ${l}</extra>`,
     }));
     if (selIdx != null && emb.coords[selIdx]) {
       traces.push({
-        x: [emb.coords[selIdx][0]], y: [emb.coords[selIdx][1]], type: "scattergl", mode: "markers",
+        x: [emb.coords[selIdx][0]], y: [emb.coords[selIdx][1]], type: trace, mode: "markers",
         marker: { size: 20, color: "rgba(0,0,0,0)", line: { width: 2, color: C.signal } },
         hoverinfo: "skip", showlegend: false,
       });
@@ -169,6 +172,7 @@ export default function Embedding() {
         <div style={{ fontSize: ".82rem", color: "var(--dim)", marginBottom: 8 }}>
           <strong>{npoints}</strong> {axis} projected{emb ? ` · ${emb.n_clusters} groups` : ""}{busy ? " · computing…" : ""}
           {selIdx != null && names[selIdx] && <> · selected <strong style={{ wordBreak: "break-all" }}>{names[selIdx]}</strong> (cluster {emb.labels[selIdx]})</>}
+          {emb && scatterIsSlow(emb.coords.length) && <> · drawing without WebGL, which is slower at this size</>}
         </div>
 
         {busy && <Status s={status} />}
